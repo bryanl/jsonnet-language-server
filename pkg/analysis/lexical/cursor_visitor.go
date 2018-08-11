@@ -14,8 +14,8 @@ import (
 // CursorVisitor finds a node whose range some cursor lies in, or the
 // closest node to it.
 type CursorVisitor struct {
-	SourceVisitor *SourceVisitor
-	Location      ast.Location
+	NodeVisitor *NodeVisitor
+	Location    ast.Location
 
 	enclosingNode            *Locatable
 	terminalNode             *Locatable
@@ -28,25 +28,25 @@ func NewCursorVisitor(filename string, r io.Reader, loc ast.Location) (*CursorVi
 		Location: loc,
 	}
 
-	v, err := NewSourceVisitor(filename, r, cv.previsit)
+	v, err := NewNodeVisitor(filename, r, cv.previsit)
 	if err != nil {
 		return nil, err
 	}
 
-	cv.SourceVisitor = v
+	cv.NodeVisitor = v
 	cv.terminalNode = &Locatable{Token: v.Node, Loc: *v.Node.Loc()}
 
 	return cv, nil
 }
 
 func (cv *CursorVisitor) Visit() error {
-	return cv.SourceVisitor.Visit()
+	return cv.NodeVisitor.Visit()
 }
 
 func (this *CursorVisitor) TokenAtPosition() (*Locatable, error) {
-	logrus.Info("finding token")
+	logrus.Debugf("finding token in a %T", this.enclosingNode.Token)
 	if this.enclosingNode == nil {
-		if beforeRange(this.Location, *this.SourceVisitor.Node.Loc()) {
+		if beforeRange(this.Location, *this.NodeVisitor.Node.Loc()) {
 			return nil, errors.Errorf("before doc start")
 		} else if afterRange(this.Location, this.terminalNode.Loc) {
 			return nil, errors.Errorf("after doc end")
@@ -65,10 +65,12 @@ func (this *CursorVisitor) TokenAtPosition() (*Locatable, error) {
 }
 
 // nolint: gocyclo
-func (cv *CursorVisitor) previsit(token, parent interface{}, env Env) error {
+func (cv *CursorVisitor) previsit(token interface{}, parent *Locatable, env Env) error {
 	var r ast.LocationRange
 	var err error
 	switch t := token.(type) {
+	case RequiredParameter:
+		r = ast.LocationRange{}
 	case ast.DesugaredObjectField:
 		r, err = cv.desugaredObjectFieldRange(t, parent)
 	case ast.Identifier:
@@ -81,7 +83,7 @@ func (cv *CursorVisitor) previsit(token, parent interface{}, env Env) error {
 	case ast.LocalBind:
 		r, err = cv.localBindRange(t, parent)
 	case ast.Node:
-		r = cv.nodeRange(t)
+		r, err = cv.nodeRange(t, parent)
 	default:
 		return errors.Errorf("can't find range for %T", t)
 	}
@@ -92,10 +94,15 @@ func (cv *CursorVisitor) previsit(token, parent interface{}, env Env) error {
 
 	nodeEnd := r.End
 
-	l := &Locatable{Token: token, Loc: r}
+	l := &Locatable{Token: token, Loc: r, Parent: parent}
 
 	if inRange(cv.Location, r) {
-		if cv.enclosingNode == nil || isRangeSmaller(cv.enclosingNode.Loc, r) {
+		if cv.enclosingNode == nil {
+			cv.enclosingNode = l
+		} else if isRangeSmaller(cv.enclosingNode.Loc, r) {
+			logrus.Debugf("setting token %T as enclosing node because %s is smaller than %s (%T)",
+				l.Token, r.String(), cv.enclosingNode.Loc.String(), cv.enclosingNode.Token)
+
 			cv.enclosingNode = l
 		}
 	}
@@ -108,23 +115,25 @@ func (cv *CursorVisitor) previsit(token, parent interface{}, env Env) error {
 		if cv.terminalNodeOnCursorLine == nil {
 			cv.terminalNodeOnCursorLine = nil
 		} else if afterRangeOrEqual(nodeEnd, cv.terminalNodeOnCursorLine.Loc) {
-			cv.terminalNodeOnCursorLine = nil
+			cv.terminalNodeOnCursorLine = &Locatable{
+				Token: token,
+				Loc:   r,
+			}
 		}
 	}
 
 	return nil
 }
 
-func (cv *CursorVisitor) desugaredObjectFieldRange(f ast.DesugaredObjectField, parent interface{}) (ast.LocationRange, error) {
-	node, ok := parent.(ast.Node)
-	if !ok {
-		return ast.LocationRange{}, errors.Errorf("expected parent to be an object")
+func (cv *CursorVisitor) desugaredObjectFieldRange(f ast.DesugaredObjectField, parent *Locatable) (ast.LocationRange, error) {
+	if parent == nil {
+		return ast.LocationRange{}, errors.New("field has not parent")
 	}
 
-	start := node.Loc().Begin.Line
-	end := node.Loc().End.Line
+	start := parent.Loc.Begin.Line
+	end := parent.Loc.End.Line
 
-	rangeText, err := ExtractLines(cv.SourceVisitor.Source, start, end)
+	rangeText, err := ExtractLines(cv.NodeVisitor.Source, start, end)
 	if err != nil {
 		return ast.LocationRange{}, err
 	}
@@ -153,12 +162,15 @@ func (cv *CursorVisitor) identifierRange(id ast.Identifier, parent interface{}) 
 	return ast.LocationRange{}, nil
 }
 
-func (cv *CursorVisitor) nodeRange(node ast.Node) ast.LocationRange {
-	return *node.Loc()
+func (cv *CursorVisitor) nodeRange(node ast.Node, parent *Locatable) (ast.LocationRange, error) {
+	if node.Loc() == nil {
+		return ast.LocationRange{}, errors.New("node range is nil")
+	}
+	return *node.Loc(), nil
 }
 
 func (cv *CursorVisitor) localBindRange(lb ast.LocalBind, parent interface{}) (ast.LocationRange, error) {
-	data, err := ExtractUntil(cv.SourceVisitor.Source, lb.Body.Loc().Begin)
+	data, err := ExtractUntil(cv.NodeVisitor.Source, lb.Body.Loc().Begin)
 	if err != nil {
 		return ast.LocationRange{}, err
 	}

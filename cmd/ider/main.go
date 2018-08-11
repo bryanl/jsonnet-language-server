@@ -2,6 +2,8 @@ package main
 
 import (
 	"flag"
+	"fmt"
+	"io/ioutil"
 	"log"
 	"os"
 
@@ -53,7 +55,9 @@ func run(req request) error {
 		return err
 	}
 
-	spew.Dump(locatable)
+	fmt.Printf("found %T\n", locatable.Token)
+
+	spew.Fdump(ioutil.Discard, locatable)
 
 	return nil
 }

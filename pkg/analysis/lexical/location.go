@@ -1,12 +1,18 @@
 package lexical
 
 import (
+	"fmt"
+	"regexp"
+	"strings"
+
 	"github.com/google/go-jsonnet/ast"
+	"github.com/pkg/errors"
 )
 
 type Locatable struct {
-	Token interface{}
-	Loc   ast.LocationRange
+	Token  interface{}
+	Loc    ast.LocationRange
+	Parent *Locatable
 }
 
 func inRange(l ast.Location, lr ast.LocationRange) bool {
@@ -55,4 +61,44 @@ func afterRange(l ast.Location, lr ast.LocationRange) bool {
 	}
 
 	return false
+}
+
+func localBindRange(source []byte, lb ast.LocalBind, parent interface{}) (ast.LocationRange, error) {
+	data, err := ExtractUntil(source, lb.Body.Loc().Begin)
+	if err != nil {
+		return ast.LocationRange{}, err
+	}
+
+	re, err := regexp.Compile(fmt.Sprintf(`(?m)\s+%s\s*=\s*\z`, string(lb.Variable)))
+	if err != nil {
+		return ast.LocationRange{}, err
+	}
+
+	if string(lb.Variable) == "$" {
+		return *lb.Body.Loc(), nil
+	}
+
+	match := re.FindSubmatch(data)
+	if len(match) != 1 {
+		return ast.LocationRange{}, errors.New("unable to find assignment in local bind")
+	}
+
+	addrStartIndex := strings.LastIndex(string(data), string(lb.Variable)) + 1
+	addrEndIndex := addrStartIndex + len(string(lb.Variable))
+
+	begin, err := FindLocation(data, addrStartIndex)
+	if err != nil {
+		return ast.LocationRange{}, err
+	}
+	end, err := FindLocation(data, addrEndIndex)
+	if err != nil {
+		return ast.LocationRange{}, err
+	}
+
+	r := ast.LocationRange{
+		Begin: begin,
+		End:   end,
+	}
+
+	return r, nil
 }

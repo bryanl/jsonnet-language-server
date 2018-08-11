@@ -1,5 +1,5 @@
 package lexical
 
-func isIdentifier(i interface{}) bool {
+func isIdentifier(l *Locatable) bool {
 	return true
 }
