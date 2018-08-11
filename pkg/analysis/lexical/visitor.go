@@ -39,6 +39,7 @@ type NodeVisitor struct {
 	*DollarVisitor
 	*ErrorVisitor
 	*FunctionVisitor
+	*IdentifierVisitor
 	*ImportVisitor
 	*ImportStrVisitor
 	*IndexVisitor
@@ -89,6 +90,15 @@ func (v *NodeVisitor) visit(token, parent interface{}, env Env) error {
 	}
 
 	switch t := token.(type) {
+	case ast.DesugaredObjectField:
+		return v.handleDesugaredObjectField(t, env)
+	case *ast.Identifier:
+		if t == nil {
+			return nil
+		}
+		return v.handleIdentifier(*t, env)
+	case ast.Identifier:
+		return v.handleIdentifier(t, env)
 	case ast.LocalBind:
 		return v.handleLocalBind(t, env)
 	default:
@@ -154,11 +164,9 @@ func (v *NodeVisitor) handleNode(node ast.Node, env Env) error {
 	default:
 		return errors.Errorf("unable to handle node type %T", t)
 	}
-
-	return nil
 }
 
-func (v *NodeVisitor) visitList(list []ast.Node, parent ast.Node, env Env) error {
+func (v *NodeVisitor) visitList(list []interface{}, parent interface{}, env Env) error {
 	for _, node := range list {
 		if err := v.visit(node, parent, env); err != nil {
 			return errors.Wrapf(err, "visiting %T", node)
@@ -200,8 +208,10 @@ func (v *NodeVisitor) handleApply(n *ast.Apply, env Env) error {
 		return err
 	}
 
-	nodes := []ast.Node{n.Target}
-	nodes = append(nodes, n.Arguments.Positional...)
+	nodes := []interface{}{n.Target}
+	for _, arg := range n.Arguments.Positional {
+		nodes = append(nodes, arg)
+	}
 	for _, arg := range n.Arguments.Named {
 		nodes = append(nodes, arg.Arg)
 	}
@@ -219,7 +229,7 @@ func (v *NodeVisitor) handleApplyBrace(n *ast.ApplyBrace, env Env) error {
 		return err
 	}
 
-	nodes := []ast.Node{n.Left, n.Right}
+	nodes := []interface{}{n.Left, n.Right}
 	return v.visitList(nodes, n, env)
 }
 
@@ -233,7 +243,12 @@ func (v *NodeVisitor) handleArray(n *ast.Array, env Env) error {
 		return err
 	}
 
-	return v.visitList(n.Elements, n, env)
+	nodes := []interface{}{}
+	for _, element := range n.Elements {
+		nodes = append(nodes, element)
+	}
+
+	return v.visitList(nodes, n, env)
 }
 
 // ArrayCompVisitor is a visitory for ArrayComp.
@@ -246,10 +261,10 @@ func (v *NodeVisitor) handleArrayComp(n *ast.ArrayComp, env Env) error {
 		return err
 	}
 
-	nodes := []ast.Node{n.Body, n.Spec.Expr}
+	nodes := []interface{}{n.Body, n.Spec}
 	forSpec := n.Spec
 	if forSpec.Outer != nil {
-		nodes = append(nodes, forSpec.Outer.Expr)
+		nodes = append(nodes, forSpec.Outer)
 	}
 
 	for _, ifSpec := range forSpec.Conditions {
@@ -269,7 +284,7 @@ func (v *NodeVisitor) handleAssert(n *ast.Assert, env Env) error {
 		return err
 	}
 
-	nodes := []ast.Node{n.Cond, n.Message, n.Rest}
+	nodes := []interface{}{n.Cond, n.Message, n.Rest}
 
 	return v.visitList(nodes, n, env)
 }
@@ -284,7 +299,7 @@ func (v *NodeVisitor) handleBinary(n *ast.Binary, env Env) error {
 		return err
 	}
 
-	nodes := []ast.Node{n.Left, n.Right}
+	nodes := []interface{}{n.Left, n.Right}
 
 	return v.visitList(nodes, n, env)
 }
@@ -299,21 +314,21 @@ func (v *NodeVisitor) handleConditional(n *ast.Conditional, env Env) error {
 		return err
 	}
 
-	nodes := []ast.Node{n.Cond, n.BranchTrue, n.BranchFalse}
+	nodes := []interface{}{n.Cond, n.BranchTrue, n.BranchFalse}
 
 	return v.visitList(nodes, n, env)
 }
 
 // DesugaredObjectFieldVisitor is a visitor for DesugaredObjectField.
 type DesugaredObjectFieldVisitor struct {
-	VisitDesugaredObjectField func(n *ast.DesugaredObjectField) error
+	VisitDesugaredObjectField func(n ast.DesugaredObjectField) error
 }
 
-func (v *NodeVisitor) handleDesugaredObjectField(n *ast.DesugaredObjectField, env Env) error {
+func (v *NodeVisitor) handleDesugaredObjectField(n ast.DesugaredObjectField, env Env) error {
 	if err := v.visitTypeIfExists("DesugaredObjectField", n); err != nil {
 		return err
 	}
-	nodes := []ast.Node{n.Name, n.Body}
+	nodes := []interface{}{n.Name, n.Body}
 
 	return v.visitList(nodes, nil, env)
 }
@@ -328,21 +343,16 @@ func (v *NodeVisitor) handleDesugaredObject(n *ast.DesugaredObject, env Env) err
 		return err
 	}
 
-	nodes := []ast.Node{}
-	nodes = append(nodes, n.Asserts...)
-
-	if err := v.visitList(nodes, n, env); err != nil {
-		return err
+	nodes := []interface{}{}
+	for _, assert := range n.Asserts {
+		nodes = append(nodes, assert)
 	}
 
-	for i := range n.Fields {
-		field := &n.Fields[i]
-		if err := v.visitTypeIfExists("DesugaredObjectField", field); err != nil {
-			return errors.Wrap(err, "visit DesugaredObjectField")
-		}
+	for _, field := range n.Fields {
+		nodes = append(nodes, field)
 	}
 
-	return nil
+	return v.visitList(nodes, n, env)
 }
 
 // DollarVisitor is a visitor for Dollar.
@@ -355,7 +365,7 @@ func (v *NodeVisitor) handleDollar(n *ast.Dollar, env Env) error {
 		return err
 	}
 
-	nodes := []ast.Node{}
+	nodes := []interface{}{}
 
 	return v.visitList(nodes, n, env)
 }
@@ -370,7 +380,7 @@ func (v *NodeVisitor) handleError(n *ast.Error, env Env) error {
 		return err
 	}
 
-	nodes := []ast.Node{n.Expr}
+	nodes := []interface{}{n.Expr}
 
 	return v.visitList(nodes, n, env)
 }
@@ -386,7 +396,32 @@ func (v *NodeVisitor) handleFunction(n *ast.Function, env Env) error {
 	}
 
 	// TODO create new env from params and visit the Parameters
-	// TODO visit n.Body with env params
+	envWithParams := env
+
+	nodes := []interface{}{}
+
+	for _, id := range n.Parameters.Required {
+		nodes = append(nodes, id)
+	}
+
+	for _, opt := range n.Parameters.Optional {
+		nodes = append(nodes, opt)
+	}
+
+	nodes = append(nodes, n.Body)
+
+	return v.visitList(nodes, n, envWithParams)
+}
+
+// IdentifierVisitor is a visitor for Identifier.
+type IdentifierVisitor struct {
+	VisitIdentifier func(n ast.Identifier) error
+}
+
+func (v *NodeVisitor) handleIdentifier(n ast.Identifier, env Env) error {
+	if err := v.visitTypeIfExists("Identifier", n); err != nil {
+		return errors.Wrap(err, "visit Identifier")
+	}
 
 	return nil
 }
@@ -427,7 +462,10 @@ func (v *NodeVisitor) handleIndex(n *ast.Index, env Env) error {
 		return err
 	}
 
-	nodes := []ast.Node{n.Target, n.Index}
+	nodes := []interface{}{n.Target, n.Index}
+	if n.Id != nil {
+		nodes = append(nodes, n.Id)
+	}
 
 	return v.visitList(nodes, n, env)
 }
@@ -555,7 +593,7 @@ func (v *NodeVisitor) handleParens(n *ast.Parens, env Env) error {
 		return err
 	}
 
-	nodes := []ast.Node{n.Inner}
+	nodes := []interface{}{n.Inner}
 
 	return v.visitList(nodes, n, env)
 }
@@ -570,30 +608,39 @@ func (v *NodeVisitor) handleObjectComp(n *ast.ObjectComp, env Env) error {
 		return err
 	}
 
-	// TODO how to visit a for spec? should also revisit ArrayComp
-
-	nodes := []ast.Node{}
+	nodes := []interface{}{n.Spec}
+	for _, field := range n.Fields {
+		nodes = append(nodes, field)
+	}
 
 	return v.visitList(nodes, n, env)
 }
 
 // ObjectFieldVisitor is a visitor for ObjectField.
 type ObjectFieldVisitor struct {
-	VisitObjectField func(n *ast.ObjectField) error
+	VisitObjectField func(n ast.ObjectField) error
 }
 
-func (v *NodeVisitor) handleObjectField(n *ast.ObjectField, env Env) error {
+func (v *NodeVisitor) handleObjectField(n ast.ObjectField, env Env) error {
 	if err := v.visitTypeIfExists("ObjectField", n); err != nil {
 		return err
 	}
 
 	// TODO: need env from params here
+	envWithParams := env
 
-	// nodes := []ast.Node{}
+	tokens := []interface{}{}
+	if n.Id != nil {
+		tokens = append(tokens, n.Id)
+	}
 
-	// return v.visitList(nodes, n, env)
+	if n.Expr1 != nil {
+		tokens = append(tokens, n.Expr1)
+	}
 
-	return nil
+	tokens = append(tokens, n.Expr2, n.Expr3)
+
+	return v.visitList(tokens, n, envWithParams)
 }
 
 // ObjectVisitor is a visitor for Object.
@@ -606,11 +653,15 @@ func (v *NodeVisitor) handleObject(n *ast.Object, env Env) error {
 		return err
 	}
 
-	// TODO this needs help
+	// TODO get env from local
+	envWithLocals := env
 
-	nodes := []ast.Node{}
+	nodes := []interface{}{}
+	for _, field := range n.Fields {
+		nodes = append(nodes, field)
+	}
 
-	return v.visitList(nodes, n, env)
+	return v.visitList(nodes, n, envWithLocals)
 }
 
 // SelfVisitor is a visitor for Self.
@@ -636,7 +687,7 @@ func (v *NodeVisitor) handleSlice(n *ast.Slice, env Env) error {
 		return err
 	}
 
-	nodes := []ast.Node{n.BeginIndex, n.EndIndex, n.Step}
+	nodes := []interface{}{n.BeginIndex, n.EndIndex, n.Step}
 
 	return v.visitList(nodes, n, env)
 }
@@ -651,7 +702,7 @@ func (v *NodeVisitor) handleSuperIndex(n *ast.SuperIndex, env Env) error {
 		return err
 	}
 
-	nodes := []ast.Node{n.Index}
+	nodes := []interface{}{n.Index}
 
 	return v.visitList(nodes, n, env)
 }

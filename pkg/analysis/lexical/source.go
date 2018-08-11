@@ -8,6 +8,31 @@ import (
 	"github.com/pkg/errors"
 )
 
+// ExtractLines extracts lines from data given a start and an end.
+func ExtractLines(data []byte, start, end int) ([]byte, error) {
+	scanner := bufio.NewScanner(bytes.NewReader(data))
+
+	var buf bytes.Buffer
+
+	i := 0
+
+	for scanner.Scan() {
+		i++
+
+		if i >= start && i <= end {
+			if _, err := buf.WriteString(scanner.Text() + "\n"); err != nil {
+				return nil, err
+			}
+		}
+	}
+
+	if err := scanner.Err(); err != nil {
+		return nil, err
+	}
+
+	return buf.Bytes(), nil
+}
+
 // ExtractUntil extracts data from data until it gets to loc.
 func ExtractUntil(data []byte, loc ast.Location) ([]byte, error) {
 	scanner := bufio.NewScanner(bytes.NewReader(data))
@@ -91,6 +116,10 @@ func ExtractCount(data []byte, count int) ([]byte, error) {
 
 // FindLocation finds the location count characters in data.
 func FindLocation(data []byte, count int) (ast.Location, error) {
+	if count == 0 {
+		return ast.Location{}, nil
+	}
+
 	scanner := bufio.NewScanner(bytes.NewReader(data))
 	scanner.Split(bufio.ScanRunes)
 

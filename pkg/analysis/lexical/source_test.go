@@ -10,6 +10,17 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestExtractLines(t *testing.T) {
+	data := "1\n2\n3\n4\n5\n"
+
+	got, err := ExtractLines([]byte(data), 2, 4)
+	require.NoError(t, err)
+
+	expected := "2\n3\n4\n"
+
+	assert.Equal(t, expected, string(got))
+}
+
 func TestExtractUntil(t *testing.T) {
 	data, err := ioutil.ReadFile(filepath.Join("testdata", "local.jsonnet"))
 	require.NoError(t, err)

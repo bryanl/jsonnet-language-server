@@ -228,6 +228,7 @@ func (p *parser) parseBind(binds *ast.LocalBinds) error {
 		if err != nil {
 			return err
 		}
+
 		fun = &ast.Function{
 			Parameters:    *params,
 			TrailingComma: gotComma,

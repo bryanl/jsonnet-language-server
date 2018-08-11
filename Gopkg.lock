@@ -22,17 +22,6 @@
   version = "v0.11.2"
 
 [[projects]]
-  digest = "1:17a7d3dcbcb91116dc01e89b8b3a4ceb23781b45796e21ed88415ec3536d4440"
-  name = "github.com/gorilla/rpc"
-  packages = [
-    ".",
-    "json",
-  ]
-  pruneopts = "UT"
-  revision = "22c016f3df3febe0c1f6727598b6389507e03a18"
-  version = "v1.1.0"
-
-[[projects]]
   digest = "1:40e195917a951a8bf867cd05de2a46aaf1806c50cf92eebf4c16f78cd196f747"
   name = "github.com/pkg/errors"
   packages = ["."]
@@ -110,8 +99,6 @@
     "github.com/davecgh/go-spew/spew",
     "github.com/google/go-jsonnet",
     "github.com/google/go-jsonnet/ast",
-    "github.com/google/go-jsonnet/parser",
-    "github.com/gorilla/rpc/json",
     "github.com/pkg/errors",
     "github.com/sirupsen/logrus",
     "github.com/sourcegraph/go-langserver/pkg/lsp",

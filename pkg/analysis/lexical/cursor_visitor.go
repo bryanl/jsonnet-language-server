@@ -64,14 +64,24 @@ func (this *CursorVisitor) TokenAtPosition() (*Locatable, error) {
 	return this.enclosingNode, nil
 }
 
+// nolint: gocyclo
 func (cv *CursorVisitor) previsit(token, parent interface{}, env Env) error {
 	var r ast.LocationRange
 	var err error
 	switch t := token.(type) {
-	case ast.Node:
-		r = cv.nodeRange(t)
+	case ast.DesugaredObjectField:
+		r, err = cv.desugaredObjectFieldRange(t, parent)
+	case ast.Identifier:
+		r, err = cv.identifierRange(t, parent)
+	case *ast.Identifier:
+		if t == nil {
+			return errors.Errorf("identifier is nil")
+		}
+		r, err = cv.identifierRange(*t, parent)
 	case ast.LocalBind:
 		r, err = cv.localBindRange(t, parent)
+	case ast.Node:
+		r = cv.nodeRange(t)
 	default:
 		return errors.Errorf("can't find range for %T", t)
 	}
@@ -105,11 +115,47 @@ func (cv *CursorVisitor) previsit(token, parent interface{}, env Env) error {
 	return nil
 }
 
+func (cv *CursorVisitor) desugaredObjectFieldRange(f ast.DesugaredObjectField, parent interface{}) (ast.LocationRange, error) {
+	node, ok := parent.(ast.Node)
+	if !ok {
+		return ast.LocationRange{}, errors.Errorf("expected parent to be an object")
+	}
+
+	start := node.Loc().Begin.Line
+	end := node.Loc().End.Line
+
+	rangeText, err := ExtractLines(cv.SourceVisitor.Source, start, end)
+	if err != nil {
+		return ast.LocationRange{}, err
+	}
+
+	// TODO get value from a node
+	fieldName := ""
+	switch t := f.Name.(type) {
+	case *ast.LiteralString:
+		fieldName = t.Value
+	default:
+		return ast.LocationRange{}, errors.Errorf("unable to get desugared field name from type %T", t)
+	}
+
+	r, err := fieldRange(fieldName, string(rangeText))
+	if err != nil {
+		return ast.LocationRange{}, err
+	}
+
+	r.Begin.Line += start - 1
+	r.End.Line += start - 1
+
+	return r, nil
+}
+
+func (cv *CursorVisitor) identifierRange(id ast.Identifier, parent interface{}) (ast.LocationRange, error) {
+	return ast.LocationRange{}, nil
+}
+
 func (cv *CursorVisitor) nodeRange(node ast.Node) ast.LocationRange {
 	return *node.Loc()
 }
-
-var reLocalBind = `(?m)\s+foo3\s*=\s*\Z`
 
 func (cv *CursorVisitor) localBindRange(lb ast.LocalBind, parent interface{}) (ast.LocationRange, error) {
 	data, err := ExtractUntil(cv.SourceVisitor.Source, lb.Body.Loc().Begin)
@@ -117,12 +163,16 @@ func (cv *CursorVisitor) localBindRange(lb ast.LocalBind, parent interface{}) (a
 		return ast.LocationRange{}, err
 	}
 
-	reLocalBind, err := regexp.Compile(fmt.Sprintf(`(?m)\s+%s\s*=\s*\z`, string(lb.Variable)))
+	re, err := regexp.Compile(fmt.Sprintf(`(?m)\s+%s\s*=\s*\z`, string(lb.Variable)))
 	if err != nil {
 		return ast.LocationRange{}, err
 	}
 
-	match := reLocalBind.FindSubmatch(data)
+	if string(lb.Variable) == "$" {
+		return *lb.Body.Loc(), nil
+	}
+
+	match := re.FindSubmatch(data)
 	if len(match) != 1 {
 		return ast.LocationRange{}, errors.New("unable to find assignment in local bind")
 	}
