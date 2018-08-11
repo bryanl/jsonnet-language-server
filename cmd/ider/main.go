@@ -3,13 +3,14 @@ package main
 import (
 	"flag"
 	"fmt"
-	"io/ioutil"
 	"log"
 	"os"
 
 	"github.com/bryanl/jsonnet-language-server/pkg/analysis/lexical"
 	"github.com/davecgh/go-spew/spew"
 	"github.com/google/go-jsonnet/ast"
+	"github.com/pkg/errors"
+	"github.com/sourcegraph/go-langserver/pkg/lsp"
 )
 
 func main() {
@@ -55,9 +56,35 @@ func run(req request) error {
 		return err
 	}
 
-	fmt.Printf("found %T\n", locatable.Token)
+	response := &lsp.Hover{
+		Contents: []lsp.MarkedString{
+			{
+				Language: "markdown",
+				Value:    fmt.Sprintf("%T", locatable.Token),
+			},
+		},
+		Range: lsp.Range{
+			Start: lsp.Position{Line: locatable.Loc.Begin.Line - 1, Character: locatable.Loc.Begin.Column - 1},
+			End:   lsp.Position{Line: locatable.Loc.End.Line - 1, Character: locatable.Loc.End.Column - 1},
+		},
+	}
 
-	spew.Fdump(ioutil.Discard, locatable)
+	if locatable.IsFunctionParam() {
+		v, ok := locatable.Token.(*ast.Var)
+		if !ok {
+			return errors.Errorf("not a var")
+		}
+
+		response.Contents = []lsp.MarkedString{
+			{
+				Language: "markdown",
+				Value:    fmt.Sprintf("(parameter) %s", string(v.Id)),
+			},
+		}
+
+	}
+
+	spew.Dump(response)
 
 	return nil
 }

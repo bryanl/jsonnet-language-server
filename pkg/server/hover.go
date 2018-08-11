@@ -59,5 +59,30 @@ func (h *hover) handle() (interface{}, error) {
 		},
 	}
 
+	if locatable.IsFunctionParam() {
+		v, ok := locatable.Token.(*ast.Var)
+		if !ok {
+			return nil, errors.Errorf("not a var")
+		}
+
+		response.Contents = []lsp.MarkedString{
+			{
+				Language: "markdown",
+				Value:    fmt.Sprintf("(parameter) %s", string(v.Id)),
+			},
+		}
+
+	}
+
 	return response, nil
+}
+
+func isFunctionParam(l *lexical.Locatable) bool {
+	if _, isVar := l.Token.(*ast.Var); isVar {
+		if _, isParentLocal := l.Parent.Token.(*ast.Local); isParentLocal {
+			return true
+		}
+	}
+
+	return false
 }

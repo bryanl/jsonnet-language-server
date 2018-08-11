@@ -15,6 +15,16 @@ type Locatable struct {
 	Parent *Locatable
 }
 
+func (l *Locatable) IsFunctionParam() bool {
+	if _, isVar := l.Token.(*ast.Var); isVar {
+		if _, isParentLocal := l.Parent.Token.(*ast.Local); isParentLocal {
+			return true
+		}
+	}
+
+	return false
+}
+
 func inRange(l ast.Location, lr ast.LocationRange) bool {
 	if lr.Begin.Line == l.Line {
 		return lr.Begin.Column <= l.Column
