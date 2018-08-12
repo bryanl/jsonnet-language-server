@@ -1,6 +1,7 @@
 package lexical
 
 import (
+	"fmt"
 	"io"
 
 	"github.com/bryanl/jsonnet-language-server/pkg/analysis/lexical/astext"
@@ -12,12 +13,20 @@ import (
 
 type hoverVisitor struct {
 	Visitor *NodeVisitor
+	loc     ast.Location
 
 	selectedToken *Locatable
 }
 
 func newHoverVisitor(filename string, r io.Reader, loc ast.Location) (*hoverVisitor, error) {
-	hv := &hoverVisitor{}
+	hv := &hoverVisitor{
+		loc: loc,
+	}
+
+	logrus.WithFields(logrus.Fields{
+		"line":   loc.Line,
+		"column": loc.Column,
+	}).Info("creating hover visitor")
 
 	v, err := NewNodeVisitor(filename, r, PreVisit(hv.previsit))
 	if err != nil {
@@ -71,7 +80,12 @@ func (hv *hoverVisitor) previsit(token interface{}, parent *Locatable, env Env) 
 		r = parent.Loc
 	}
 
-	logrus.Printf("previsiting %T: %s", token, r.String())
+	name, err := tokenName(token)
+	if err != nil {
+		return err
+	}
+
+	logrus.Printf("previsiting %s: %s", name, r.String())
 
 	if r.FileName == "" {
 		r.FileName = parent.Loc.FileName
@@ -83,11 +97,11 @@ func (hv *hoverVisitor) previsit(token interface{}, parent *Locatable, env Env) 
 		Parent: parent,
 	}
 
-	if hv.selectedToken == nil {
-		logrus.Printf("setting %T as selected token because there was none",
-			nl.Token)
+	if hv.selectedToken == nil && inRange(hv.loc, nl.Loc) && nl.Parent != nil {
+		logrus.Printf("setting %T as selected token because there was none (%s)",
+			nl.Token, nl.Loc.String())
 		hv.selectedToken = nl
-	} else if isRangeSmaller(hv.selectedToken.Loc, nl.Loc) {
+	} else if hv.selectedToken != nil && inRange(hv.loc, nl.Loc) && isRangeSmaller(hv.selectedToken.Loc, nl.Loc) {
 		logrus.Printf("setting %T as selected token because its range %s is smaller than %s from %T",
 			nl.Token, nl.Loc.String(), hv.selectedToken.Loc.String(), hv.selectedToken.Token)
 		hv.selectedToken = nl
@@ -103,4 +117,39 @@ type nodeLoc interface {
 func isInvalidRange(r ast.LocationRange) bool {
 	return r.Begin.Line == 0 || r.Begin.Column == 0 &&
 		r.End.Line == 0 || r.End.Column == 0
+}
+
+func tokenName(token interface{}) (string, error) {
+	switch t := token.(type) {
+	case *ast.Apply:
+		return "apply", nil
+	case *ast.Binary:
+		return "binary", nil
+	case *ast.DesugaredObject:
+		return "desugared object", nil
+	case ast.DesugaredObjectField:
+		return "desugared object field", nil
+	case *ast.Function:
+		return fmt.Sprintf("function"), nil
+	case *ast.LiteralNumber:
+		return "number", nil
+	case *ast.LiteralString:
+		return "string", nil
+	case ast.Identifier:
+		return fmt.Sprintf("identifier %q", string(t)), nil
+	case *ast.Index:
+		return fmt.Sprintf("index"), nil
+	case *ast.Local:
+		return "local", nil
+	case ast.LocalBind:
+		return fmt.Sprintf("local bind %q", string(t.Variable)), nil
+	case *ast.Self:
+		return "self", nil
+	case *ast.Var:
+		return fmt.Sprintf("var %q", string(t.Id)), nil
+	case astext.RequiredParameter:
+		return fmt.Sprintf("required parameter %q", string(t.ID)), nil
+	default:
+		return "", errors.Errorf("don't know how to name %T", t)
+	}
 }

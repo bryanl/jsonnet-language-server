@@ -22,3 +22,17 @@ func TestRequiredParameter(t *testing.T) {
 
 	assert.Equal(t, expected, got)
 }
+
+func TestRequiredParameter_subsequent(t *testing.T) {
+	p := astext.RequiredParameter{
+		ID: ast.Identifier("y"),
+	}
+
+	source := testdata(t, "required_parameter2.jsonnet")
+	got, err := RequiredParameter(p, createRange("file.jsonnet", 1, 7, 1, 16), source)
+	require.NoError(t, err)
+
+	expected := createRange("file.jsonnet", 1, 12, 1, 12)
+
+	assert.Equal(t, expected, got)
+}

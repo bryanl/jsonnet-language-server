@@ -25,8 +25,9 @@ func Identifier(id ast.Identifier, parentRange ast.LocationRange, source string)
 	}
 
 	match := re.FindStringSubmatch(source)
-	if len(match) != 2 {
-		return ast.LocationRange{}, errors.Errorf("unable to match identifier %s", string(id))
+	if len(match) != 3 {
+		fmt.Println(source)
+		return ast.LocationRange{}, errors.Errorf("unable to match identifier %q", string(id))
 	}
 
 	loc := strings.Index(source, match[0])
@@ -54,5 +55,5 @@ func Identifier(id ast.Identifier, parentRange ast.LocationRange, source string)
 }
 
 func idMatchAssignmentExpr(id ast.Identifier) string {
-	return fmt.Sprintf(`(?m)(%s)\s*=\s*`, string(id))
+	return fmt.Sprintf(`(?m)(%s)(\(.*?\))?\s*=\s*`, string(id))
 }

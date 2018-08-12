@@ -21,8 +21,11 @@ func RequiredParameter(p astext.RequiredParameter, parentRange ast.LocationRange
 		return ast.LocationRange{}, errors.New("could not find source for parameter parent")
 	}
 
+	id := string(p.ID)
 	inArgs := false
-	for i, s := range parentSource {
+	for i := 0; i < len(parentSource); i++ {
+		s := parentSource[i]
+
 		switch string(s) {
 		case "(":
 			inArgs = true
@@ -33,23 +36,24 @@ func RequiredParameter(p astext.RequiredParameter, parentRange ast.LocationRange
 		}
 
 		if inArgs {
-			if string(p.ID) == string(s) {
-				argLocation, err := findLocation(parentSource, i)
-				if err != nil {
-					return ast.LocationRange{}, err
+			if len(parentSource) > i+len(id) {
+				if parentSource[i:i+len(id)] == id {
+					argLocation, err := findLocation(parentSource, i)
+					if err != nil {
+						return ast.LocationRange{}, err
+					}
+
+					r := createRange(
+						parentRange.FileName,
+						argLocation.Line, argLocation.Column+parentRange.Begin.Column,
+						argLocation.Line, argLocation.Column+parentRange.Begin.Column,
+					)
+					return r, nil
 				}
-
-				r := createRange(
-					parentRange.FileName,
-					argLocation.Line, argLocation.Column+parentRange.Begin.Column,
-					argLocation.Line, argLocation.Column+parentRange.Begin.Column,
-				)
-				return r, nil
 			}
-
 		}
 	}
 
 	fmt.Println(source, parentRange)
-	return ast.LocationRange{}, errors.Errorf("unable to find parameter %s", string(p.ID))
+	return ast.LocationRange{}, errors.Errorf("unable to find parameter %q", string(p.ID))
 }
