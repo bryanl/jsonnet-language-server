@@ -1,11 +1,9 @@
 package lexical
 
 import (
-	"fmt"
 	"io"
-	"regexp"
-	"strings"
 
+	"github.com/bryanl/jsonnet-language-server/pkg/analysis/lexical/astext"
 	"github.com/google/go-jsonnet/ast"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
@@ -28,7 +26,7 @@ func NewCursorVisitor(filename string, r io.Reader, loc ast.Location) (*CursorVi
 		Location: loc,
 	}
 
-	v, err := NewNodeVisitor(filename, r, cv.previsit)
+	v, err := NewNodeVisitor(filename, r, PreVisit(cv.previsit))
 	if err != nil {
 		return nil, err
 	}
@@ -69,7 +67,7 @@ func (cv *CursorVisitor) previsit(token interface{}, parent *Locatable, env Env)
 	var r ast.LocationRange
 	var err error
 	switch t := token.(type) {
-	case RequiredParameter:
+	case astext.RequiredParameter:
 		r = ast.LocationRange{}
 	case ast.DesugaredObjectField:
 		r, err = cv.desugaredObjectFieldRange(t, parent)
@@ -81,7 +79,7 @@ func (cv *CursorVisitor) previsit(token interface{}, parent *Locatable, env Env)
 		}
 		r, err = cv.identifierRange(*t, parent)
 	case ast.LocalBind:
-		r, err = cv.localBindRange(t, parent)
+		r, err = localBindRange(cv.NodeVisitor.Source, t, parent)
 	case ast.Node:
 		r, err = cv.nodeRange(t, parent)
 	default:
@@ -167,44 +165,4 @@ func (cv *CursorVisitor) nodeRange(node ast.Node, parent *Locatable) (ast.Locati
 		return ast.LocationRange{}, errors.New("node range is nil")
 	}
 	return *node.Loc(), nil
-}
-
-func (cv *CursorVisitor) localBindRange(lb ast.LocalBind, parent interface{}) (ast.LocationRange, error) {
-	data, err := ExtractUntil(cv.NodeVisitor.Source, lb.Body.Loc().Begin)
-	if err != nil {
-		return ast.LocationRange{}, err
-	}
-
-	re, err := regexp.Compile(fmt.Sprintf(`(?m)\s+%s\s*=\s*\z`, string(lb.Variable)))
-	if err != nil {
-		return ast.LocationRange{}, err
-	}
-
-	if string(lb.Variable) == "$" {
-		return *lb.Body.Loc(), nil
-	}
-
-	match := re.FindSubmatch(data)
-	if len(match) != 1 {
-		return ast.LocationRange{}, errors.New("unable to find assignment in local bind")
-	}
-
-	addrStartIndex := strings.LastIndex(string(data), string(lb.Variable)) + 1
-	addrEndIndex := addrStartIndex + len(string(lb.Variable))
-
-	begin, err := FindLocation(data, addrStartIndex)
-	if err != nil {
-		return ast.LocationRange{}, err
-	}
-	end, err := FindLocation(data, addrEndIndex)
-	if err != nil {
-		return ast.LocationRange{}, err
-	}
-
-	r := ast.LocationRange{
-		Begin: begin,
-		End:   end,
-	}
-
-	return r, nil
 }

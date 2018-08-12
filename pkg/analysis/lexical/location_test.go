@@ -73,6 +73,11 @@ func Test_isRangeSmaller(t *testing.T) {
 			r2:       createRange(1, 15, 1, 17),
 			expected: true,
 		},
+		{
+			r1:       createRange(2, 7, 2, 10),
+			r2:       createRange(2, 14, 2, 20),
+			expected: false,
+		},
 	}
 
 	for _, tc := range cases {

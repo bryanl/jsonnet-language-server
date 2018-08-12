@@ -6,13 +6,16 @@ import (
 	"io/ioutil"
 	"reflect"
 
+	"github.com/bryanl/jsonnet-language-server/pkg/analysis/lexical/astext"
+	"github.com/bryanl/jsonnet-language-server/pkg/analysis/lexical/locate"
 	jsonnet "github.com/google/go-jsonnet"
 	"github.com/google/go-jsonnet/ast"
 	"github.com/pkg/errors"
+	"github.com/sirupsen/logrus"
 )
 
-// PreVisit visits a token.
-type PreVisit func(token interface{}, parent *Locatable, env Env) error
+// VisitFn visits a token.
+type VisitFn func(token interface{}, parent *Locatable, env Env) error
 
 // Env is a map of options.
 type Env map[string]interface{}
@@ -29,7 +32,8 @@ type NodeVisitor struct {
 	Env    Env
 	Source []byte
 
-	PreVisit PreVisit
+	PreVisit  VisitFn
+	PostVisit VisitFn
 
 	*ApplyVisitor
 	*ApplyBraceVisitor
@@ -63,8 +67,25 @@ type NodeVisitor struct {
 	*VarVisitor
 }
 
+// VisitOpt is an option for NodeVisitor.
+type VisitOpt func(*NodeVisitor)
+
+// PreVisit is a previsit option.
+func PreVisit(fn VisitFn) VisitOpt {
+	return func(v *NodeVisitor) {
+		v.PreVisit = fn
+	}
+}
+
+// PostVisit is a postvisit option.
+func PostVisit(fn VisitFn) VisitOpt {
+	return func(v *NodeVisitor) {
+		v.PostVisit = fn
+	}
+}
+
 // NewNodeVisitor creates an instance of Visitor.
-func NewNodeVisitor(filename string, r io.Reader, pv PreVisit) (*NodeVisitor, error) {
+func NewNodeVisitor(filename string, r io.Reader, opts ...VisitOpt) (*NodeVisitor, error) {
 	data, err := ioutil.ReadAll(r)
 	if err != nil {
 		return nil, errors.Wrap(err, "reading source")
@@ -77,13 +98,18 @@ func NewNodeVisitor(filename string, r io.Reader, pv PreVisit) (*NodeVisitor, er
 
 	env := Env{}
 
-	return &NodeVisitor{
-		Node:     node,
-		Parent:   nil,
-		Env:      env,
-		PreVisit: pv,
-		Source:   data,
-	}, nil
+	v := &NodeVisitor{
+		Node:   node,
+		Parent: nil,
+		Env:    env,
+		Source: data,
+	}
+
+	for _, opt := range opts {
+		opt(v)
+	}
+
+	return v, nil
 }
 
 // Visit visits a node.
@@ -98,8 +124,6 @@ func (v *NodeVisitor) Visit() error {
 
 	return v.visit(v.Node, parent, v.Env)
 }
-
-// nolint: gocyclo
 func (v *NodeVisitor) visit(token interface{}, parent *Locatable, env Env) error {
 	if token == nil {
 		return nil
@@ -107,16 +131,32 @@ func (v *NodeVisitor) visit(token interface{}, parent *Locatable, env Env) error
 
 	if v.PreVisit != nil {
 		if err := v.PreVisit(token, parent, env); err != nil {
-			return errors.Wrap(err, "previsit")
+			return errors.Wrapf(err, "pre visiting %T", token)
 		}
 	}
+
+	if err := v.visitToken(token, parent, env); err != nil {
+		return err
+	}
+
+	if v.PostVisit != nil {
+		if err := v.PostVisit(token, parent, env); err != nil {
+			return errors.Wrapf(err, "post visiting %T", token)
+		}
+	}
+
+	return nil
+}
+
+// nolint: gocyclo
+func (v *NodeVisitor) visitToken(token interface{}, parent *Locatable, env Env) error {
 
 	if node, ok := token.(ast.Node); ok {
 		return v.handleNode(node, parent, env)
 	}
 
 	switch t := token.(type) {
-	case RequiredParameter:
+	case astext.RequiredParameter:
 		return v.handleIdentifier(t.ID, parent, env)
 	case ast.DesugaredObjectField:
 		return v.handleDesugaredObjectField(t, parent, env)
@@ -197,7 +237,7 @@ func (v *NodeVisitor) handleNode(node ast.Node, parent *Locatable, env Env) erro
 func (v *NodeVisitor) visitList(list []interface{}, parent *Locatable, env Env) error {
 	for _, node := range list {
 		if err := v.visit(node, parent, env); err != nil {
-			return errors.Wrapf(err, "visiting %T", node)
+			return err
 		}
 	}
 
@@ -396,14 +436,21 @@ type DesugaredObjectFieldVisitor struct {
 }
 
 func (v *NodeVisitor) handleDesugaredObjectField(n ast.DesugaredObjectField, parent *Locatable, env Env) error {
+	logrus.Infof("visiting %T", n)
 	if err := v.visitTypeIfExists("DesugaredObjectField", n); err != nil {
 		return err
 	}
 
 	nodes := []interface{}{n.Name, n.Body}
 
+	r, err := locate.DesugaredObjectField(n, parent.Loc, string(v.Source))
+	if err != nil {
+		return err
+	}
+
 	locatable := &Locatable{
 		Token:  n,
+		Loc:    r,
 		Parent: parent,
 	}
 
@@ -480,11 +527,6 @@ func (v *NodeVisitor) handleError(n *ast.Error, parent *Locatable, env Env) erro
 	return v.visitList(nodes, locatable, env)
 }
 
-// RequiredParameter is a required parameter.
-type RequiredParameter struct {
-	ID ast.Identifier
-}
-
 // FunctionVisitor is a visitor for Function.
 type FunctionVisitor struct {
 	VisitFunction func(n *ast.Function) error
@@ -501,7 +543,7 @@ func (v *NodeVisitor) handleFunction(n *ast.Function, parent *Locatable, env Env
 	nodes := []interface{}{}
 
 	for _, id := range n.Parameters.Required {
-		nodes = append(nodes, RequiredParameter{ID: id})
+		nodes = append(nodes, astext.RequiredParameter{ID: id})
 	}
 
 	for _, opt := range n.Parameters.Optional {
@@ -510,9 +552,14 @@ func (v *NodeVisitor) handleFunction(n *ast.Function, parent *Locatable, env Env
 
 	nodes = append(nodes, n.Body)
 
+	loc := *n.Loc()
+	if loc.Begin.Line == 0 {
+		loc = parent.Loc
+	}
+
 	locatable := &Locatable{
 		Token:  n,
-		Loc:    *n.Loc(),
+		Loc:    loc,
 		Parent: parent,
 	}
 
@@ -671,9 +718,14 @@ func (v *NodeVisitor) handleLocal(n *ast.Local, parent *Locatable, env Env) erro
 
 	nodes = append(nodes, n.Body)
 
+	loc := *n.Loc()
+	if loc.Begin.Line == 0 {
+		loc = parent.Loc
+	}
+
 	locatable := &Locatable{
 		Token:  n,
-		Loc:    *n.Loc(),
+		Loc:    loc,
 		Parent: parent,
 	}
 
@@ -698,7 +750,7 @@ func (v *NodeVisitor) handleLocalBind(lb ast.LocalBind, parent *Locatable, env E
 		nodes = append(nodes, lb.Fun)
 	}
 
-	r, err := localBindRange(v.Source, lb, parent)
+	r, err := locate.LocalBind(lb, parent.Loc, string(v.Source))
 	if err != nil {
 		return err
 	}

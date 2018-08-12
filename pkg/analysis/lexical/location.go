@@ -5,8 +5,10 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/davecgh/go-spew/spew"
 	"github.com/google/go-jsonnet/ast"
 	"github.com/pkg/errors"
+	"github.com/sirupsen/logrus"
 )
 
 type Locatable struct {
@@ -36,8 +38,8 @@ func inRange(l ast.Location, lr ast.LocationRange) bool {
 }
 
 func isRangeSmaller(r1, r2 ast.LocationRange) bool {
-	b := inRange(r2.Begin, r1) && inRange(r2.End, r1)
-	return b
+	return beforeRangeOrEqual(r1.Begin, r2) &&
+		afterRangeOrEqual(r1.End, r2)
 }
 
 func afterRangeOrEqual(l ast.Location, lr ast.LocationRange) bool {
@@ -62,6 +64,17 @@ func beforeRange(l ast.Location, r ast.LocationRange) bool {
 	return false
 }
 
+func beforeRangeOrEqual(l ast.Location, r ast.LocationRange) bool {
+	begin := r.Begin
+	if l.Line < begin.Line {
+		return true
+	} else if l.Line == begin.Line && l.Column <= begin.Column {
+		return true
+	}
+
+	return false
+}
+
 func afterRange(l ast.Location, lr ast.LocationRange) bool {
 	end := lr.End
 	if l.Line > end.Line {
@@ -73,13 +86,12 @@ func afterRange(l ast.Location, lr ast.LocationRange) bool {
 	return false
 }
 
-func localBindRange(source []byte, lb ast.LocalBind, parent interface{}) (ast.LocationRange, error) {
-	data, err := ExtractUntil(source, lb.Body.Loc().Begin)
-	if err != nil {
-		return ast.LocationRange{}, err
-	}
+func localBindRange(source []byte, lb ast.LocalBind, parent *Locatable) (ast.LocationRange, error) {
+	// pStart := parent.Loc.Begin.Line
+	// pEnd := parent.Loc.End.Line
 
-	re, err := regexp.Compile(fmt.Sprintf(`(?m)\s+%s\s*=\s*\z`, string(lb.Variable)))
+	// data, err := ExtractLines(source, pStart, pEnd)
+	data, err := ExtractUntil(source, lb.Body.Loc().Begin)
 	if err != nil {
 		return ast.LocationRange{}, err
 	}
@@ -88,8 +100,22 @@ func localBindRange(source []byte, lb ast.LocalBind, parent interface{}) (ast.Lo
 		return *lb.Body.Loc(), nil
 	}
 
-	match := re.FindSubmatch(data)
+	expression := fmt.Sprintf(`(?m)\b%s(\(.*?\))?\s*=\s*\z`, string(lb.Variable))
+	re, err := regexp.Compile(expression)
+	if err != nil {
+		return ast.LocationRange{}, err
+	}
+
+	match := re.FindAll(data, 1)
+	// match := re.FindSubmatch(data)
 	if len(match) != 1 {
+		logrus.WithFields(logrus.Fields{
+			"expression": expression,
+			"var":        string(lb.Variable),
+			"source":     string(data),
+			"match":      spew.Sdump(match),
+			"parent":     spew.Sdump(lb.Body),
+		}).Error("couldn't find assignment")
 		return ast.LocationRange{}, errors.New("unable to find assignment in local bind")
 	}
 

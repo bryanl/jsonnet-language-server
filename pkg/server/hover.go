@@ -1,7 +1,6 @@
 package server
 
 import (
-	"fmt"
 	"net/url"
 	"os"
 
@@ -36,45 +35,7 @@ func (h *hover) handle() (interface{}, error) {
 		return nil, errors.Wrap(err, "opening file")
 	}
 
-	loc := ast.Location{
-		Line:   h.params.Position.Line + 1,
-		Column: h.params.Position.Character,
-	}
-
-	locatable, err := lexical.TokenAtLocation(u.Path, f, loc)
-	if err != nil {
-		return nil, err
-	}
-
-	response := &lsp.Hover{
-		Contents: []lsp.MarkedString{
-			{
-				Language: "markdown",
-				Value:    fmt.Sprintf("%T", locatable.Token),
-			},
-		},
-		Range: lsp.Range{
-			Start: lsp.Position{Line: locatable.Loc.Begin.Line - 1, Character: locatable.Loc.Begin.Column - 1},
-			End:   lsp.Position{Line: locatable.Loc.End.Line - 1, Character: locatable.Loc.End.Column - 1},
-		},
-	}
-
-	if locatable.IsFunctionParam() {
-		v, ok := locatable.Token.(*ast.Var)
-		if !ok {
-			return nil, errors.Errorf("not a var")
-		}
-
-		response.Contents = []lsp.MarkedString{
-			{
-				Language: "markdown",
-				Value:    fmt.Sprintf("(parameter) %s", string(v.Id)),
-			},
-		}
-
-	}
-
-	return response, nil
+	return lexical.HoverAtLocation(u.Path, f, h.params.Position.Line+1, h.params.Position.Character)
 }
 
 func isFunctionParam(l *lexical.Locatable) bool {
