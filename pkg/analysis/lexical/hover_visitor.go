@@ -119,6 +119,8 @@ func isInvalidRange(r ast.LocationRange) bool {
 		r.End.Line == 0 || r.End.Column == 0
 }
 
+// tokenName returns a name for a token.
+// nolint: gocyclo
 func tokenName(token interface{}) (string, error) {
 	switch t := token.(type) {
 	case *ast.Apply:

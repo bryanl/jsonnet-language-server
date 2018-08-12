@@ -18,7 +18,7 @@ import (
 type VisitFn func(token interface{}, parent *Locatable, env Env) error
 
 // Env is a map of options.
-type Env map[string]interface{}
+type Env map[string]Locatable
 
 // Visitor visits.
 type Visitor interface {
@@ -542,16 +542,6 @@ func (v *NodeVisitor) handleFunction(n *ast.Function, parent *Locatable, env Env
 
 	nodes := []interface{}{}
 
-	for _, id := range n.Parameters.Required {
-		nodes = append(nodes, astext.RequiredParameter{ID: id})
-	}
-
-	for _, opt := range n.Parameters.Optional {
-		nodes = append(nodes, opt)
-	}
-
-	nodes = append(nodes, n.Body)
-
 	loc := *n.Loc()
 	if loc.Begin.Line == 0 {
 		loc = parent.Loc
@@ -562,6 +552,31 @@ func (v *NodeVisitor) handleFunction(n *ast.Function, parent *Locatable, env Env
 		Loc:    loc,
 		Parent: parent,
 	}
+
+	for _, id := range n.Parameters.Required {
+		p := astext.RequiredParameter{ID: id}
+
+		r, err := locate.RequiredParameter(p, loc, string(v.Source))
+		if err != nil {
+			return err
+		}
+
+		l := Locatable{
+			Token:  p,
+			Parent: locatable,
+			Loc:    r,
+		}
+
+		envWithParams[string(id)] = l
+
+		nodes = append(nodes, p)
+	}
+
+	for _, opt := range n.Parameters.Optional {
+		nodes = append(nodes, opt)
+	}
+
+	nodes = append(nodes, n.Body)
 
 	return v.visitList(nodes, locatable, envWithParams)
 }
@@ -707,16 +722,9 @@ func (v *NodeVisitor) handleLocal(n *ast.Local, parent *Locatable, env Env) erro
 		return err
 	}
 
-	// TODO create new envWithBinds by merging tree.envFromLocalBinds(n)
 	envWithBinds := env
 
 	nodes := []interface{}{}
-
-	for _, bind := range n.Binds {
-		nodes = append(nodes, bind)
-	}
-
-	nodes = append(nodes, n.Body)
 
 	loc := *n.Loc()
 	if loc.Begin.Line == 0 {
@@ -728,6 +736,36 @@ func (v *NodeVisitor) handleLocal(n *ast.Local, parent *Locatable, env Env) erro
 		Loc:    loc,
 		Parent: parent,
 	}
+
+	for _, bind := range n.Binds {
+		r, err := locate.LocalBind(bind, loc, string(v.Source))
+		if err != nil {
+			return err
+		}
+
+		bindLocatable := &Locatable{
+			Parent: locatable,
+			Token:  bind,
+			Loc:    r,
+		}
+
+		idLocation, err := locate.Identifier(bind.Variable, r, string(v.Source))
+		if err != nil {
+			return err
+		}
+
+		l := Locatable{
+			Token:  bind.Variable,
+			Parent: bindLocatable,
+			Loc:    idLocation,
+		}
+
+		envWithBinds[string(bind.Variable)] = l
+
+		nodes = append(nodes, bind)
+	}
+
+	nodes = append(nodes, n.Body)
 
 	return v.visitList(nodes, locatable, envWithBinds)
 }
@@ -931,6 +969,21 @@ type VarVisitor struct {
 func (v *NodeVisitor) handleVar(n *ast.Var, parent *Locatable, env Env) error {
 	if err := v.visitTypeIfExists("Var", n); err != nil {
 		return err
+	}
+
+	name, err := tokenName(n)
+	if err != nil {
+		return err
+	}
+
+	l, ok := env[string(n.Id)]
+	if ok {
+
+		pointerName, err := tokenName(l.Token)
+		if err != nil {
+			return err
+		}
+		logrus.Infof("found reference for %s. It's %s at %s", name, pointerName, l.Loc.String())
 	}
 
 	return nil
