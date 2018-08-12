@@ -95,6 +95,7 @@ func (hv *hoverVisitor) previsit(token interface{}, parent *Locatable, env Env) 
 		Token:  token,
 		Loc:    r,
 		Parent: parent,
+		Env:    env,
 	}
 
 	if hv.selectedToken == nil && inRange(hv.loc, nl.Loc) && nl.Parent != nil {

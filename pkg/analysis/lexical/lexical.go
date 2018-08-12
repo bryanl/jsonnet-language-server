@@ -44,6 +44,11 @@ func HoverAtLocation(filename string, r io.Reader, l, c int) (*lsp.Hover, error)
 		return nil, err
 	}
 
+	resolvedRange, err := locatable.Resolve()
+	if err != nil {
+		return nil, err
+	}
+
 	response := &lsp.Hover{
 		Contents: []lsp.MarkedString{
 			{
@@ -52,8 +57,14 @@ func HoverAtLocation(filename string, r io.Reader, l, c int) (*lsp.Hover, error)
 			},
 		},
 		Range: lsp.Range{
-			Start: lsp.Position{Line: locatable.Loc.Begin.Line - 1, Character: locatable.Loc.Begin.Column - 1},
-			End:   lsp.Position{Line: locatable.Loc.End.Line - 1, Character: locatable.Loc.End.Column - 1},
+			Start: lsp.Position{
+				Line:      resolvedRange.Begin.Line - 1,
+				Character: resolvedRange.Begin.Column - 1,
+			},
+			End: lsp.Position{
+				Line:      resolvedRange.End.Line - 1,
+				Character: resolvedRange.End.Column - 1,
+			},
 		},
 	}
 

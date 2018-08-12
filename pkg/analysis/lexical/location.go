@@ -15,6 +15,33 @@ type Locatable struct {
 	Token  interface{}
 	Loc    ast.LocationRange
 	Parent *Locatable
+	Env    Env
+}
+
+func (l *Locatable) Resolve() (ast.LocationRange, error) {
+	switch t := l.Token.(type) {
+	case *ast.Var:
+		name, err := tokenName(t)
+		if err != nil {
+			return ast.LocationRange{}, err
+		}
+
+		if ref, ok := l.Env[string(t.Id)]; ok {
+			pointerName, err := tokenName(ref.Token)
+			if err != nil {
+				return ast.LocationRange{}, err
+			}
+
+			logrus.Infof("found reference for %s. It is %s at %s", name, pointerName, ref.Loc.String())
+			return ref.Loc, nil
+		} else {
+			logrus.Warn("did not find ref")
+		}
+	default:
+		logrus.Warnf("unable to resolve %T", l.Token)
+	}
+
+	return ast.LocationRange{}, nil
 }
 
 func (l *Locatable) IsFunctionParam() bool {

@@ -971,20 +971,5 @@ func (v *NodeVisitor) handleVar(n *ast.Var, parent *Locatable, env Env) error {
 		return err
 	}
 
-	name, err := tokenName(n)
-	if err != nil {
-		return err
-	}
-
-	l, ok := env[string(n.Id)]
-	if ok {
-
-		pointerName, err := tokenName(l.Token)
-		if err != nil {
-			return err
-		}
-		logrus.Infof("found reference for %s. It's %s at %s", name, pointerName, l.Loc.String())
-	}
-
 	return nil
 }
