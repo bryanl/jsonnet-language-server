@@ -1,7 +1,6 @@
 package lexical
 
 import (
-	"fmt"
 	"io"
 
 	"github.com/google/go-jsonnet/ast"
@@ -44,7 +43,7 @@ func HoverAtLocation(filename string, r io.Reader, l, c int) (*lsp.Hover, error)
 		return nil, err
 	}
 
-	resolvedRange, err := locatable.Resolve()
+	resolved, err := locatable.Resolve()
 	if err != nil {
 		return nil, err
 	}
@@ -53,17 +52,17 @@ func HoverAtLocation(filename string, r io.Reader, l, c int) (*lsp.Hover, error)
 		Contents: []lsp.MarkedString{
 			{
 				Language: "jsonnet",
-				Value:    fmt.Sprintf("%T", locatable.Token),
+				Value:    resolved.Description,
 			},
 		},
 		Range: lsp.Range{
 			Start: lsp.Position{
-				Line:      resolvedRange.Begin.Line - 1,
-				Character: resolvedRange.Begin.Column - 1,
+				Line:      resolved.Location.Begin.Line - 1,
+				Character: resolved.Location.Begin.Column - 1,
 			},
 			End: lsp.Position{
-				Line:      resolvedRange.End.Line - 1,
-				Character: resolvedRange.End.Column - 1,
+				Line:      resolved.Location.End.Line - 1,
+				Character: resolved.Location.End.Column - 1,
 			},
 		},
 	}
