@@ -1,7 +1,6 @@
 package lexical
 
 import (
-	"fmt"
 	"io"
 
 	"github.com/bryanl/jsonnet-language-server/pkg/analysis/lexical/astext"
@@ -65,11 +64,14 @@ func (hv *hoverVisitor) previsit(token interface{}, parent *Locatable, env Env) 
 		r, err = locate.Identifier(t, parent.Loc, string(hv.Visitor.Source))
 	case ast.LocalBind:
 		r, err = locate.LocalBind(t, parent.Loc, string(hv.Visitor.Source))
+	case ast.NamedParameter:
+		r, err = locate.NamedParameter(t, parent.Loc, string(hv.Visitor.Source))
 	case astext.RequiredParameter:
 		r, err = locate.RequiredParameter(t, parent.Loc, string(hv.Visitor.Source))
+		logrus.Warnf("range for rp = %s", r.String())
 	default:
-		logrus.Printf("previsiting an unlocatable %T with parent %T", t, parent.Token)
-		return errors.Errorf("unable locate %T", t)
+		logrus.Warn("previsiting an unlocatable %T with parent %T", t, parent.Token)
+		return errors.Errorf("unable to locate %T", t)
 	}
 
 	if err != nil {
@@ -80,7 +82,7 @@ func (hv *hoverVisitor) previsit(token interface{}, parent *Locatable, env Env) 
 		r = parent.Loc
 	}
 
-	name, err := tokenName(token)
+	name, err := astext.TokenName(token)
 	if err != nil {
 		return err
 	}
@@ -118,41 +120,4 @@ type nodeLoc interface {
 func isInvalidRange(r ast.LocationRange) bool {
 	return r.Begin.Line == 0 || r.Begin.Column == 0 &&
 		r.End.Line == 0 || r.End.Column == 0
-}
-
-// tokenName returns a name for a token.
-// nolint: gocyclo
-func tokenName(token interface{}) (string, error) {
-	switch t := token.(type) {
-	case *ast.Apply:
-		return "apply", nil
-	case *ast.Binary:
-		return "binary", nil
-	case *ast.DesugaredObject:
-		return "desugared object", nil
-	case ast.DesugaredObjectField:
-		return "desugared object field", nil
-	case *ast.Function:
-		return fmt.Sprintf("function"), nil
-	case *ast.LiteralNumber:
-		return "number", nil
-	case *ast.LiteralString:
-		return "string", nil
-	case ast.Identifier:
-		return fmt.Sprintf("identifier %q", string(t)), nil
-	case *ast.Index:
-		return fmt.Sprintf("index"), nil
-	case *ast.Local:
-		return "local", nil
-	case ast.LocalBind:
-		return fmt.Sprintf("local bind %q", string(t.Variable)), nil
-	case *ast.Self:
-		return "self", nil
-	case *ast.Var:
-		return fmt.Sprintf("var %q", string(t.Id)), nil
-	case astext.RequiredParameter:
-		return fmt.Sprintf("required parameter %q", string(t.ID)), nil
-	default:
-		return "", errors.Errorf("don't know how to name %T", t)
-	}
 }

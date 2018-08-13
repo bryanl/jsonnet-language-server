@@ -1,14 +1,16 @@
 package locate
 
 import (
+	"bytes"
+
 	"github.com/bryanl/jsonnet-language-server/pkg/analysis/lexical/astext"
 	"github.com/google/go-jsonnet/ast"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 )
 
-// RequiredParameter locates an astext.RequiredParameter.
-func RequiredParameter(p astext.RequiredParameter, parentRange ast.LocationRange, source string) (ast.LocationRange, error) {
+// NamedParameter locates an astext.RequiredParameter.
+func NamedParameter(p ast.NamedParameter, parentRange ast.LocationRange, source string) (ast.LocationRange, error) {
 	parentSource, err := extractRange(source, parentRange)
 	if err != nil {
 		return ast.LocationRange{}, err
@@ -19,7 +21,22 @@ func RequiredParameter(p astext.RequiredParameter, parentRange ast.LocationRange
 		return ast.LocationRange{}, errors.New("could not find source for parameter parent")
 	}
 
-	id := string(p.ID)
+	var val bytes.Buffer
+	if _, err = val.WriteString(string(p.Name)); err != nil {
+		return ast.LocationRange{}, err
+	}
+
+	if p.DefaultArg != nil {
+		da, err := astext.TokenValue(p.DefaultArg)
+		if err != nil {
+			return ast.LocationRange{}, err
+		}
+		if _, err = val.WriteString("=" + da); err != nil {
+			return ast.LocationRange{}, err
+		}
+	}
+
+	id := val.String()
 	inArgs := false
 	for i := 0; i < len(parentSource); i++ {
 		s := parentSource[i]
@@ -44,7 +61,7 @@ func RequiredParameter(p astext.RequiredParameter, parentRange ast.LocationRange
 					r := createRange(
 						parentRange.FileName,
 						argLocation.Line+parentRange.Begin.Line-1,
-						argLocation.Column+parentRange.Begin.Column-1,
+						argLocation.Column+parentRange.Begin.Column,
 						argLocation.Line+parentRange.Begin.Line-1,
 						argLocation.Column+parentRange.Begin.Column+len(id)-1,
 					)
@@ -54,5 +71,5 @@ func RequiredParameter(p astext.RequiredParameter, parentRange ast.LocationRange
 		}
 	}
 
-	return ast.LocationRange{}, errors.Errorf("unable to find parameter %q", string(p.ID))
+	return ast.LocationRange{}, errors.Errorf("unable to find optional parameter %q", string(p.Name))
 }

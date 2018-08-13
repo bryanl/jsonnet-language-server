@@ -8,6 +8,10 @@ import (
 	"github.com/sourcegraph/go-langserver/pkg/lsp"
 )
 
+var (
+	emptyHover = &lsp.Hover{}
+)
+
 // TokenAtLocation returns the token a location in a file.
 func TokenAtLocation(filename string, r io.Reader, loc ast.Location) (*Locatable, error) {
 	v, err := NewCursorVisitor(filename, r, loc)
@@ -43,8 +47,15 @@ func HoverAtLocation(filename string, r io.Reader, l, c int) (*lsp.Hover, error)
 		return nil, err
 	}
 
+	if locatable == nil {
+		return emptyHover, nil
+	}
+
 	resolved, err := locatable.Resolve()
 	if err != nil {
+		if err == ErrUnresolvable {
+			return emptyHover, nil
+		}
 		return nil, err
 	}
 

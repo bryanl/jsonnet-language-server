@@ -57,6 +57,7 @@ type NodeVisitor struct {
 	*LiteralStringVisitor
 	*LocalBindVisitor
 	*LocalVisitor
+	*NamedParameterVisitor
 	*ParensVisitor
 	*ObjectFieldVisitor
 	*ObjectCompVisitor
@@ -169,6 +170,8 @@ func (v *NodeVisitor) visitToken(token interface{}, parent *Locatable, env Env) 
 		return v.handleIdentifier(t, parent, env)
 	case ast.LocalBind:
 		return v.handleLocalBind(t, parent, env)
+	case ast.NamedParameter:
+		return v.handleNamedParameter(t, parent, env)
 	default:
 		return errors.Errorf("unable to handle token of type %T", t)
 	}
@@ -800,6 +803,19 @@ func (v *NodeVisitor) handleLocalBind(lb ast.LocalBind, parent *Locatable, env E
 	}
 
 	return v.visitList(nodes, locatable, envWithParams)
+}
+
+// NamedParameterVisitor is a visitor for NamedParameter.
+type NamedParameterVisitor struct {
+	VisitNamedParameter func(n ast.NamedParameter) error
+}
+
+func (v *NodeVisitor) handleNamedParameter(n ast.NamedParameter, parent *Locatable, env Env) error {
+	if err := v.visitTypeIfExists("NamedParameter", n); err != nil {
+		return errors.Wrap(err, "visit NamedParameter")
+	}
+
+	return nil
 }
 
 // ParensVisitor is a visitor for Parens.

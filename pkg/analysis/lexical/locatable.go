@@ -1,10 +1,18 @@
 package lexical
 
 import (
+	"bytes"
 	"fmt"
 
+	"github.com/bryanl/jsonnet-language-server/pkg/analysis/lexical/astext"
 	"github.com/google/go-jsonnet/ast"
+	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
+)
+
+var (
+	// ErrUnresolvable means the loctable can't be resolved.
+	ErrUnresolvable = errors.New("unresolvable")
 )
 
 type Resolved struct {
@@ -21,34 +29,152 @@ type Locatable struct {
 }
 
 func (l *Locatable) Resolve() (*Resolved, error) {
-	var resolved *Resolved
-	var err error
+	if l == nil {
+		return nil, errors.Errorf("locatable is nil")
+	}
 
 	switch t := l.Token.(type) {
 	case *ast.Var:
-		resolved, err = l.handleVar(t)
+		return l.handleVar(t)
+	case ast.Identifier:
+		return l.handleDefault()
+	case *ast.Function:
+		return l.handleFunction(t)
+	case ast.NamedParameter:
+		return l.handleNamedParameter(t)
+	case astext.RequiredParameter:
+		return l.handleRequiredParameter(t)
 	default:
 		logrus.Errorf("unable to resolve %T", l.Token)
+		return nil, ErrUnresolvable
+	}
+}
+
+func (l *Locatable) handleNamedParameter(p ast.NamedParameter) (*Resolved, error) {
+	description := fmt.Sprintf("(param) %s", string(p.Name))
+
+	result := &Resolved{
+		Location:    l.Loc,
+		Token:       l.Token,
+		Description: description,
+	}
+
+	return result, nil
+}
+
+func (l *Locatable) handleRequiredParameter(p astext.RequiredParameter) (*Resolved, error) {
+	description := fmt.Sprintf("(param) %s", string(p.ID))
+
+	result := &Resolved{
+		Location:    l.Loc,
+		Token:       l.Token,
+		Description: description,
+	}
+
+	return result, nil
+}
+
+func (l *Locatable) handleDefault() (*Resolved, error) {
+	var name string
+	var err error
+
+	switch t := l.Parent.Token.(type) {
+	case ast.LocalBind:
+		logrus.Info("bind output")
+		name, err = bindOutput(t)
+	default:
+		logrus.Info("default output")
+		name, err = astext.TokenName(l.Token)
 	}
 
 	if err != nil {
 		return nil, err
 	}
 
-	name, err := tokenName(l.Token)
-	if err != nil {
-		return nil, err
-	}
+	logrus.Infof("handling default %s (%s): %T, %T", name, l.Loc.String(), l.Token, l.Parent.Token)
 
-	if resolved == nil {
-		resolved = &Resolved{
-			Location:    l.Loc,
-			Token:       l.Token,
-			Description: name,
-		}
+	resolved := &Resolved{
+		Location:    l.Loc,
+		Token:       l.Token,
+		Description: name,
 	}
 
 	return resolved, nil
+}
+
+func bindOutput(bind ast.LocalBind) (string, error) {
+	var name string
+
+	switch t := bind.Body.(type) {
+	case *ast.LiteralString:
+		name = "string"
+	case *ast.DesugaredObject, *ast.Object:
+		name = "object"
+	case *ast.Function:
+		name = "function"
+	default:
+		return fmt.Sprintf("(unknown) %s: %T", string(bind.Variable), t), nil
+	}
+
+	return fmt.Sprintf("(%s) %s", name, string(bind.Variable)), nil
+}
+
+func (l *Locatable) handleFunction(f *ast.Function) (*Resolved, error) {
+	var sig bytes.Buffer
+	setRequired := false
+	for i, p := range f.Parameters.Required {
+		setRequired = true
+		if _, err := sig.WriteString(string(p)); err != nil {
+			return nil, err
+		}
+		if i <= len(f.Parameters.Required)-2 {
+			if _, err := sig.WriteString(", "); err != nil {
+				return nil, err
+			}
+		}
+	}
+
+	for i, p := range f.Parameters.Optional {
+		if setRequired {
+			if _, err := sig.WriteString(", "); err != nil {
+				return nil, err
+			}
+		}
+
+		val, err := astext.TokenValue(p.DefaultArg)
+		if err != nil {
+			return nil, err
+		}
+		s := fmt.Sprintf("%s=%s", string(p.Name), val)
+		if _, err := sig.WriteString(s); err != nil {
+			return nil, err
+		}
+
+		if i <= len(f.Parameters.Optional)-2 {
+			if _, err := sig.WriteString(", "); err != nil {
+				return nil, err
+			}
+		}
+	}
+
+	switch t := l.Parent.Parent.Token.(type) {
+	case ast.DesugaredObjectField:
+		name, err := astext.TokenName(l.Parent.Parent.Token)
+		if err != nil {
+			return nil, err
+		}
+
+		resolved := &Resolved{
+			Location:    l.Loc,
+			Token:       l.Token,
+			Description: fmt.Sprintf("(function) %s(%s)", name, sig.String()),
+		}
+
+		return resolved, nil
+	default:
+		return nil, errors.Errorf("can't handle function in a %T", t)
+	}
+
 }
 
 func (l *Locatable) handleVar(t *ast.Var) (*Resolved, error) {
@@ -67,20 +193,20 @@ func (l *Locatable) handleVar(t *ast.Var) (*Resolved, error) {
 		return resolved, nil
 	}
 
-	return nil, nil
+	return nil, ErrUnresolvable
 }
 
 func (l *Locatable) resolvedIdentifier(ref *Locatable) (string, error) {
 	id, ok := ref.Token.(ast.Identifier)
 	if !ok {
-		return tokenName(ref.Token)
+		return astext.TokenName(ref.Token)
 	}
 
 	switch ref.Parent.Token.(type) {
 	case ast.LocalBind:
 		return fmt.Sprintf("(function) %s()", string(id)), nil
 	default:
-		return tokenName(ref.Token)
+		return astext.TokenName(ref.Token)
 	}
 
 }

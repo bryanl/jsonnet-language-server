@@ -45,6 +45,11 @@ func Test_inRange(t *testing.T) {
 			lr:       createRange(1, 1, 2, 2),
 			expected: false,
 		},
+		{
+			loc:      createLoc(2, 17),
+			lr:       createRange(2, 7, 2, 10),
+			expected: false,
+		},
 	}
 
 	for _, tc := range cases {

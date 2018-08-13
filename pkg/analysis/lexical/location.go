@@ -12,9 +12,16 @@ import (
 )
 
 func inRange(l ast.Location, lr ast.LocationRange) bool {
-	if lr.Begin.Line == l.Line {
-		return lr.Begin.Column <= l.Column
-	} else if lr.Begin.Line < l.Line && lr.End.Line >= l.Line {
+	if lr.Begin.Line == l.Line && l.Line == lr.End.Line &&
+		lr.Begin.Column <= l.Column && l.Column <= lr.End.Column {
+		return true
+	} else if lr.Begin.Line < l.Line && l.Line == lr.End.Line &&
+		l.Column <= lr.End.Column {
+		return true
+	} else if lr.Begin.Line == l.Line && l.Line < lr.End.Line &&
+		l.Column >= lr.Begin.Column {
+		return true
+	} else if lr.Begin.Line < l.Line && l.Line < lr.End.Line {
 		return true
 	}
 

@@ -26,7 +26,6 @@ func Identifier(id ast.Identifier, parentRange ast.LocationRange, source string)
 
 	match := re.FindStringSubmatch(source)
 	if len(match) != 3 {
-		fmt.Println(source)
 		return ast.LocationRange{}, errors.Errorf("unable to match identifier %q", string(id))
 	}
 
