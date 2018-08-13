@@ -5,8 +5,8 @@ import (
 
 	"github.com/bryanl/jsonnet-language-server/pkg/analysis/lexical/astext"
 	"github.com/bryanl/jsonnet-language-server/pkg/analysis/lexical/locate"
+	"github.com/davecgh/go-spew/spew"
 	"github.com/google/go-jsonnet/ast"
-	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 )
 
@@ -14,7 +14,7 @@ type hoverVisitor struct {
 	Visitor *NodeVisitor
 	loc     ast.Location
 
-	selectedToken *Locatable
+	selectedToken *locate.Locatable
 }
 
 func newHoverVisitor(filename string, r io.Reader, loc ast.Location) (*hoverVisitor, error) {
@@ -41,7 +41,7 @@ func (hv *hoverVisitor) Visit() error {
 	return hv.Visitor.Visit()
 }
 
-func (hv *hoverVisitor) TokenAtLocation() (*Locatable, error) {
+func (hv *hoverVisitor) TokenAtLocation() (*locate.Locatable, error) {
 	if err := hv.Visitor.Visit(); err != nil {
 		return nil, err
 	}
@@ -51,30 +51,10 @@ func (hv *hoverVisitor) TokenAtLocation() (*Locatable, error) {
 
 // previsit figure out bounds for token. If this is not possible, return an error.
 // nolint: gocyclo
-func (hv *hoverVisitor) previsit(token interface{}, parent *Locatable, env Env) error {
-	var r ast.LocationRange
-	var err error
-
-	switch t := token.(type) {
-	case nodeLoc:
-		r = *t.Loc()
-	case ast.DesugaredObjectField:
-		r, err = locate.DesugaredObjectField(t, parent.Loc, string(hv.Visitor.Source))
-	case ast.Identifier:
-		r, err = locate.Identifier(t, parent.Loc, string(hv.Visitor.Source))
-	case ast.LocalBind:
-		r, err = locate.LocalBind(t, parent.Loc, string(hv.Visitor.Source))
-	case ast.NamedParameter:
-		r, err = locate.NamedParameter(t, parent.Loc, string(hv.Visitor.Source))
-	case astext.RequiredParameter:
-		r, err = locate.RequiredParameter(t, parent.Loc, string(hv.Visitor.Source))
-		logrus.Warnf("range for rp = %s", r.String())
-	default:
-		logrus.Warn("previsiting an unlocatable %T with parent %T", t, parent.Token)
-		return errors.Errorf("unable to locate %T", t)
-	}
-
+func (hv *hoverVisitor) previsit(token interface{}, parent *locate.Locatable, env locate.Env) error {
+	r, err := locate.Locate(token, parent, string(hv.Visitor.Source))
 	if err != nil {
+		spew.Dump("parent", parent)
 		return err
 	}
 
@@ -82,18 +62,14 @@ func (hv *hoverVisitor) previsit(token interface{}, parent *Locatable, env Env) 
 		r = parent.Loc
 	}
 
-	name, err := astext.TokenName(token)
-	if err != nil {
-		return err
-	}
-
+	name := astext.TokenName(token)
 	logrus.Printf("previsiting %s: %s", name, r.String())
 
 	if r.FileName == "" {
 		r.FileName = parent.Loc.FileName
 	}
 
-	nl := &Locatable{
+	nl := &locate.Locatable{
 		Token:  token,
 		Loc:    r,
 		Parent: parent,
@@ -111,10 +87,6 @@ func (hv *hoverVisitor) previsit(token interface{}, parent *Locatable, env Env) 
 	}
 
 	return nil
-}
-
-type nodeLoc interface {
-	Loc() *ast.LocationRange
 }
 
 func isInvalidRange(r ast.LocationRange) bool {

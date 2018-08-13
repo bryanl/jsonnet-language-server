@@ -4,75 +4,74 @@ import (
 	"fmt"
 
 	"github.com/google/go-jsonnet/ast"
-	"github.com/pkg/errors"
 )
 
 // tokenName returns a name for a token.
 // nolint: gocyclo
-func TokenName(token interface{}) (string, error) {
+func TokenName(token interface{}) string {
 	switch t := token.(type) {
 	case *ast.Apply:
-		return "apply", nil
+		return "apply"
 	case *ast.Array:
-		return "array", nil
+		return "array"
+	case *ast.ArrayComp:
+		return "(arraycomp)"
 	case *ast.Binary:
-		return "binary", nil
+		return "binary"
 	case *ast.Conditional:
-		return "conditional", nil
+		return "conditional"
 	case *ast.DesugaredObject:
-		return "object", nil
+		return "object"
 	case ast.DesugaredObjectField:
-		name, err := TokenValue(t.Name)
-		if err != nil {
-			return "", err
-		}
-		return fmt.Sprintf("(field) %s", name), nil
+		name := TokenValue(t.Name)
+		return fmt.Sprintf("(field) %s", name)
+	case ast.ForSpec:
+		return "forspec"
 	case *ast.Function:
-		return fmt.Sprintf("function"), nil
+		return fmt.Sprintf("function")
 	case *ast.LiteralBoolean:
-		return "bool", nil
+		return "bool"
 	case *ast.LiteralNull:
-		return "null", nil
+		return "null"
 	case *ast.LiteralNumber:
-		return "number", nil
+		return "number"
 	case *ast.LiteralString:
-		return "string", nil
+		return "string"
 	case ast.Identifier:
-		return fmt.Sprintf("identifier %q", string(t)), nil
+		return fmt.Sprintf("identifier %q", string(t))
 	case *ast.Import:
-		return fmt.Sprintf("import %q", t.File.Value), nil
+		return fmt.Sprintf("import %q", t.File.Value)
+	case *ast.ImportStr:
+		return "(importstr)"
 	case *ast.Index:
-		return fmt.Sprintf("index"), nil
+		return fmt.Sprintf("index")
 	case *ast.Local:
-		return "local", nil
+		return "local"
 	case ast.LocalBind:
-		return fmt.Sprintf("local bind %q", string(t.Variable)), nil
+		return fmt.Sprintf("local bind %q", string(t.Variable))
 	case ast.NamedParameter:
-		val, err := TokenValue(t.DefaultArg)
-		if err != nil {
-			return "", err
-		}
-		return fmt.Sprintf("optional parameter %s=%s", string(t.Name), val), nil
+		val := TokenValue(t.DefaultArg)
+		return fmt.Sprintf("optional parameter %s=%s", string(t.Name), val)
 	case *ast.Self:
-		return "self", nil
+		return "self"
 	case *ast.SuperIndex:
-		return "super index", nil
+		return "super index"
 	case *ast.Var:
-		return fmt.Sprintf("var %q", string(t.Id)), nil
+		return fmt.Sprintf("var %q", string(t.Id))
 	case RequiredParameter:
-		return fmt.Sprintf("required parameter %q", string(t.ID)), nil
+		return fmt.Sprintf("required parameter %q", string(t.ID))
 	default:
-		return "", errors.Errorf("don't know how to name %T", t)
+		return fmt.Sprintf("(unknown) %T", t)
 	}
 }
 
-func TokenValue(token interface{}) (string, error) {
+func TokenValue(token interface{}) string {
 	switch t := token.(type) {
 	case *ast.LiteralNumber:
-		return t.OriginalString, nil
+		return t.OriginalString
 	case *ast.LiteralString:
-		return t.Value, nil
+		return t.Value
 	default:
-		return "", errors.Errorf("unable to get value from %T", t)
+		return fmt.Sprintf("unknown value from %T", t)
 	}
 }

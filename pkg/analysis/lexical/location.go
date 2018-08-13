@@ -5,6 +5,7 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/bryanl/jsonnet-language-server/pkg/analysis/lexical/locate"
 	"github.com/davecgh/go-spew/spew"
 	"github.com/google/go-jsonnet/ast"
 	"github.com/pkg/errors"
@@ -77,7 +78,7 @@ func afterRange(l ast.Location, lr ast.LocationRange) bool {
 	return false
 }
 
-func localBindRange(source []byte, lb ast.LocalBind, parent *Locatable) (ast.LocationRange, error) {
+func localBindRange(source []byte, lb ast.LocalBind, parent *locate.Locatable) (ast.LocationRange, error) {
 	// pStart := parent.Loc.Begin.Line
 	// pEnd := parent.Loc.End.Line
 

@@ -3,6 +3,7 @@ package lexical
 import (
 	"io"
 
+	"github.com/bryanl/jsonnet-language-server/pkg/analysis/lexical/locate"
 	"github.com/google/go-jsonnet/ast"
 	"github.com/pkg/errors"
 	"github.com/sourcegraph/go-langserver/pkg/lsp"
@@ -13,7 +14,7 @@ var (
 )
 
 // TokenAtLocation returns the token a location in a file.
-func TokenAtLocation(filename string, r io.Reader, loc ast.Location) (*Locatable, error) {
+func TokenAtLocation(filename string, r io.Reader, loc ast.Location) (*locate.Locatable, error) {
 	v, err := NewCursorVisitor(filename, r, loc)
 	if err != nil {
 		return nil, errors.Wrap(err, "create cursor visitor")
@@ -53,7 +54,7 @@ func HoverAtLocation(filename string, r io.Reader, l, c int) (*lsp.Hover, error)
 
 	resolved, err := locatable.Resolve()
 	if err != nil {
-		if err == ErrUnresolvable {
+		if err == locate.ErrUnresolvable {
 			return emptyHover, nil
 		}
 		return nil, err

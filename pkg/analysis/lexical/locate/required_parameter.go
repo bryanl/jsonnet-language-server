@@ -9,6 +9,7 @@ import (
 
 // RequiredParameter locates an astext.RequiredParameter.
 func RequiredParameter(p astext.RequiredParameter, parentRange ast.LocationRange, source string) (ast.LocationRange, error) {
+	logrus.Infof("finding location for parameter %s at %s", string(p.ID), parentRange.String())
 	parentSource, err := extractRange(source, parentRange)
 	if err != nil {
 		return ast.LocationRange{}, err
@@ -16,7 +17,7 @@ func RequiredParameter(p astext.RequiredParameter, parentRange ast.LocationRange
 
 	if parentSource == "" {
 		logrus.Info(parentRange.String())
-		return ast.LocationRange{}, errors.New("could not find source for parameter parent")
+		return ast.LocationRange{}, errors.Errorf("could not find source for required parameter parent")
 	}
 
 	id := string(p.ID)

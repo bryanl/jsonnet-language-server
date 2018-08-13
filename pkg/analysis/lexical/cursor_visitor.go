@@ -4,6 +4,7 @@ import (
 	"io"
 
 	"github.com/bryanl/jsonnet-language-server/pkg/analysis/lexical/astext"
+	"github.com/bryanl/jsonnet-language-server/pkg/analysis/lexical/locate"
 	"github.com/google/go-jsonnet/ast"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
@@ -15,9 +16,9 @@ type CursorVisitor struct {
 	NodeVisitor *NodeVisitor
 	Location    ast.Location
 
-	enclosingNode            *Locatable
-	terminalNode             *Locatable
-	terminalNodeOnCursorLine *Locatable
+	enclosingNode            *locate.Locatable
+	terminalNode             *locate.Locatable
+	terminalNodeOnCursorLine *locate.Locatable
 }
 
 // NewCursorVisitor creates an instance of CursorVisitor.
@@ -32,7 +33,7 @@ func NewCursorVisitor(filename string, r io.Reader, loc ast.Location) (*CursorVi
 	}
 
 	cv.NodeVisitor = v
-	cv.terminalNode = &Locatable{Token: v.Node, Loc: *v.Node.Loc()}
+	cv.terminalNode = &locate.Locatable{Token: v.Node, Loc: *v.Node.Loc()}
 
 	return cv, nil
 }
@@ -41,7 +42,7 @@ func (cv *CursorVisitor) Visit() error {
 	return cv.NodeVisitor.Visit()
 }
 
-func (this *CursorVisitor) TokenAtPosition() (*Locatable, error) {
+func (this *CursorVisitor) TokenAtPosition() (*locate.Locatable, error) {
 	logrus.Debugf("finding token in a %T", this.enclosingNode.Token)
 	if this.enclosingNode == nil {
 		if beforeRange(this.Location, *this.NodeVisitor.Node.Loc()) {
@@ -63,7 +64,7 @@ func (this *CursorVisitor) TokenAtPosition() (*Locatable, error) {
 }
 
 // nolint: gocyclo
-func (cv *CursorVisitor) previsit(token interface{}, parent *Locatable, env Env) error {
+func (cv *CursorVisitor) previsit(token interface{}, parent *locate.Locatable, env locate.Env) error {
 	var r ast.LocationRange
 	var err error
 	switch t := token.(type) {
@@ -92,7 +93,7 @@ func (cv *CursorVisitor) previsit(token interface{}, parent *Locatable, env Env)
 
 	nodeEnd := r.End
 
-	l := &Locatable{Token: token, Loc: r, Parent: parent}
+	l := &locate.Locatable{Token: token, Loc: r, Parent: parent}
 
 	if inRange(cv.Location, r) {
 		if cv.enclosingNode == nil {
@@ -113,7 +114,7 @@ func (cv *CursorVisitor) previsit(token interface{}, parent *Locatable, env Env)
 		if cv.terminalNodeOnCursorLine == nil {
 			cv.terminalNodeOnCursorLine = nil
 		} else if afterRangeOrEqual(nodeEnd, cv.terminalNodeOnCursorLine.Loc) {
-			cv.terminalNodeOnCursorLine = &Locatable{
+			cv.terminalNodeOnCursorLine = &locate.Locatable{
 				Token: token,
 				Loc:   r,
 			}
@@ -123,7 +124,7 @@ func (cv *CursorVisitor) previsit(token interface{}, parent *Locatable, env Env)
 	return nil
 }
 
-func (cv *CursorVisitor) desugaredObjectFieldRange(f ast.DesugaredObjectField, parent *Locatable) (ast.LocationRange, error) {
+func (cv *CursorVisitor) desugaredObjectFieldRange(f ast.DesugaredObjectField, parent *locate.Locatable) (ast.LocationRange, error) {
 	if parent == nil {
 		return ast.LocationRange{}, errors.New("field has not parent")
 	}
@@ -160,7 +161,7 @@ func (cv *CursorVisitor) identifierRange(id ast.Identifier, parent interface{}) 
 	return ast.LocationRange{}, nil
 }
 
-func (cv *CursorVisitor) nodeRange(node ast.Node, parent *Locatable) (ast.LocationRange, error) {
+func (cv *CursorVisitor) nodeRange(node ast.Node, parent *locate.Locatable) (ast.LocationRange, error) {
 	if node.Loc() == nil {
 		return ast.LocationRange{}, errors.New("node range is nil")
 	}

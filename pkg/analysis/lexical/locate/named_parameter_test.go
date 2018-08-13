@@ -21,7 +21,7 @@ func TestNamedParameter(t *testing.T) {
 	got, err := NamedParameter(p, createRange("file.jsonnet", 1, 7, 1, 18), source)
 	require.NoError(t, err)
 
-	expected := createRange("file.jsonnet", 1, 10, 1, 12)
+	expected := createRange("file.jsonnet", 1, 9, 1, 12)
 
 	assert.Equal(t, expected, got)
 }

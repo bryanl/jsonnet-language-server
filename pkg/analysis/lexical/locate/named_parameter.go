@@ -18,7 +18,7 @@ func NamedParameter(p ast.NamedParameter, parentRange ast.LocationRange, source 
 
 	if parentSource == "" {
 		logrus.Info(parentRange.String())
-		return ast.LocationRange{}, errors.New("could not find source for parameter parent")
+		return ast.LocationRange{}, errors.New("could not find source for named parameter parent")
 	}
 
 	var val bytes.Buffer
@@ -27,10 +27,7 @@ func NamedParameter(p ast.NamedParameter, parentRange ast.LocationRange, source 
 	}
 
 	if p.DefaultArg != nil {
-		da, err := astext.TokenValue(p.DefaultArg)
-		if err != nil {
-			return ast.LocationRange{}, err
-		}
+		da := astext.TokenValue(p.DefaultArg)
 		if _, err = val.WriteString("=" + da); err != nil {
 			return ast.LocationRange{}, err
 		}
@@ -61,7 +58,7 @@ func NamedParameter(p ast.NamedParameter, parentRange ast.LocationRange, source 
 					r := createRange(
 						parentRange.FileName,
 						argLocation.Line+parentRange.Begin.Line-1,
-						argLocation.Column+parentRange.Begin.Column,
+						argLocation.Column+parentRange.Begin.Column-1,
 						argLocation.Line+parentRange.Begin.Line-1,
 						argLocation.Column+parentRange.Begin.Column+len(id)-1,
 					)

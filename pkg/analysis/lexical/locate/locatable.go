@@ -1,4 +1,4 @@
-package lexical
+package locate
 
 import (
 	"bytes"
@@ -14,6 +14,9 @@ var (
 	// ErrUnresolvable means the loctable can't be resolved.
 	ErrUnresolvable = errors.New("unresolvable")
 )
+
+// Env is a map of options.
+type Env map[string]Locatable
 
 type Resolved struct {
 	Location    ast.LocationRange
@@ -84,7 +87,7 @@ func (l *Locatable) handleDefault() (*Resolved, error) {
 		name, err = bindOutput(t)
 	default:
 		logrus.Info("default output")
-		name, err = astext.TokenName(l.Token)
+		name = astext.TokenName(l.Token)
 	}
 
 	if err != nil {
@@ -141,10 +144,7 @@ func (l *Locatable) handleFunction(f *ast.Function) (*Resolved, error) {
 			}
 		}
 
-		val, err := astext.TokenValue(p.DefaultArg)
-		if err != nil {
-			return nil, err
-		}
+		val := astext.TokenValue(p.DefaultArg)
 		s := fmt.Sprintf("%s=%s", string(p.Name), val)
 		if _, err := sig.WriteString(s); err != nil {
 			return nil, err
@@ -159,11 +159,7 @@ func (l *Locatable) handleFunction(f *ast.Function) (*Resolved, error) {
 
 	switch t := l.Parent.Parent.Token.(type) {
 	case ast.DesugaredObjectField:
-		name, err := astext.TokenName(l.Parent.Parent.Token)
-		if err != nil {
-			return nil, err
-		}
-
+		name := astext.TokenName(l.Parent.Parent.Token)
 		resolved := &Resolved{
 			Location:    l.Loc,
 			Token:       l.Token,
@@ -179,11 +175,7 @@ func (l *Locatable) handleFunction(f *ast.Function) (*Resolved, error) {
 
 func (l *Locatable) handleVar(t *ast.Var) (*Resolved, error) {
 	if ref, ok := l.Env[string(t.Id)]; ok {
-		s, err := l.resolvedIdentifier(&ref)
-		if err != nil {
-			return nil, err
-		}
-
+		s := l.resolvedIdentifier(&ref)
 		resolved := &Resolved{
 			Location:    ref.Loc,
 			Token:       ref.Token,
@@ -196,15 +188,16 @@ func (l *Locatable) handleVar(t *ast.Var) (*Resolved, error) {
 	return nil, ErrUnresolvable
 }
 
-func (l *Locatable) resolvedIdentifier(ref *Locatable) (string, error) {
+func (l *Locatable) resolvedIdentifier(ref *Locatable) string {
 	id, ok := ref.Token.(ast.Identifier)
 	if !ok {
 		return astext.TokenName(ref.Token)
 	}
 
-	switch ref.Parent.Token.(type) {
+	switch t := ref.Parent.Token.(type) {
 	case ast.LocalBind:
-		return fmt.Sprintf("(function) %s()", string(id)), nil
+		name := astext.TokenName(t.Body)
+		return fmt.Sprintf("(%s) %s", name, string(id))
 	default:
 		return astext.TokenName(ref.Token)
 	}
