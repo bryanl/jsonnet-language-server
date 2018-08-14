@@ -129,6 +129,12 @@ func (m *Match) Expr(pos int) (int, error) {
 
 			return 0, errors.New("expected ',' after expression")
 		}
+	case TokenError:
+		end, err := m.Expr(pos + 1)
+		if err != nil {
+			return 0, err
+		}
+		return end, nil
 	case TokenIdentifier:
 		next := m.Tokens[pos+1]
 		if next.Kind == TokenDot {
