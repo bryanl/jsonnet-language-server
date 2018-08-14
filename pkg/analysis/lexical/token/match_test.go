@@ -82,6 +82,7 @@ func TestMatch_Expr(t *testing.T) {
 		{name: "import", file: "expr29.jsonnet", pos: 0, expected: 1},
 		{name: "importstr", file: "expr30.jsonnet", pos: 0, expected: 1},
 		{name: "error expr", file: "expr31.jsonnet", pos: 0, expected: 1},
+		{name: "assert; expr", file: "expr32.jsonnet", pos: 0, expected: 2},
 	}
 
 	for _, tc := range cases {

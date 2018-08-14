@@ -96,11 +96,11 @@ func (m *Match) Expr(pos int) (int, error) {
 		return pos, nil
 	case TokenOperator:
 		if isUnaryOp(m.data(pos)) {
-			end, err := m.Expr(pos + 1)
-			if err != nil {
-				return 0, err
-			}
-			return end, nil
+			return m.Expr(pos + 1)
+		}
+	case TokenAssert:
+		if m.kind(pos+1) == TokenSemicolon {
+			return m.Expr(pos + 2)
 		}
 	case TokenBracketL:
 		if m.kind(pos+1) == TokenBracketR {
@@ -336,6 +336,11 @@ func (m *Match) kind(pos int) TokenKind {
 
 func (m *Match) data(pos int) string {
 	return m.Tokens[pos].Data
+}
+
+func (m *Match) isOperator(pos int, name string) bool {
+	return m.kind(pos) == TokenOperator &&
+		m.data(pos) == name
 }
 
 func isLocEqual(l1, l2 ast.Location) bool {
