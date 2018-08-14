@@ -94,6 +94,14 @@ func (m *Match) Expr(pos int) (int, error) {
 		TokenStringDouble, TokenStringSingle, TokenVerbatimStringDouble,
 		TokenVerbatimStringSingle, TokenNumber:
 		return pos, nil
+	case TokenOperator:
+		if isUnaryOp(m.data(pos)) {
+			end, err := m.Expr(pos + 1)
+			if err != nil {
+				return 0, err
+			}
+			return end, nil
+		}
 	case TokenBracketL:
 		if m.kind(pos+1) == TokenBracketR {
 			// empty array
@@ -119,7 +127,7 @@ func (m *Match) Expr(pos int) (int, error) {
 				return cur + 1, nil
 			}
 
-			return 0, errors.New("expected , after expression")
+			return 0, errors.New("expected ',' after expression")
 		}
 	case TokenIdentifier:
 		next := m.Tokens[pos+1]
@@ -137,6 +145,16 @@ func (m *Match) Expr(pos int) (int, error) {
 				// no args
 				return pos + 2, nil
 			}
+			end, err := m.Params(pos + 2)
+			if err != nil {
+				return 0, err
+			}
+
+			if m.kind(end+1) == TokenParenR {
+				return end + 1, nil
+			}
+
+			return 0, errors.New("parameters didn't end with a bracket")
 		}
 
 		return pos, nil
@@ -146,7 +164,6 @@ func (m *Match) Expr(pos int) (int, error) {
 				return pos + 2, nil
 			}
 		} else if m.kind(pos+1) == TokenBracketL {
-			fmt.Println("doing the super [] thing")
 			end, err := m.Expr(pos + 2)
 			if err != nil {
 				return 0, err
@@ -323,6 +340,16 @@ func isString(t Token) bool {
 
 func isSliceSeperator(t Token) bool {
 	return t.Kind == TokenOperator && t.Data == ":"
+}
+
+func isUnaryOp(op string) bool {
+	for k := range ast.UopMap {
+		if op == k {
+			return true
+		}
+	}
+
+	return false
 }
 
 func printTokens(tokens Tokens) {

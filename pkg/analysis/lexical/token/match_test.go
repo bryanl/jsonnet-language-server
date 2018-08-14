@@ -73,6 +73,12 @@ func TestMatch_Expr(t *testing.T) {
 		{name: "super.id", file: "expr23.jsonnet", pos: 0, expected: 2},
 		{name: "super [expr]", file: "expr24.jsonnet", pos: 0, expected: 3},
 		{name: "expr()", file: "expr25.jsonnet", pos: 0, expected: 2},
+		{name: "expr(param)", file: "expr26.jsonnet", pos: 0, expected: 3},
+		{name: "id", file: "expr27.jsonnet", pos: 0, expected: 0},
+		{name: "unary -", file: "expr28.jsonnet", pos: 0, expected: 1},
+		{name: "unary +", file: "expr28.jsonnet", pos: 2, expected: 3},
+		{name: "unary !", file: "expr28.jsonnet", pos: 4, expected: 5},
+		{name: "unary !", file: "expr28.jsonnet", pos: 6, expected: 7},
 	}
 
 	for _, tc := range cases {
