@@ -158,6 +158,14 @@ func (m *Match) Expr(pos int) (int, error) {
 		}
 
 		return pos, nil
+	case TokenImport:
+		if isString(m.Tokens[pos+1]) {
+			return pos + 1, nil
+		}
+	case TokenImportStr:
+		if isString(m.Tokens[pos+1]) {
+			return pos + 1, nil
+		}
 	case TokenSuper:
 		if t := m.Tokens[pos+1]; t.Kind == TokenDot {
 			if m.kind(pos+2) == TokenIdentifier {
