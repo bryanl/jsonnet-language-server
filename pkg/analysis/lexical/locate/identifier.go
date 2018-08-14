@@ -14,7 +14,62 @@ const (
 )
 
 // Identifier locates an ast.Identifier.
-func Identifier(id ast.Identifier, parentRange ast.LocationRange, source string) (ast.LocationRange, error) {
+func Identifier(id ast.Identifier, parent *Locatable, source string) (ast.LocationRange, error) {
+	if parent == nil {
+		return ast.LocationRange{}, errors.New("parent is nil")
+	}
+
+	switch t := parent.Token.(type) {
+	case *ast.Index:
+		return idInIndex(id, parent, source)
+	case ast.LocalBind:
+		return idInLocalBind(id, parent.Loc, source)
+	case ast.ObjectField:
+		return idInObjectField(id, parent, source)
+	default:
+		return ast.LocationRange{}, errors.Errorf("can't locate id in %T", t)
+	}
+}
+
+func idInIndex(id ast.Identifier, parent *Locatable, source string) (ast.LocationRange, error) {
+	parentSource, err := extractRange(source, parent.Loc)
+	if err != nil {
+		return ast.LocationRange{}, err
+	}
+
+	tokens, err := Lex("", parentSource)
+	if err != nil {
+		return ast.LocationRange{}, err
+	}
+
+	for i := 1; i < len(tokens)-1; i++ {
+		if tokens[i-1].Kind == TokenDot && tokens[i].Data == string(id) {
+			r := tokens[i].Loc
+			r.Begin.Line += parent.Loc.Begin.Line - 2
+			r.Begin.Column += parent.Loc.Begin.Column - 1
+			r.End.Line += parent.Loc.Begin.Line - 2
+			return r, nil
+		}
+	}
+
+	return ast.LocationRange{}, errors.New("index not found")
+}
+
+func idInObjectField(id ast.Identifier, parent *Locatable, source string) (ast.LocationRange, error) {
+	r, err := fieldIDRange(string(id), source)
+	if err != nil {
+		return ast.LocationRange{}, err
+	}
+
+	return r, nil
+}
+
+func isZeroRange(r ast.LocationRange) bool {
+	return r.Begin.Line == 0 || r.Begin.Column == 0 &&
+		r.End.Line == 0 || r.End.Column == 0
+}
+
+func idInLocalBind(id ast.Identifier, parentRange ast.LocationRange, source string) (ast.LocationRange, error) {
 	if string(id) == outMostObjectID {
 		return createRange(parentRange.FileName, 0, 0, 0, 0), nil
 	}

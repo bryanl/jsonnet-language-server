@@ -39,7 +39,11 @@ func (l *Locatable) Resolve() (*Resolved, error) {
 	switch t := l.Token.(type) {
 	case *ast.Var:
 		return l.handleVar(t)
+	case *ast.Index:
+		return l.handleIndex(t)
 	case ast.Identifier:
+		return l.handleDefault()
+	case *ast.Identifier:
 		return l.handleDefault()
 	case *ast.Function:
 		return l.handleFunction(t)
@@ -51,6 +55,20 @@ func (l *Locatable) Resolve() (*Resolved, error) {
 		logrus.Errorf("unable to resolve %T", l.Token)
 		return nil, ErrUnresolvable
 	}
+}
+
+func (l *Locatable) handleIndex(i *ast.Index) (*Resolved, error) {
+	description := fmt.Sprintf("(index) %s", string(*i.Id))
+
+	logrus.Printf("index points to a %T at %s", i.Target, i.Target.Loc().String())
+
+	result := &Resolved{
+		Location:    *i.Target.Loc(),
+		Token:       l.Token,
+		Description: description,
+	}
+
+	return result, nil
 }
 
 func (l *Locatable) handleNamedParameter(p ast.NamedParameter) (*Resolved, error) {
@@ -197,6 +215,9 @@ func (l *Locatable) resolvedIdentifier(ref *Locatable) string {
 	switch t := ref.Parent.Token.(type) {
 	case ast.LocalBind:
 		name := astext.TokenName(t.Body)
+		return fmt.Sprintf("(%s) %s", name, string(id))
+	case *ast.Index:
+		name := astext.TokenName(t.Target)
 		return fmt.Sprintf("(%s) %s", name, string(id))
 	default:
 		return astext.TokenName(ref.Token)

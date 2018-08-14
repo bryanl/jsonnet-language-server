@@ -5,7 +5,6 @@ import (
 	"os"
 
 	"github.com/bryanl/jsonnet-language-server/pkg/analysis/lexical"
-	"github.com/google/go-jsonnet/ast"
 	"github.com/pkg/errors"
 	"github.com/sourcegraph/go-langserver/pkg/lsp"
 )
@@ -36,14 +35,4 @@ func (h *hover) handle() (interface{}, error) {
 	}
 
 	return lexical.HoverAtLocation(u.Path, f, h.params.Position.Line+1, h.params.Position.Character)
-}
-
-func isFunctionParam(l *lexical.Locatable) bool {
-	if _, isVar := l.Token.(*ast.Var); isVar {
-		if _, isParentLocal := l.Parent.Token.(*ast.Local); isParentLocal {
-			return true
-		}
-	}
-
-	return false
 }

@@ -186,6 +186,8 @@ func (v *NodeVisitor) visitToken(token interface{}, parent *locate.Locatable, en
 		return v.handleLocalBind(t, parent, env)
 	case ast.NamedParameter:
 		return v.handleNamedParameter(t, parent, env)
+	case ast.ObjectField:
+		return v.handleObjectField(t, parent, env)
 	default:
 		return errors.Errorf("unable to handle token of type %T", t)
 	}
@@ -804,7 +806,7 @@ func (v *NodeVisitor) handleLocal(n *ast.Local, parent *locate.Locatable, env lo
 			Loc:    r,
 		}
 
-		idLocation, err := locate.Identifier(bind.Variable, r, string(v.Source))
+		idLocation, err := locate.Identifier(bind.Variable, bindLocatable, string(v.Source))
 		if err != nil {
 			return err
 		}
@@ -939,9 +941,15 @@ func (v *NodeVisitor) handleObjectField(n ast.ObjectField, parent *locate.Locata
 
 	tokens = append(tokens, n.Expr2, n.Expr3)
 
+	r, err := locate.ObjectField(n, parent.Loc, string(v.Source))
+	if err != nil {
+		return err
+	}
+
 	locatable := &locate.Locatable{
 		Token:  n,
 		Parent: parent,
+		Loc:    r,
 	}
 
 	return v.visitList(tokens, locatable, envWithParams)

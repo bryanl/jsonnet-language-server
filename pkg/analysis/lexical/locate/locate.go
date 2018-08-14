@@ -5,7 +5,6 @@ import (
 	"strings"
 
 	"github.com/bryanl/jsonnet-language-server/pkg/analysis/lexical/astext"
-	"github.com/davecgh/go-spew/spew"
 	"github.com/google/go-jsonnet/ast"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
@@ -23,15 +22,20 @@ func Locate(token interface{}, parent *Locatable, source string) (ast.LocationRa
 	case ast.ForSpec:
 		r, err = ForSpec(t, parent.Loc, source)
 	case ast.Identifier:
-		r, err = Identifier(t, parent.Loc, source)
+		r, err = Identifier(t, parent, source)
+	case *ast.Identifier:
+		if t == nil {
+			return ast.LocationRange{}, errors.New("identifier was nil")
+		}
+
+		r, err = Identifier(*t, parent, source)
 	case ast.LocalBind:
 		r, err = LocalBind(t, parent.Loc, source)
 	case ast.NamedParameter:
 		r, err = NamedParameter(t, parent.Loc, source)
+	case ast.ObjectField:
+		r, err = ObjectField(t, parent.Loc, source)
 	case astext.RequiredParameter:
-		if string(t.ID) == "s" {
-			spew.Dump(parent.Token)
-		}
 		r, err = RequiredParameter(t, parent.Loc, source)
 	default:
 		logrus.Warnf("previsiting an unlocatable %T with parent %T", t, parent.Token)

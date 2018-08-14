@@ -8,10 +8,32 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestIdentifier(t *testing.T) {
+func TestIdentifier_in_local_bind(t *testing.T) {
 	id := ast.Identifier("name")
 
-	got, err := Identifier(id, createRange("file.jsonnet", 2, 7, 2, 20), testdata(t, "identifier1.jsonnet"))
+	l := &Locatable{
+		Token: ast.LocalBind{},
+		Loc:   createRange("file.jsonnet", 2, 7, 2, 20),
+	}
+
+	source := testdata(t, "identifier1.jsonnet")
+	got, err := Identifier(id, l, source)
+	require.NoError(t, err)
+
+	expected := createRange("file.jsonnet", 2, 7, 2, 10)
+	assert.Equal(t, expected, got)
+}
+
+func TestIdentifier_in_index(t *testing.T) {
+	id := ast.Identifier("name")
+
+	l := &Locatable{
+		Token: ast.ObjectField{Id: &id},
+		Loc:   createRange("file.jsonnet", 3, 12, 5, 10),
+	}
+
+	source := testdata(t, "identifier2.jsonnet")
+	got, err := Identifier(id, l, source)
 	require.NoError(t, err)
 
 	expected := createRange("file.jsonnet", 2, 7, 2, 10)
