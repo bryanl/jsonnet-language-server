@@ -2,9 +2,11 @@ package main
 
 import (
 	"flag"
+	"fmt"
 	"io/ioutil"
 	"log"
 
+	"github.com/bryanl/jsonnet-language-server/pkg/analysis/lexical/locate"
 	"github.com/davecgh/go-spew/spew"
 	"github.com/google/go-jsonnet/ast"
 	"github.com/google/go-jsonnet/parser"
@@ -12,6 +14,7 @@ import (
 
 func main() {
 	filename := flag.String("filename", "", "filename")
+	level := flag.Int("level", 1, "dump level: 1) lex 2) parse 3) desugar/analyze")
 	flag.Parse()
 
 	if *filename == "" {
@@ -23,12 +26,31 @@ func main() {
 		log.Fatal(err)
 	}
 
-	n, err := parse(*filename, string(data))
+	switch *level {
+	case 0:
+		lex(*filename, string(data))
+	case 1:
+		n, err := parse(*filename, string(data))
+		if err != nil {
+			log.Fatal(err)
+		}
+
+		spew.Dump(n)
+	default:
+		log.Fatalf("unsupport option %d", *level)
+	}
+
+}
+
+func lex(filename, snippet string) {
+	tokens, err := locate.Lex(filename, snippet)
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	spew.Dump(n)
+	for i, t := range tokens {
+		fmt.Printf("%d %s: %s = %s\n", i, t.Loc.String(), t.Kind.String(), t.Data)
+	}
 }
 
 func parse(filename, snippet string) (ast.Node, error) {
@@ -36,6 +58,7 @@ func parse(filename, snippet string) (ast.Node, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	node, err := parser.Parse(tokens)
 	if err != nil {
 		return nil, err
