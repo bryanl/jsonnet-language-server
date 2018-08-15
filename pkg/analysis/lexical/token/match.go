@@ -126,13 +126,31 @@ func (m *Match) bind(pos int) (int, int, error) {
 // Find finds a token by kind at a position.
 func (m *Match) Find(start ast.Location, kind TokenKind) (int, error) {
 	for i, t := range m.Tokens {
+
 		if isLocEqual(start, t.Loc.Begin) && kind == t.Kind {
 			return i, nil
 		}
 	}
 
-	return 0, errors.Errorf("token %s at %s was not found",
+	return 0, errors.Errorf("token %q at %s was not found",
 		kind.String(), start.String())
+}
+
+func (m *Match) FindFirst(start ast.Location, kind TokenKind) (int, error) {
+	for i, t := range m.Tokens {
+		if start.Line > t.Loc.Begin.Line {
+			continue
+		} else if start.Line == t.Loc.End.Line &&
+			start.Column > t.Loc.End.Column {
+			continue
+		}
+
+		if t.Kind == kind {
+			return i, nil
+		}
+	}
+
+	return 0, errors.Errorf("token %q was not found", kind.String())
 }
 
 // ErrExprNotMatched is an expression is not matched error.
@@ -229,8 +247,6 @@ func (m *Match) expr(pos int) (int, error) {
 			end++
 		}
 
-		fmt.Println("looking for rest of array")
-		printTokens(m.Tokens[end])
 		for i := end; i < m.len(); i++ {
 			if m.kind(i) == TokenBracketR {
 				return i, nil
@@ -488,7 +504,6 @@ func (m *Match) Member(pos int) (int, error) {
 	case TokenIdentifier, TokenStringDouble, TokenStringSingle:
 		return m.Field(pos)
 	default:
-		fmt.Println("doh", m.kind(pos))
 		return 0, errors.New("did not match object member")
 	}
 }
@@ -793,4 +808,21 @@ func printTokens(tokens ...Token) {
 	for i, t := range tokens {
 		fmt.Printf("%d %s: %s = %s\n", i, t.Loc.String(), t.Kind.String(), t.Data)
 	}
+}
+
+func inRange(l ast.Location, lr ast.LocationRange) bool {
+	if lr.Begin.Line == l.Line && l.Line == lr.End.Line &&
+		lr.Begin.Column <= l.Column && l.Column <= lr.End.Column {
+		return true
+	} else if lr.Begin.Line < l.Line && l.Line == lr.End.Line &&
+		l.Column <= lr.End.Column {
+		return true
+	} else if lr.Begin.Line == l.Line && l.Line < lr.End.Line &&
+		l.Column >= lr.Begin.Column {
+		return true
+	} else if lr.Begin.Line < l.Line && l.Line < lr.End.Line {
+		return true
+	}
+
+	return false
 }

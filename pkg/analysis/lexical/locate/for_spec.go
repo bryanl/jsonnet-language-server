@@ -11,7 +11,7 @@ func ForSpec(a ast.ForSpec, parent *Locatable, source string) (ast.LocationRange
 		return ast.LocationRange{}, err
 	}
 
-	pos, err := m.Find(parent.Loc.Begin, token.TokenFor)
+	pos, err := m.FindFirst(parent.Loc.Begin, token.TokenFor)
 	if err != nil {
 		return ast.LocationRange{}, err
 	}
