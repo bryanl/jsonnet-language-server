@@ -60,7 +60,7 @@ func (l *Locatable) Resolve() (*Resolved, error) {
 func (l *Locatable) handleIndex(i *ast.Index) (*Resolved, error) {
 	description := fmt.Sprintf("(index) %s", string(*i.Id))
 
-	logrus.Printf("index points to a %T at %s", i.Target, i.Target.Loc().String())
+	logrus.Debugf("index points to a %T at %s", i.Target, i.Target.Loc().String())
 
 	result := &Resolved{
 		Location:    *i.Target.Loc(),
@@ -101,10 +101,10 @@ func (l *Locatable) handleDefault() (*Resolved, error) {
 
 	switch t := l.Parent.Token.(type) {
 	case ast.LocalBind:
-		logrus.Info("bind output")
+		logrus.Debug("bind output")
 		name, err = bindOutput(t)
 	default:
-		logrus.Info("default output")
+		logrus.Debug("default output")
 		name = astext.TokenName(l.Token)
 	}
 
@@ -112,7 +112,7 @@ func (l *Locatable) handleDefault() (*Resolved, error) {
 		return nil, err
 	}
 
-	logrus.Infof("handling default %s (%s): %T, %T", name, l.Loc.String(), l.Token, l.Parent.Token)
+	logrus.Debugf("handling default %s (%s): %T, %T", name, l.Loc.String(), l.Token, l.Parent.Token)
 
 	resolved := &Resolved{
 		Location:    l.Loc,

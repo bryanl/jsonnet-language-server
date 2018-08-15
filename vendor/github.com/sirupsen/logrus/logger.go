@@ -25,7 +25,7 @@ type Logger struct {
 	// formatters for examples.
 	Formatter Formatter
 	// The logging level the logger should log at. This is typically (and defaults
-	// to) `logrus.Info`, which allows Info(), Warn(), Error() and Fatal() to be
+	// to) `logrus.Debug`, which allows Info(), Warn(), Error() and Fatal() to be
 	// logged.
 	Level Level
 	// Used to sync writing to the log. Locking is enabled by Default

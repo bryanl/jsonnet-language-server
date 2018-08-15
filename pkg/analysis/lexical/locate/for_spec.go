@@ -23,7 +23,7 @@ func ForSpec(a ast.ForSpec, parent *Locatable, source string) (ast.LocationRange
 
 	return r, nil
 
-	// logrus.Infof("parent range is %s", parentRange.String())
+	// logrus.Debugf("parent range is %s", parentRange.String())
 	// parentSource, err := extractRange(source, parentRange)
 	// if err != nil {
 	// 	return ast.LocationRange{}, err

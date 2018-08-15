@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"flag"
 	"os"
 	"path/filepath"
 	"sync"
@@ -16,7 +17,11 @@ import (
 )
 
 func main() {
-	logger := initLogger()
+	var debug bool
+	flag.BoolVar(&debug, "debug", false, "enable debug logging")
+	flag.Parse()
+
+	logger := initLogger(debug)
 
 	if err := run(logger); err != nil {
 		logger.Error(err.Error())
@@ -37,7 +42,7 @@ func run(logger logrus.FieldLogger) error {
 	return nil
 }
 
-func initLogger() logrus.FieldLogger {
+func initLogger(debug bool) logrus.FieldLogger {
 	logger := logrus.New()
 	logger.Formatter = &logrus.TextFormatter{}
 
@@ -51,6 +56,11 @@ func initLogger() logrus.FieldLogger {
 
 	logger.SetOutput(f)
 	logrus.SetOutput(f)
+
+	if debug {
+		logger.SetLevel(logrus.DebugLevel)
+		logrus.SetLevel(logrus.DebugLevel)
+	}
 
 	return logger.WithFields(logrus.Fields{
 		"app": "jsonnet-language-server",

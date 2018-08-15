@@ -63,7 +63,7 @@ func (hv *hoverVisitor) previsit(token interface{}, parent *locate.Locatable, en
 	}
 
 	name := astext.TokenName(token)
-	logrus.Printf("previsiting %s: %s", name, r.String())
+	logrus.Debugf("previsiting %s: %s", name, r.String())
 
 	if r.FileName == "" {
 		r.FileName = parent.Loc.FileName
@@ -77,11 +77,11 @@ func (hv *hoverVisitor) previsit(token interface{}, parent *locate.Locatable, en
 	}
 
 	if hv.selectedToken == nil && inRange(hv.loc, nl.Loc) && nl.Parent != nil {
-		logrus.Printf("setting %T as selected token because there was none (%s)",
+		logrus.Debugf("setting %T as selected token because there was none (%s)",
 			nl.Token, nl.Loc.String())
 		hv.selectedToken = nl
 	} else if hv.selectedToken != nil && inRange(hv.loc, nl.Loc) && isRangeSmaller(hv.selectedToken.Loc, nl.Loc) {
-		logrus.Printf("setting %T as selected token because its range %s is smaller than %s from %T",
+		logrus.Debugf("setting %T as selected token because its range %s is smaller than %s from %T",
 			nl.Token, nl.Loc.String(), hv.selectedToken.Loc.String(), hv.selectedToken.Token)
 		hv.selectedToken = nl
 	}

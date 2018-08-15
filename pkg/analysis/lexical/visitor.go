@@ -457,7 +457,7 @@ type DesugaredObjectFieldVisitor struct {
 }
 
 func (v *NodeVisitor) handleDesugaredObjectField(n ast.DesugaredObjectField, parent *locate.Locatable, env locate.Env) error {
-	logrus.Infof("visiting %T", n)
+	logrus.Debugf("visiting %T", n)
 	if err := v.visitTypeIfExists("DesugaredObjectField", n); err != nil {
 		return err
 	}
@@ -611,7 +611,7 @@ func (v *NodeVisitor) handleFunction(n *ast.Function, parent *locate.Locatable, 
 	for _, id := range n.Parameters.Required {
 		p := astext.RequiredParameter{ID: id}
 
-		logrus.Println("failure is here")
+		logrus.Debug("failure is here")
 		spew.Dump(parent.Parent.Loc)
 		r, err := locate.RequiredParameter(p, loc, string(v.Source))
 		if err != nil {

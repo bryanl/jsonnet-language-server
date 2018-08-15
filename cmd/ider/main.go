@@ -15,6 +15,8 @@ func main() {
 	line := flag.Int("l", 0, "line")
 	char := flag.Int("c", 0, "character")
 
+	logrus.SetLevel(logrus.DebugLevel)
+
 	flag.Parse()
 
 	if *filename == "" {

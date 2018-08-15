@@ -17,7 +17,7 @@ func NamedParameter(p ast.NamedParameter, parentRange ast.LocationRange, source 
 	}
 
 	if parentSource == "" {
-		logrus.Info(parentRange.String())
+		logrus.Debug(parentRange.String())
 		return ast.LocationRange{}, errors.New("could not find source for named parameter parent")
 	}
 
