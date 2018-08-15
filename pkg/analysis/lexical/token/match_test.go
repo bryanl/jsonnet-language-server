@@ -185,6 +185,7 @@ func TestMatch_Expr(t *testing.T) {
 		{name: "local bind multiple", file: "expr37.jsonnet", pos: 0, expected: 9},
 		{name: "expr in super", file: "expr38.jsonnet", pos: 0, expected: 11},
 		{name: "binary op", file: "expr39.jsonnet", pos: 0, expected: 2},
+		{name: "[expr forspec]", file: "expr43.jsonnet", pos: 14, expected: 20},
 	}
 
 	for _, tc := range cases {
@@ -231,7 +232,7 @@ func TestMatch_ifspec(t *testing.T) {
 func TestMatch_forspec(t *testing.T) {
 	m := initmatch(t, "forspec1.jsonnet")
 
-	err := m.forspec()
+	err := m.Forspec()
 	require.NoError(t, err)
 
 	expected := 3

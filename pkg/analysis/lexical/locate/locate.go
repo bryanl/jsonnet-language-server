@@ -20,7 +20,7 @@ func Locate(token interface{}, parent *Locatable, source string) (ast.LocationRa
 	case ast.DesugaredObjectField:
 		r, err = DesugaredObjectField(t, parent.Loc, source)
 	case ast.ForSpec:
-		r, err = ForSpec(t, parent.Loc, source)
+		r, err = ForSpec(t, parent, source)
 	case ast.Identifier:
 		r, err = Identifier(t, parent, source)
 	case *ast.Identifier:

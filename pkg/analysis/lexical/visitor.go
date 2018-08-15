@@ -558,7 +558,7 @@ func (v *NodeVisitor) handleForSpec(n ast.ForSpec, parent *locate.Locatable, env
 		return errors.Wrap(err, "visit ForSpec")
 	}
 
-	r, err := locate.ForSpec(n, parent.Loc, string(v.Source))
+	r, err := locate.ForSpec(n, parent, string(v.Source))
 	if err != nil {
 		return err
 	}

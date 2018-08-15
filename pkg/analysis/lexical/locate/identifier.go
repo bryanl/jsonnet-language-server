@@ -8,6 +8,7 @@ import (
 	"github.com/bryanl/jsonnet-language-server/pkg/analysis/lexical/token"
 	"github.com/google/go-jsonnet/ast"
 	"github.com/pkg/errors"
+	"github.com/sirupsen/logrus"
 )
 
 const (
@@ -40,6 +41,7 @@ func idInForSpec(id ast.Identifier, parent *Locatable, source string) (ast.Locat
 		return ast.LocationRange{}, err
 	}
 
+	logrus.Printf("looking for `for` at %s", parent.Loc.String())
 	pos, err := m.Find(parent.Loc.Begin, token.TokenFor)
 	if err != nil {
 		return ast.LocationRange{}, err

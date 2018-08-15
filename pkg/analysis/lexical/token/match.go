@@ -131,7 +131,8 @@ func (m *Match) Find(start ast.Location, kind TokenKind) (int, error) {
 		}
 	}
 
-	return 0, errors.Errorf("not found")
+	return 0, errors.Errorf("token %s at %s was not found",
+		kind.String(), start.String())
 }
 
 // ErrExprNotMatched is an expression is not matched error.
@@ -200,27 +201,60 @@ func (m *Match) expr(pos int) (int, error) {
 			return pos + 1, nil
 		}
 
-		cur := pos + 1
-		for {
-			var err error
-			cur, err = m.Expr(cur)
+		// Test for an expression
+		end, err := m.Expr(pos + 1)
+		if err != nil {
+			return 0, err
+		}
+
+		if m.hasTrailingComma(end) {
+			end++
+		}
+
+		if m.kind(end+1) == TokenFor {
+			// This is an array comprehension
+			end, err = m.Forspec2(end + 1)
 			if err != nil {
 				return 0, err
 			}
 
-			if m.kind(cur+1) == TokenComma {
-				if m.kind(cur+2) == TokenBracketR {
-					return cur + 2, nil
+			if m.kind(end+1) == TokenBracketR {
+				return end + 1, nil
+			}
+
+			return 0, errors.New("expected ']'")
+		}
+
+		if m.kind(end) == TokenComma {
+			end++
+		}
+
+		fmt.Println("looking for rest of array")
+		printTokens(m.Tokens[end])
+		for i := end; i < m.len(); i++ {
+			if m.kind(i) == TokenBracketR {
+				return i, nil
+			}
+
+			i, err = m.Expr(i)
+			if err != nil {
+				return 0, err
+			}
+
+			if m.kind(i+1) == TokenComma {
+				if m.kind(i+2) == TokenBracketR {
+					return i + 2, nil
 				}
 
-				cur = cur + 2
+				i = i + 2
 				continue
-			} else if m.kind(cur+1) == TokenBracketR {
-				return cur + 1, nil
+			} else if m.kind(i+1) == TokenBracketR {
+				return i + 1, nil
 			}
 
 			return 0, errors.New("expected ',' after expression")
 		}
+		return 0, errors.New("array not matched")
 	case TokenError:
 		end, err := m.Expr(pos + 1)
 		if err != nil {
@@ -331,6 +365,8 @@ func (m *Match) expr(pos int) (int, error) {
 
 	}
 
+	fmt.Println("not matched")
+	printTokens(m.Tokens[pos])
 	return 0, ErrExprNotMatched
 }
 
@@ -355,10 +391,10 @@ func (m *Match) Objinside(pos int) (int, error) {
 			cur = end
 		}
 
-		if !m.hasTrailingComma(end) {
+		if !m.hasTrailingComma(cur) {
 			return 0, errors.New("expected ','")
 		}
-		cur = end + 1
+		cur = cur + 1
 	}
 
 	// If the current token is a TokenBracketL, this is an object
