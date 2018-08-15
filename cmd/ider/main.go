@@ -14,10 +14,13 @@ func main() {
 	filename := flag.String("filename", "", "filename")
 	line := flag.Int("l", 0, "line")
 	char := flag.Int("c", 0, "character")
-
-	logrus.SetLevel(logrus.DebugLevel)
+	debug := flag.Bool("d", false, "debug")
 
 	flag.Parse()
+
+	if *debug {
+		logrus.SetLevel(logrus.DebugLevel)
+	}
 
 	if *filename == "" {
 		log.Fatalf("invalid file name")
