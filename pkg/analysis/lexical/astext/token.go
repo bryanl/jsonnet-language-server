@@ -11,55 +11,61 @@ import (
 func TokenName(token interface{}) string {
 	switch t := token.(type) {
 	case *ast.Apply:
-		return "apply"
+		return "(apply)"
 	case *ast.Array:
-		return "array"
+		return "(array)"
 	case *ast.ArrayComp:
 		return "(arraycomp)"
 	case *ast.Binary:
-		return "binary"
+		return "(binary)"
 	case *ast.Conditional:
-		return "conditional"
+		return "(conditional)"
 	case *ast.DesugaredObject:
-		return "object"
+		return "(object)"
 	case ast.DesugaredObjectField:
 		name := TokenValue(t.Name)
 		return fmt.Sprintf("(field) %s", name)
 	case ast.ForSpec:
 		return "forspec"
 	case *ast.Function:
-		return fmt.Sprintf("function")
+		return fmt.Sprintf("(function)")
 	case *ast.LiteralBoolean:
-		return "bool"
+		return "(bool)"
 	case *ast.LiteralNull:
-		return "null"
+		return "(null)"
 	case *ast.LiteralNumber:
-		return "number"
+		return "(number)"
 	case *ast.LiteralString:
-		return "string"
+		return "(string)"
 	case ast.Identifier:
-		return fmt.Sprintf("identifier %q", string(t))
+		return fmt.Sprintf("(identifier) %s", string(t))
+	case *ast.Identifier:
+		return fmt.Sprintf("(identifier) %s", string(*t))
 	case *ast.Import:
-		return fmt.Sprintf("import %q", t.File.Value)
+		return fmt.Sprintf("(import) %s", t.File.Value)
 	case *ast.ImportStr:
-		return "(importstr)"
+		return fmt.Sprintf("(importstr) %s", t.File.Value)
 	case *ast.Index:
-		return fmt.Sprintf("index")
+		return fmt.Sprintf("(index) %s", string(*t.Id))
 	case *ast.Local:
-		return "local"
+		return "(local)"
 	case ast.LocalBind:
-		return fmt.Sprintf("local bind %q", string(t.Variable))
+		return fmt.Sprintf("(local bind) %s", string(t.Variable))
 	case ast.NamedParameter:
 		val := TokenValue(t.DefaultArg)
-		return fmt.Sprintf("optional parameter %s=%s", string(t.Name), val)
+		return fmt.Sprintf("(optional parameter) %s=%s", string(t.Name), val)
+	case *ast.Object:
+		return "(object)"
+	case ast.ObjectField:
+		return fmt.Sprintf("(field) %s", objectFieldName(t))
 	case *ast.Self:
-		return "self"
+		return "(self)"
 	case *ast.SuperIndex:
-		return "super index"
+		return fmt.Sprintf("(super index) %s", string(*t.Id))
 	case *ast.Var:
-		return fmt.Sprintf("var %q", string(t.Id))
+		return fmt.Sprintf("(var) %s", string(t.Id))
 	case RequiredParameter:
-		return fmt.Sprintf("required parameter %q", string(t.ID))
+		return fmt.Sprintf("(required parameter) %s", string(t.ID))
 	default:
 		return fmt.Sprintf("(unknown) %T", t)
 	}
@@ -74,4 +80,16 @@ func TokenValue(token interface{}) string {
 	default:
 		return fmt.Sprintf("unknown value from %T", t)
 	}
+}
+
+func objectFieldName(f ast.ObjectField) string {
+	if f.Id != nil {
+		return string(*f.Id)
+	}
+
+	if f.Expr1 != nil {
+		return TokenValue(f.Expr1)
+	}
+
+	panic("object field does not have a name")
 }

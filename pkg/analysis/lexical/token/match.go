@@ -10,6 +10,7 @@ import (
 // Match matches tokens in a list.
 type Match struct {
 	Tokens []Token
+	pos    int
 }
 
 // NewMatch creates an instance of Match.
@@ -24,6 +25,11 @@ func NewMatch(filename, source string) (*Match, error) {
 	}
 
 	return m, nil
+}
+
+// Pos returns the current postion.
+func (m *Match) Pos() int {
+	return m.pos
 }
 
 // Bind returns the tokens in a bind.
@@ -282,6 +288,7 @@ func (m *Match) expr(pos int) (int, error) {
 }
 
 // Objinside returns the ending position of an item inside an object.
+// nolint: gocyclo
 func (m *Match) Objinside(pos int) (int, error) {
 	if m.kind(pos) != TokenBraceL {
 		return 0, errors.New("expected '{'")
@@ -354,10 +361,12 @@ func (m *Match) Objinside(pos int) (int, error) {
 			cur++
 		}
 
-		end, err = m.forspec(cur)
+		m.pos = cur
+		err = m.forspec()
 		if err != nil {
 			return 0, err
 		}
+		end = m.pos
 
 		if m.kind(end+1) != TokenBraceR {
 			return 0, errors.New("expected '}'")
@@ -518,22 +527,33 @@ func (m *Match) Params(pos int) (int, error) {
 	return 0, errors.New("did not match parameters")
 }
 
-func (m *Match) ifspec(pos int) (int, error) {
-	if m.kind(pos) == TokenIf {
-		return m.Expr(pos + 1)
+func (m *Match) ifspec() error {
+	if m.kind2(0) == TokenIf {
+		end, err := m.Expr(m.pos + 1)
+		if err != nil {
+			return err
+		}
+
+		m.pos = end
+		return nil
 	}
 
-	return 0, errors.New("did not match ifspec")
+	return errors.New("did not match ifspec")
 }
 
-func (m *Match) forspec(pos int) (int, error) {
-	if m.kind(pos) == TokenFor &&
-		m.kind(pos+1) == TokenIdentifier &&
-		m.kind(pos+2) == TokenIn {
-		return m.Expr(pos + 3)
+func (m *Match) forspec() error {
+	if m.kind2(0) == TokenFor &&
+		m.kind2(1) == TokenIdentifier &&
+		m.kind2(2) == TokenIn {
+		end, err := m.Expr(m.pos + 3)
+		if err != nil {
+			return err
+		}
+		m.pos = end
+		return nil
 	}
 
-	return 0, errors.New("did not match forspec")
+	return errors.New("did not match forspec")
 }
 
 // handleSliceOperator finds the ending position of a slice
@@ -587,8 +607,16 @@ func (m *Match) kind(pos int) TokenKind {
 	return m.Tokens[pos].Kind
 }
 
+func (m *Match) kind2(pos int) TokenKind {
+	return m.Tokens[m.pos+pos].Kind
+}
+
 func (m *Match) data(pos int) string {
 	return m.Tokens[pos].Data
+}
+
+func (m *Match) data2(pos int) string {
+	return m.Tokens[m.pos+pos].Data
 }
 
 func (m *Match) isOperator(pos int, name string) bool {
@@ -616,6 +644,10 @@ func (m *Match) isFieldVisibility(pos int) bool {
 
 func (m *Match) len() int {
 	return len(m.Tokens)
+}
+
+func (m *Match) incr(i int) {
+	m.pos += i
 }
 
 func (m *Match) hasTrailingComma(pos int) bool {

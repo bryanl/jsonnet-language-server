@@ -127,21 +127,21 @@ func TestMatch_Objlocal(t *testing.T) {
 func TestMatch_ifspec(t *testing.T) {
 	m := initmatch(t, "ifspec1.jsonnet")
 
-	got, err := m.ifspec(0)
+	err := m.ifspec()
 	require.NoError(t, err)
 
 	expected := 1
-	assert.Equal(t, expected, got)
+	assert.Equal(t, expected, m.pos)
 }
 
 func TestMatch_forspec(t *testing.T) {
 	m := initmatch(t, "forspec1.jsonnet")
 
-	got, err := m.forspec(0)
+	err := m.forspec()
 	require.NoError(t, err)
 
 	expected := 3
-	assert.Equal(t, expected, got)
+	assert.Equal(t, expected, m.pos)
 }
 
 func TestMatch_Assert(t *testing.T) {
