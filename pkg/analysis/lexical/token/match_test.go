@@ -3,6 +3,7 @@ package token
 import (
 	"io/ioutil"
 	"path/filepath"
+	"runtime/debug"
 	"testing"
 
 	"github.com/google/go-jsonnet/ast"
@@ -59,7 +60,7 @@ func TestMatch_Expr(t *testing.T) {
 		{name: "verbatim string double", file: "expr9.jsonnet", pos: 3, expected: 3},
 		{name: "verbatim string single", file: "expr10.jsonnet", pos: 3, expected: 3},
 		{name: "number", file: "expr11.jsonnet", pos: 3, expected: 3},
-		// {name: "objinside", file: "expr12.jsonnet", pos: 3, expected: 3},
+		{name: "objinside", file: "expr12.jsonnet", pos: 3, expected: 4},
 		{name: "expr.id", file: "expr13.jsonnet", pos: 10, expected: 12},
 		{name: "[] - empty array", file: "expr14.jsonnet", pos: 0, expected: 1},
 		{name: "[expr]", file: "expr15.jsonnet", pos: 0, expected: 2},
@@ -73,20 +74,32 @@ func TestMatch_Expr(t *testing.T) {
 		{name: "super.id", file: "expr23.jsonnet", pos: 0, expected: 2},
 		{name: "super [expr]", file: "expr24.jsonnet", pos: 0, expected: 3},
 		{name: "expr()", file: "expr25.jsonnet", pos: 0, expected: 2},
-		{name: "expr(param)", file: "expr26.jsonnet", pos: 0, expected: 3},
+		{name: "expr(params)", file: "expr26.jsonnet", pos: 0, expected: 3},
 		{name: "id", file: "expr27.jsonnet", pos: 0, expected: 0},
 		{name: "unary -", file: "expr28.jsonnet", pos: 0, expected: 1},
-		{name: "unary +", file: "expr28.jsonnet", pos: 2, expected: 3},
-		{name: "unary !", file: "expr28.jsonnet", pos: 4, expected: 5},
-		{name: "unary !", file: "expr28.jsonnet", pos: 6, expected: 7},
+		{name: "unary +", file: "expr40.jsonnet", pos: 0, expected: 1},
+		{name: "unary !", file: "expr41.jsonnet", pos: 0, expected: 1},
+		{name: "unary ~", file: "expr42.jsonnet", pos: 0, expected: 1},
 		{name: "import", file: "expr29.jsonnet", pos: 0, expected: 1},
 		{name: "importstr", file: "expr30.jsonnet", pos: 0, expected: 1},
 		{name: "error expr", file: "expr31.jsonnet", pos: 0, expected: 1},
 		{name: "assert; expr", file: "expr32.jsonnet", pos: 0, expected: 2},
+		{name: "function (params) expr", file: "expr33.jsonnet", pos: 0, expected: 4},
+		{name: "if/then", file: "expr34.jsonnet", pos: 0, expected: 3},
+		{name: "if/then/else", file: "expr35.jsonnet", pos: 0, expected: 5},
+		{name: "local bind single", file: "expr36.jsonnet", pos: 0, expected: 5},
+		{name: "local bind multiple", file: "expr37.jsonnet", pos: 0, expected: 9},
+		{name: "expr in super", file: "expr38.jsonnet", pos: 0, expected: 11},
+		{name: "binary op", file: "expr39.jsonnet", pos: 0, expected: 2},
 	}
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
+			defer func() {
+				if r := recover(); r != nil {
+					t.Fatalf("test: %s recovered: %v: %s", tc.name, r, debug.Stack())
+				}
+			}()
 			m := initmatch(t, tc.file)
 
 			got, err := m.Expr(tc.pos)
@@ -111,6 +124,26 @@ func TestMatch_Objlocal(t *testing.T) {
 	assert.Equal(t, expected, got)
 }
 
+func TestMatch_ifspec(t *testing.T) {
+	m := initmatch(t, "ifspec1.jsonnet")
+
+	got, err := m.ifspec(0)
+	require.NoError(t, err)
+
+	expected := 1
+	assert.Equal(t, expected, got)
+}
+
+func TestMatch_forspec(t *testing.T) {
+	m := initmatch(t, "forspec1.jsonnet")
+
+	got, err := m.forspec(0)
+	require.NoError(t, err)
+
+	expected := 3
+	assert.Equal(t, expected, got)
+}
+
 func TestMatch_Assert(t *testing.T) {
 	cases := []struct {
 		name     string
@@ -119,18 +152,8 @@ func TestMatch_Assert(t *testing.T) {
 		expected int
 		isErr    bool
 	}{
-		{
-			name:     "assert",
-			file:     "assert1.jsonnet",
-			pos:      1,
-			expected: 2,
-		},
-		{
-			name:     "assert with message",
-			file:     "assert2.jsonnet",
-			pos:      8,
-			expected: 11,
-		},
+		{name: "assert", file: "assert1.jsonnet", pos: 1, expected: 2},
+		{name: "assert with message", file: "assert2.jsonnet", pos: 8, expected: 11},
 	}
 
 	for _, tc := range cases {
@@ -157,24 +180,9 @@ func TestMatch_Fieldname(t *testing.T) {
 		expected int
 		isErr    bool
 	}{
-		{
-			name:     "id",
-			file:     "fieldname1.jsonnet",
-			pos:      4,
-			expected: 4,
-		},
-		{
-			name:     "string",
-			file:     "fieldname2.jsonnet",
-			pos:      4,
-			expected: 4,
-		},
-		// {
-		// 	name:     "expr",
-		// 	file:     "fieldname3.jsonnet",
-		// 	pos:      4,
-		// 	expected: 6,
-		// },
+		{name: "id", file: "fieldname1.jsonnet", pos: 4, expected: 4},
+		{name: "string", file: "fieldname2.jsonnet", pos: 4, expected: 4},
+		{name: "expr", file: "fieldname3.jsonnet", pos: 4, expected: 6},
 	}
 
 	for _, tc := range cases {
@@ -182,6 +190,96 @@ func TestMatch_Fieldname(t *testing.T) {
 			m := initmatch(t, tc.file)
 
 			got, err := m.Fieldname(tc.pos)
+			if tc.isErr {
+				require.Error(t, err)
+				return
+			}
+			require.NoError(t, err)
+
+			assert.Equal(t, tc.expected, got)
+		})
+	}
+}
+
+func TestMatch_Objinside(t *testing.T) {
+	cases := []struct {
+		name     string
+		file     string
+		pos      int
+		expected int
+		isErr    bool
+	}{
+		{name: "field,", file: "objinside1.jsonnet", pos: 3, expected: 8},
+		{name: "field,field", file: "objinside2.jsonnet", pos: 3, expected: 11},
+		{name: "local,field", file: "objinside3.jsonnet", pos: 3, expected: 16},
+		{name: "[expr]: expr forspec", file: "objinside4.jsonnet", pos: 3, expected: 20},
+		{name: "objlocal, [expr]: expr forspec", file: "objinside5.jsonnet", pos: 3, expected: 24},
+		{name: "objlocal, [expr]: expr, objlocal, forspec", file: "objinside6.jsonnet", pos: 3, expected: 30},
+		{name: "empty", file: "objinside7.jsonnet", pos: 3, expected: 4},
+		// TODO: [expr]: expor forspec compspec
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			m := initmatch(t, tc.file)
+
+			got, err := m.Objinside(tc.pos)
+			if tc.isErr {
+				require.Error(t, err)
+				return
+			}
+			require.NoError(t, err)
+
+			assert.Equal(t, tc.expected, got)
+		})
+	}
+}
+
+func TestMatch_Field(t *testing.T) {
+	cases := []struct {
+		name     string
+		file     string
+		pos      int
+		expected int
+		isErr    bool
+	}{
+		{name: "fieldname h expr", file: "field1.jsonnet", pos: 4, expected: 6},
+		{name: "fieldname + h expr", file: "field2.jsonnet", pos: 4, expected: 6},
+		{name: "fieldname() h expr", file: "field3.jsonnet", pos: 4, expected: 9},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			m := initmatch(t, tc.file)
+
+			got, err := m.Field(tc.pos)
+			if tc.isErr {
+				require.Error(t, err)
+				return
+			}
+			require.NoError(t, err)
+
+			assert.Equal(t, tc.expected, got)
+		})
+	}
+}
+
+func TestMatch_Member(t *testing.T) {
+	cases := []struct {
+		name     string
+		file     string
+		pos      int
+		expected int
+		isErr    bool
+	}{
+		{name: "objlocal", file: "member1.jsonnet", pos: 4, expected: 7},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			m := initmatch(t, tc.file)
+
+			got, err := m.Member(tc.pos)
 			if tc.isErr {
 				require.Error(t, err)
 				return
@@ -211,8 +309,6 @@ func TestMatch_Params(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			m := initmatch(t, tc.file)
-
-			printTokens(m.Tokens)
 
 			got, err := m.Params(tc.pos)
 			if tc.isErr {

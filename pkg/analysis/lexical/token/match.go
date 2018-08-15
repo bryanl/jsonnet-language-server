@@ -9,7 +9,7 @@ import (
 
 // Match matches tokens in a list.
 type Match struct {
-	Tokens Tokens
+	Tokens []Token
 }
 
 // NewMatch creates an instance of Match.
@@ -28,8 +28,6 @@ func NewMatch(filename, source string) (*Match, error) {
 
 // Bind returns the tokens in a bind.
 func (m *Match) Bind(loc ast.Location, name string) (Tokens, error) {
-	printTokens(m.Tokens)
-
 	// find a local that starts at `start`
 	pos, err := m.Find(loc, TokenLocal)
 	if err != nil {
@@ -51,9 +49,15 @@ func (m *Match) bind(pos int) (int, int, error) {
 
 	if m.kind(pos) == TokenIdentifier {
 		if m.kind(pos+1) == TokenParenL {
-			fmt.Println("bind is a fn")
-			return 0, 0, errors.New("bind with fn not implemented")
-		} else if m.kind(pos+1) == TokenOperator && m.data(pos+1) == "=" {
+			end, err := m.Params(pos + 2)
+			if err != nil {
+				return 0, 0, err
+			}
+			if m.kind(end+1) != TokenParenR {
+				return 0, 0, errors.New("a ')' was expected")
+			}
+			return pos, end, nil
+		} else if m.isOperator(pos+1, "=") {
 			end, err := m.Expr(pos + 2)
 			if err != nil {
 				return 0, 0, err
@@ -87,6 +91,39 @@ func IsNotMatched(err error) bool {
 
 // Expr returns the ending position of an expression started at pos.
 func (m *Match) Expr(pos int) (int, error) {
+	end, err := m.expr(pos)
+	if err != nil {
+		return 0, nil
+	}
+
+	if m.kind(end+1) == TokenParenL {
+		end, err = m.Params(end + 2)
+		if err != nil {
+			return 0, err
+		}
+
+		if m.kind(end+1) != TokenParenR {
+			return 0, errors.New("expeding ')'")
+		}
+
+		end = end + 1
+	} else if m.kind(end+1) == TokenIn && m.kind(end+2) == TokenSuper {
+		end = end + 2
+	} else if m.kind(end+1) == TokenOperator && isBinaryOp(m.data(end+1)) {
+		end, err = m.Expr(end + 2)
+		if err != nil {
+			return 0, err
+		}
+	}
+
+	return end, nil
+}
+
+// nolint: gocyclo
+func (m *Match) expr(pos int) (int, error) {
+	if pos > len(m.Tokens)-1 {
+		return 0, errors.New("position overflows tokens")
+	}
 	t := m.Tokens[pos]
 
 	switch t.Kind {
@@ -102,6 +139,8 @@ func (m *Match) Expr(pos int) (int, error) {
 		if m.kind(pos+1) == TokenSemicolon {
 			return m.Expr(pos + 2)
 		}
+	case TokenBraceL:
+		return m.Objinside(pos)
 	case TokenBracketL:
 		if m.kind(pos+1) == TokenBracketR {
 			// empty array
@@ -135,6 +174,17 @@ func (m *Match) Expr(pos int) (int, error) {
 			return 0, err
 		}
 		return end, nil
+	case TokenFunction:
+		if m.kind(pos+1) == TokenParenL {
+			end, err := m.Params(pos + 2)
+			if err != nil {
+				return 0, err
+			}
+			if m.kind(end+1) == TokenParenR {
+				return m.Expr(end + 2)
+			}
+
+		}
 	case TokenIdentifier:
 		next := m.Tokens[pos+1]
 		if next.Kind == TokenDot {
@@ -164,6 +214,23 @@ func (m *Match) Expr(pos int) (int, error) {
 		}
 
 		return pos, nil
+	case TokenIf:
+		end, err := m.Expr(pos + 1)
+		if err != nil {
+			return 0, err
+		}
+		if m.kind(end+1) == TokenThen {
+			end, err = m.Expr(end + 2)
+			if err != nil {
+				return 0, err
+			}
+
+			if m.kind(end+1) == TokenElse {
+				return m.Expr(end + 2)
+			}
+
+			return end, nil
+		}
 	case TokenImport:
 		if isString(m.Tokens[pos+1]) {
 			return pos + 1, nil
@@ -172,6 +239,26 @@ func (m *Match) Expr(pos int) (int, error) {
 		if isString(m.Tokens[pos+1]) {
 			return pos + 1, nil
 		}
+	case TokenLocal:
+		for i := pos + 1; i < len(m.Tokens); i++ {
+			_, end, err := m.bind(i)
+			if err != nil {
+				return 0, err
+			}
+
+			if m.kind(end+1) == TokenComma {
+				i = end + 1
+				continue
+			}
+
+			pos = end
+			break
+		}
+
+		if m.kind(pos+1) == TokenSemicolon {
+			return m.Expr(pos + 2)
+		}
+
 	case TokenSuper:
 		if t := m.Tokens[pos+1]; t.Kind == TokenDot {
 			if m.kind(pos+2) == TokenIdentifier {
@@ -187,9 +274,130 @@ func (m *Match) Expr(pos int) (int, error) {
 				return end + 1, nil
 			}
 		}
+	default:
+
 	}
 
 	return 0, ErrExprNotMatched
+}
+
+// Objinside returns the ending position of an item inside an object.
+func (m *Match) Objinside(pos int) (int, error) {
+	if m.kind(pos) != TokenBraceL {
+		return 0, errors.New("expected '{'")
+	}
+
+	if m.kind(pos+1) == TokenBraceR {
+		return pos + 1, nil
+	}
+
+	cur := pos
+
+	// If the first token is an object local, this could be a
+	// comprehension.
+	if m.kind(cur+1) == TokenLocal {
+		end, err := m.Objlocal(pos + 1)
+		if err == nil {
+			cur = end
+		}
+
+		if !m.hasTrailingComma(cur) {
+			return 0, errors.New("expected ','")
+		}
+		cur++
+	}
+
+	// If the current token is a TokenBracketL, this is an object
+	// comprehension.
+	if m.kind(cur+1) == TokenBracketL {
+		end, err := m.Expr(cur + 2)
+		if err != nil {
+			return 0, err
+		}
+
+		cur = end
+
+		if m.kind(cur+1) != TokenBracketR {
+			return 0, errors.New("expected ']'")
+		}
+
+		cur = cur + 1
+
+		if !m.isOperator(cur+1, ":") {
+			return 0, errors.New("expected ':'")
+		}
+
+		cur = cur + 1
+
+		end, err = m.Expr(cur + 1)
+		if err != nil {
+			return 0, err
+		}
+
+		cur = end
+
+		if m.hasTrailingComma(cur) {
+			cur += 2
+			if m.kind(cur) == TokenLocal {
+				end, err = m.Objlocal(cur)
+				if err != nil {
+					return 0, nil
+				}
+				cur = end
+
+				if m.hasTrailingComma(cur) {
+					cur += 2
+				}
+			}
+
+		} else {
+			cur++
+		}
+
+		end, err = m.forspec(cur)
+		if err != nil {
+			return 0, err
+		}
+
+		if m.kind(end+1) != TokenBraceR {
+			return 0, errors.New("expected '}'")
+		}
+
+		return end + 1, nil
+	}
+
+	for i := cur + 1; i < m.len(); i++ {
+		end, err := m.Member(i)
+		if err != nil {
+			return 0, err
+		}
+
+		if m.hasTrailingComma(end) {
+			end = end + 1
+		}
+
+		if m.kind(end+1) == TokenBraceR {
+			return end + 1, nil
+		}
+
+		i = end
+	}
+
+	return 0, errors.New("did not match object inside")
+}
+
+// Member returns the ending position of a member started at pos.
+func (m *Match) Member(pos int) (int, error) {
+	switch m.kind(pos) {
+	case TokenLocal:
+		return m.Objlocal(pos)
+	case TokenAssert:
+		return m.Assert(pos)
+	case TokenIdentifier:
+		return m.Field(pos)
+	default:
+		return 0, errors.New("did not match object member")
+	}
 }
 
 // Objlocal returns the ending position of an object local started at pos.
@@ -213,8 +421,8 @@ func (m *Match) Assert(pos int) (int, error) {
 			return 0, err
 		}
 
-		if m.kind(end+1) == TokenOperator && m.data(end+1) == ":" {
-			msgEnd, err := m.Expr(end + 1)
+		if m.isOperator(end+1, ":") {
+			msgEnd, err := m.Expr(end + 2)
 			if err != nil {
 				return 0, err
 			}
@@ -246,6 +454,33 @@ func (m *Match) Fieldname(pos int) (int, error) {
 	}
 
 	return 0, errors.New("did not match a field name")
+}
+
+// Field returns the ending position of a field starting at pos.
+func (m *Match) Field(pos int) (int, error) {
+	end, err := m.Fieldname(pos)
+	if err != nil {
+		return 0, err
+	}
+
+	if m.kind(end+1) == TokenParenL {
+		end, err = m.Params(end + 2)
+		if err != nil {
+			return 0, err
+		}
+
+		if m.kind(end+1) != TokenParenR {
+			return 0, errors.New("expected ')'")
+		}
+
+		end = end + 1
+	}
+
+	if m.isFieldVisibility(end + 1) {
+		return m.Expr(end + 2)
+	}
+
+	return 0, errors.New("did not match a field")
 }
 
 // Params returns the ending position of params starting at pos.
@@ -281,6 +516,24 @@ func (m *Match) Params(pos int) (int, error) {
 	}
 
 	return 0, errors.New("did not match parameters")
+}
+
+func (m *Match) ifspec(pos int) (int, error) {
+	if m.kind(pos) == TokenIf {
+		return m.Expr(pos + 1)
+	}
+
+	return 0, errors.New("did not match ifspec")
+}
+
+func (m *Match) forspec(pos int) (int, error) {
+	if m.kind(pos) == TokenFor &&
+		m.kind(pos+1) == TokenIdentifier &&
+		m.kind(pos+2) == TokenIn {
+		return m.Expr(pos + 3)
+	}
+
+	return 0, errors.New("did not match forspec")
 }
 
 // handleSliceOperator finds the ending position of a slice
@@ -343,6 +596,32 @@ func (m *Match) isOperator(pos int, name string) bool {
 		m.data(pos) == name
 }
 
+var fieldVisibilities = map[string]ast.ObjectFieldHide{
+	":":    ast.ObjectFieldInherit,
+	"::":   ast.ObjectFieldHidden,
+	":::":  ast.ObjectFieldVisible,
+	"+:":   ast.ObjectFieldInherit,
+	"+::":  ast.ObjectFieldHidden,
+	"+:::": ast.ObjectFieldVisible,
+}
+
+func (m *Match) isFieldVisibility(pos int) bool {
+	if m.kind(pos) != TokenOperator {
+		return false
+	}
+
+	_, ok := fieldVisibilities[m.data(pos)]
+	return ok
+}
+
+func (m *Match) len() int {
+	return len(m.Tokens)
+}
+
+func (m *Match) hasTrailingComma(pos int) bool {
+	return m.kind(pos+1) == TokenComma
+}
+
 func isLocEqual(l1, l2 ast.Location) bool {
 	return l1.Line == l2.Line && l1.Column == l2.Column
 }
@@ -371,7 +650,17 @@ func isUnaryOp(op string) bool {
 	return false
 }
 
-func printTokens(tokens Tokens) {
+func isBinaryOp(op string) bool {
+	for k := range ast.BopMap {
+		if op == k {
+			return true
+		}
+	}
+
+	return false
+}
+
+func printTokens(tokens ...Token) {
 	for i, t := range tokens {
 		fmt.Printf("%d %s: %s = %s\n", i, t.Loc.String(), t.Kind.String(), t.Data)
 	}
