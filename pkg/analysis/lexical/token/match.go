@@ -409,7 +409,7 @@ func (m *Match) Objinside(pos int) (int, error) {
 		}
 
 		m.pos = cur
-		err = m.forspec()
+		err = m.Forspec()
 		if err != nil {
 			return 0, err
 		}
@@ -589,7 +589,16 @@ func (m *Match) ifspec() error {
 	return errors.New("did not match ifspec")
 }
 
-func (m *Match) forspec() error {
+func (m *Match) Forspec2(pos int) (int, error) {
+	m.pos = pos
+	if err := m.Forspec(); err != nil {
+		return 0, err
+	}
+
+	return m.pos, nil
+}
+
+func (m *Match) Forspec() error {
 	if m.kind2(0) == TokenFor &&
 		m.kind2(1) == TokenIdentifier &&
 		m.kind2(2) == TokenIn {

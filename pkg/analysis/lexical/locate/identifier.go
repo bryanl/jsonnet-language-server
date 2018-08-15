@@ -5,6 +5,7 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/bryanl/jsonnet-language-server/pkg/analysis/lexical/token"
 	"github.com/google/go-jsonnet/ast"
 	"github.com/pkg/errors"
 )
@@ -26,9 +27,31 @@ func Identifier(id ast.Identifier, parent *Locatable, source string) (ast.Locati
 		return idInLocalBind(id, parent.Loc, source)
 	case ast.ObjectField:
 		return idInObjectField(id, parent, source)
+	case ast.ForSpec:
+		return idInForSpec(id, parent, source)
 	default:
 		return ast.LocationRange{}, errors.Errorf("can't locate id in %T", t)
 	}
+}
+
+func idInForSpec(id ast.Identifier, parent *Locatable, source string) (ast.LocationRange, error) {
+	m, err := token.NewMatch(parent.Loc.FileName, source)
+	if err != nil {
+		return ast.LocationRange{}, err
+	}
+
+	pos, err := m.Find(parent.Loc.Begin, token.TokenFor)
+	if err != nil {
+		return ast.LocationRange{}, err
+	}
+
+	t := m.Tokens[pos+1]
+	r := createRange(parent.Loc.FileName,
+		t.Loc.Begin.Line, t.Loc.Begin.Column,
+		t.Loc.End.Line, t.Loc.End.Column)
+
+	return r, nil
+
 }
 
 func idInIndex(id ast.Identifier, parent *Locatable, source string) (ast.LocationRange, error) {
