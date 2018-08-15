@@ -57,7 +57,7 @@ func TokenName(token interface{}) string {
 	case *ast.Object:
 		return "(object)"
 	case ast.ObjectField:
-		return fmt.Sprintf("(field) %s", objectFieldName(t))
+		return fmt.Sprintf("(field) %s", ObjectFieldName(t))
 	case *ast.Self:
 		return "(self)"
 	case *ast.SuperIndex:
@@ -82,7 +82,7 @@ func TokenValue(token interface{}) string {
 	}
 }
 
-func objectFieldName(f ast.ObjectField) string {
+func ObjectFieldName(f ast.ObjectField) string {
 	if f.Id != nil {
 		return string(*f.Id)
 	}

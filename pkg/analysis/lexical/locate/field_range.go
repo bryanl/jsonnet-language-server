@@ -11,6 +11,7 @@ func fieldRange(fieldName, source string) (ast.LocationRange, error) {
 	if err != nil {
 		return ast.LocationRange{}, err
 	}
+	
 
 	if len(tokens) < 2 || (tokens[0].Kind != TokenBraceL && tokens[len(tokens)-1].Kind != TokenBraceR) {
 		return ast.LocationRange{}, errors.New("source is not an object")

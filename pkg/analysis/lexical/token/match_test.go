@@ -1,6 +1,8 @@
 package token
 
 import (
+	"bytes"
+	"fmt"
 	"io/ioutil"
 	"path/filepath"
 	"runtime/debug"
@@ -23,12 +25,104 @@ func TestMatch_Bind(t *testing.T) {
 		Token{Kind: TokenNumber, Data: "1"},
 	}
 
-	if assert.Equal(t, len(expected), len(got), "token count") {
+	assertTokens(t, expected, got)
+}
+
+func assertTokens(t *testing.T, expected, got []Token) {
+	if assert.Equal(t, len(expected), len(got), "contents expected %s\ngot %s",
+		sprintTokens(expected...), sprintTokens(got...)) {
 		for i := range expected {
-			assert.Equal(t, expected[i].Kind, got[i].Kind)
+			assert.Equal(t, expected[i].Kind, got[i].Kind, "at %d kind expected %s; got %s",
+				i, expected[i].Kind.String(), got[i].Kind.String())
 			assert.Equal(t, expected[i].Data, got[i].Data)
 		}
+	} else {
+		t.Logf("this is what I wanted")
+		printTokens(got...)
 	}
+}
+
+func createToken(kind TokenKind, data string) Token {
+	return Token{Kind: kind, Data: data}
+}
+
+func TestMatch_FindObjectField(t *testing.T) {
+	cases := []struct {
+		name      string
+		fieldName string
+		expected  Tokens
+		isErr     bool
+	}{
+		{
+			name:      "find id field",
+			fieldName: "a",
+			expected: Tokens{
+				createToken(TokenIdentifier, "a"),
+				createToken(TokenParenL, "("),
+				createToken(TokenIdentifier, "x"),
+				createToken(TokenParenR, ")"),
+				createToken(TokenOperator, "::"),
+				createToken(TokenStringDouble, "x"),
+			},
+		},
+		{
+			name:      "find string field",
+			fieldName: "b",
+			expected: Tokens{
+				createToken(TokenStringDouble, "b"),
+				createToken(TokenOperator, ":"),
+				createToken(TokenStringDouble, "b"),
+			},
+		},
+		{
+			name:      "find string field with object",
+			fieldName: "metadata",
+			expected: Tokens{
+				createToken(TokenStringDouble, "metadata"),
+				createToken(TokenOperator, ":"),
+				createToken(TokenBraceL, "{"),
+				createToken(TokenStringDouble, "name"),
+				createToken(TokenOperator, ":"),
+				createToken(TokenStringDouble, "foo"),
+				createToken(TokenComma, ","),
+				createToken(TokenBraceR, "}"),
+			},
+		},
+		{
+			name:      "find expr field",
+			fieldName: "[1]",
+			expected: Tokens{
+				createToken(TokenBracketL, "["),
+				createToken(TokenNumber, "1"),
+				createToken(TokenBracketR, "]"),
+				createToken(TokenOperator, ":"),
+				createToken(TokenStringDouble, "c"),
+			},
+		},
+		{
+			name:      "find invalid field",
+			fieldName: "invalid",
+			isErr:     true,
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			m := initmatch(t, "field4.jsonnet")
+			loc := createLoc(1, 11)
+			got, err := m.FindObjectField(loc, tc.fieldName)
+			if tc.isErr {
+				require.Error(t, err)
+				return
+			}
+
+			printTokens(got...)
+
+			require.NoError(t, err)
+			assertTokens(t, tc.expected, got)
+		})
+	}
+
 }
 
 func TestMatch_Find(t *testing.T) {
@@ -60,7 +154,7 @@ func TestMatch_Expr(t *testing.T) {
 		{name: "verbatim string double", file: "expr9.jsonnet", pos: 3, expected: 3},
 		{name: "verbatim string single", file: "expr10.jsonnet", pos: 3, expected: 3},
 		{name: "number", file: "expr11.jsonnet", pos: 3, expected: 3},
-		{name: "objinside", file: "expr12.jsonnet", pos: 3, expected: 4},
+		{name: "objinside", file: "expr12.jsonnet", pos: 3, expected: 8},
 		{name: "expr.id", file: "expr13.jsonnet", pos: 10, expected: 12},
 		{name: "[] - empty array", file: "expr14.jsonnet", pos: 0, expected: 1},
 		{name: "[expr]", file: "expr15.jsonnet", pos: 0, expected: 2},
@@ -216,7 +310,7 @@ func TestMatch_Objinside(t *testing.T) {
 		{name: "objlocal, [expr]: expr forspec", file: "objinside5.jsonnet", pos: 3, expected: 24},
 		{name: "objlocal, [expr]: expr, objlocal, forspec", file: "objinside6.jsonnet", pos: 3, expected: 30},
 		{name: "empty", file: "objinside7.jsonnet", pos: 3, expected: 4},
-		// TODO: [expr]: expor forspec compspec
+		// TODO: [expr]: expr forspec compspec
 	}
 
 	for _, tc := range cases {
@@ -246,6 +340,7 @@ func TestMatch_Field(t *testing.T) {
 		{name: "fieldname h expr", file: "field1.jsonnet", pos: 4, expected: 6},
 		{name: "fieldname + h expr", file: "field2.jsonnet", pos: 4, expected: 6},
 		{name: "fieldname() h expr", file: "field3.jsonnet", pos: 4, expected: 9},
+		{name: "fieldname h expr (expr is object)", file: "field5.jsonnet", pos: 4, expected: 11},
 	}
 
 	for _, tc := range cases {
@@ -258,7 +353,6 @@ func TestMatch_Field(t *testing.T) {
 				return
 			}
 			require.NoError(t, err)
-
 			assert.Equal(t, tc.expected, got)
 		})
 	}
@@ -342,4 +436,13 @@ func testdata(t *testing.T, elem ...string) string {
 	data, err := ioutil.ReadFile(name)
 	require.NoError(t, err)
 	return string(data)
+}
+
+func sprintTokens(tokens ...Token) string {
+	var buf bytes.Buffer
+	for i, t := range tokens {
+		fmt.Fprintf(&buf, "%d %s: %s = %s\n", i, t.Loc.String(), t.Kind.String(), t.Data)
+	}
+
+	return buf.String()
 }

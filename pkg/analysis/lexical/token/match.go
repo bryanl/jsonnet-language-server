@@ -48,6 +48,53 @@ func (m *Match) Bind(loc ast.Location, name string) (Tokens, error) {
 	return m.Tokens[begin : end+1], nil
 }
 
+func (m *Match) FindObjectField(loc ast.Location, name string) (Tokens, error) {
+	objectStartPos, err := m.Find(loc, TokenBraceL)
+	if err != nil {
+		return nil, err
+	}
+
+	for i := objectStartPos + 1; i < m.len(); i++ {
+		found, err := m.findFieldName(i)
+		if err != nil {
+			return nil, err
+		}
+
+		fieldEndPos, err := m.Field(i)
+		if err != nil {
+			return nil, err
+		}
+
+		if name == found {
+			return m.Tokens[i : fieldEndPos+1], nil
+		}
+
+		i = fieldEndPos
+
+		if m.hasTrailingComma(i) {
+			i++
+		}
+
+		if m.kind(i+1) == TokenBraceR {
+			return nil, errors.Errorf("was not able to find field %s in object")
+		}
+	}
+
+	return nil, errors.New("object field not found")
+}
+
+func (m *Match) findFieldName(pos int) (string, error) {
+	if m.kind(pos) == TokenIdentifier {
+		return m.data(pos), nil
+	} else if m.isString(pos) {
+		return m.data(pos), nil
+	} else if m.kind(pos) == TokenBracketL {
+		return fmt.Sprintf("[%s]", m.data(pos+1)), nil
+	}
+
+	return "", errors.New("invalid field name")
+}
+
 func (m *Match) bind(pos int) (int, int, error) {
 	// bind is:
 	// 1. id = expr
@@ -99,7 +146,7 @@ func IsNotMatched(err error) bool {
 func (m *Match) Expr(pos int) (int, error) {
 	end, err := m.expr(pos)
 	if err != nil {
-		return 0, nil
+		return 0, err
 	}
 
 	if m.kind(end+1) == TokenParenL {
@@ -303,15 +350,15 @@ func (m *Match) Objinside(pos int) (int, error) {
 	// If the first token is an object local, this could be a
 	// comprehension.
 	if m.kind(cur+1) == TokenLocal {
-		end, err := m.Objlocal(pos + 1)
+		end, err := m.Objlocal(cur + 1)
 		if err == nil {
 			cur = end
 		}
 
-		if !m.hasTrailingComma(cur) {
+		if !m.hasTrailingComma(end) {
 			return 0, errors.New("expected ','")
 		}
-		cur++
+		cur = end + 1
 	}
 
 	// If the current token is a TokenBracketL, this is an object
@@ -402,9 +449,10 @@ func (m *Match) Member(pos int) (int, error) {
 		return m.Objlocal(pos)
 	case TokenAssert:
 		return m.Assert(pos)
-	case TokenIdentifier:
+	case TokenIdentifier, TokenStringDouble, TokenStringSingle:
 		return m.Field(pos)
 	default:
+		fmt.Println("doh", m.kind(pos))
 		return 0, errors.New("did not match object member")
 	}
 }
@@ -652,6 +700,10 @@ func (m *Match) incr(i int) {
 
 func (m *Match) hasTrailingComma(pos int) bool {
 	return m.kind(pos+1) == TokenComma
+}
+
+func (m *Match) isString(pos int) bool {
+	return isString(m.Tokens[pos])
 }
 
 func isLocEqual(l1, l2 ast.Location) bool {

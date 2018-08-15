@@ -1,11 +1,10 @@
 package locate
 
 import (
-	"strings"
-
 	"github.com/bryanl/jsonnet-language-server/pkg/analysis/lexical/astext"
+	"github.com/bryanl/jsonnet-language-server/pkg/analysis/lexical/token"
 	"github.com/google/go-jsonnet/ast"
-	"github.com/pkg/errors"
+	"github.com/sirupsen/logrus"
 )
 
 // ObjectField locates object fields.
@@ -15,29 +14,20 @@ func ObjectField(field ast.ObjectField, parentRange ast.LocationRange, source st
 		return ast.LocationRange{}, err
 	}
 
-	// TODO get value from a node
-	fieldName := ""
-
-	if field.Id != nil {
-		fieldName = string(*field.Id)
-	} else if field.Expr1 != nil {
-		fieldName = astext.TokenValue(field.Expr1)
-	} else {
-		return ast.LocationRange{}, errors.New("field doesn't have a name")
-	}
-
-	if strings.Contains(fieldName, "unknown") {
-		return ast.LocationRange{}, errors.Errorf("can't parse object field name %q", fieldName)
-	}
-
-	fieldLocation, err := fieldRange(fieldName, parentSource)
+	fieldName := astext.ObjectFieldName(field)
+	m, err := token.NewMatch("", source)
 	if err != nil {
 		return ast.LocationRange{}, err
 	}
 
-	fieldLocation.FileName = parentRange.FileName
-	fieldLocation.Begin.Line += parentRange.Begin.Line - 1
-	fieldLocation.End.Line += parentRange.Begin.Line - 1
+	logrus.Printf("looking for object field %s in %s", fieldName, parentSource)
+	tokens, err := m.FindObjectField(parentRange.Begin, fieldName)
+	if err != nil {
+		return ast.LocationRange{}, err
+	}
 
-	return fieldLocation, nil
+	begin := tokens[0].Loc.Begin
+	end := tokens[len(tokens)-1].Loc.End
+	r := createRange("", begin.Line, begin.Column, end.Line, end.Column)
+	return r, nil
 }

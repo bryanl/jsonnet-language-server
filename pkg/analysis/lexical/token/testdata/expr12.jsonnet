@@ -1,3 +1,5 @@
-local x = {};
+local x = {
+    "child": "",
+};
 
 {}
