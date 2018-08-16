@@ -23,7 +23,6 @@ var _ = Describe("Lexical", func() {
 	})
 
 	Describe("Hover At Location", func() {
-
 		var (
 			hoverResponse *lsp.Hover
 			hoverError    error
@@ -42,7 +41,7 @@ var _ = Describe("Lexical", func() {
 				column = 13
 			})
 
-			It("create a response", func() {
+			It("creates a response", func() {
 				Expect(hoverError).ToNot(HaveOccurred())
 
 				expected := &lsp.Hover{
@@ -53,6 +52,52 @@ var _ = Describe("Lexical", func() {
 						},
 					},
 					Range: newRange(1, 11, 1, 32),
+				}
+
+				Expect(hoverResponse).To(Equal(expected))
+			})
+		})
+
+		Context("item points object", func() {
+			BeforeEach(func() {
+				line = 11
+				column = 13
+			})
+
+			It("creates a response", func() {
+				Expect(hoverError).ToNot(HaveOccurred())
+
+				expected := &lsp.Hover{
+					Contents: []lsp.MarkedString{
+						{
+							Language: "jsonnet",
+							Value:    "(object) {\n  (field) nested1:,\n}",
+						},
+					},
+					Range: newRange(3, 7, 3, 7),
+				}
+
+				Expect(hoverResponse).To(Equal(expected))
+			})
+		})
+
+		Context("object", func() {
+			BeforeEach(func() {
+				line = 3
+				column = 7
+			})
+
+			It("creates a response", func() {
+				Expect(hoverError).ToNot(HaveOccurred())
+
+				expected := &lsp.Hover{
+					Contents: []lsp.MarkedString{
+						{
+							Language: "jsonnet",
+							Value:    "(object) {\n  (field) nested1:,\n}",
+						},
+					},
+					Range: newRange(3, 7, 3, 7),
 				}
 
 				Expect(hoverResponse).To(Equal(expected))

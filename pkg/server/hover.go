@@ -34,5 +34,5 @@ func (h *hover) handle() (interface{}, error) {
 		return nil, errors.Wrap(err, "opening file")
 	}
 
-	return lexical.HoverAtLocation(u.Path, f, h.params.Position.Line+1, h.params.Position.Character)
+	return lexical.HoverAtLocation(u.Path, f, h.params.Position.Line+1, h.params.Position.Character+1)
 }

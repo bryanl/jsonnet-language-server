@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/bryanl/jsonnet-language-server/pkg/analysis/lexical/astext"
+	"github.com/davecgh/go-spew/spew"
 	"github.com/google/go-jsonnet/ast"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
@@ -35,6 +36,8 @@ func (l *Locatable) Resolve() (*Resolved, error) {
 	if l == nil {
 		return nil, errors.Errorf("locatable is nil")
 	}
+
+	logrus.Debugf("resolving %T", l.Token)
 
 	switch t := l.Token.(type) {
 	case *ast.Var:
@@ -69,6 +72,26 @@ func (l *Locatable) handleImport(i *ast.Import) (*Resolved, error) {
 
 func (l *Locatable) handleIndex(i *ast.Index) (*Resolved, error) {
 	description := fmt.Sprintf("(index) %s", string(*i.Id))
+
+	if i.Id != nil {
+		var keys []string
+		for k := range l.Env {
+			keys = append(keys, k)
+		}
+
+		spew.Dump(keys)
+
+		id := string(*i.Id)
+
+		logrus.Debugf("looking for %s in env", id)
+		if x, ok := l.Env[id]; ok {
+			logrus.Debugf("it points to a %T", x.Token)
+		} else {
+			logrus.Debugf("not ok")
+		}
+	} else {
+		logrus.Debugf("wtf")
+	}
 
 	logrus.Debugf("index points to a %T at %s", i.Target, i.Target.Loc().String())
 
@@ -139,10 +162,12 @@ func bindOutput(bind ast.LocalBind) (string, error) {
 	switch t := bind.Body.(type) {
 	case *ast.LiteralString:
 		name = "string"
-	case *ast.DesugaredObject, *ast.Object:
+	case *ast.DesugaredObject:
 		name = "object"
 	case *ast.Function:
 		name = "function"
+	case *ast.Object:
+		return astext.ObjectDescription(t)
 	default:
 		return fmt.Sprintf("(unknown) %s: %T", string(bind.Variable), t), nil
 	}
@@ -203,7 +228,11 @@ func (l *Locatable) handleFunction(f *ast.Function) (*Resolved, error) {
 
 func (l *Locatable) handleVar(t *ast.Var) (*Resolved, error) {
 	if ref, ok := l.Env[string(t.Id)]; ok {
-		s := l.resolvedIdentifier(&ref)
+		logrus.Debugf("%s points to a %T", t.Id, ref.Token)
+		s, err := l.resolvedIdentifier(&ref)
+		if err != nil {
+			return nil, err
+		}
 		resolved := &Resolved{
 			Location:    ref.Loc,
 			Token:       ref.Token,
@@ -216,23 +245,14 @@ func (l *Locatable) handleVar(t *ast.Var) (*Resolved, error) {
 	return nil, ErrUnresolvable
 }
 
-func (l *Locatable) resolvedIdentifier(ref *Locatable) string {
-	id, ok := ref.Token.(ast.Identifier)
-	if !ok {
-		return astext.TokenName(ref.Token)
-	}
-
-	switch t := ref.Parent.Token.(type) {
-	case ast.LocalBind:
-		name := astext.TokenName(t.Body)
-		return fmt.Sprintf("(%s) %s", name, string(id))
-	case *ast.Index:
-		name := astext.TokenName(t.Target)
-		return fmt.Sprintf("(%s) %s", name, string(id))
+func (l *Locatable) resolvedIdentifier(ref *Locatable) (string, error) {
+	switch t := ref.Token.(type) {
+	case *ast.Object:
+		return astext.ObjectDescription(t)
 	default:
-		return astext.TokenName(ref.Token)
+		logrus.Debugf("resolvedIdentifer: did not match %T", t)
+		return astext.TokenName(ref.Token), nil
 	}
-
 }
 
 func (l *Locatable) IsFunctionParam() bool {

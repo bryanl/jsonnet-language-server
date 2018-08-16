@@ -1,9 +1,11 @@
 package astext
 
 import (
+	"bytes"
 	"fmt"
 
 	"github.com/google/go-jsonnet/ast"
+	"github.com/pkg/errors"
 )
 
 // tokenName returns a name for a token.
@@ -95,4 +97,50 @@ func ObjectFieldName(f ast.ObjectField) string {
 	}
 
 	panic("object field does not have a name")
+}
+
+func ObjectFieldVisibility(f ast.ObjectField) (string, error) {
+	switch f.Hide {
+	case ast.ObjectFieldHidden:
+		return "::", nil
+	case ast.ObjectFieldInherit:
+		return ":", nil
+	case ast.ObjectFieldVisible:
+		return ":::", nil
+	default:
+		return "", errors.Errorf("unknown object visibility %d", f.Hide)
+	}
+}
+
+func ObjectDescription(o *ast.Object) (string, error) {
+	if o == nil {
+		return "", errors.New("object is nil")
+	}
+
+	var buf bytes.Buffer
+	if _, err := buf.WriteString("(object) {"); err != nil {
+		return "", err
+	}
+
+	// find object fields
+	for i, field := range o.Fields {
+		if i == 0 {
+			if _, err := buf.WriteString("\n"); err != nil {
+				return "", err
+			}
+		}
+		fieldName := ObjectFieldName(field)
+		visibility, err := ObjectFieldVisibility(field)
+		if err != nil {
+			return "", err
+		}
+		if _, err := buf.WriteString(fmt.Sprintf("  (field) %s%s,\n", fieldName, visibility)); err != nil {
+			return "", err
+		}
+	}
+	if _, err := buf.WriteString("}"); err != nil {
+		return "", err
+	}
+
+	return buf.String(), nil
 }

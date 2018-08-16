@@ -809,7 +809,7 @@ func (v *NodeVisitor) handleLocal(n *ast.Local, parent *locate.Locatable, env lo
 		}
 
 		l := locate.Locatable{
-			Token:  bind.Variable,
+			Token:  bind.Body,
 			Parent: bindLocatable,
 			Loc:    idLocation,
 		}
