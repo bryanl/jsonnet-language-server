@@ -700,18 +700,34 @@ func (v *NodeVisitor) handleIndex(n *ast.Index, parent *locate.Locatable, env lo
 		return err
 	}
 
-	nodes := []interface{}{n.Target, n.Index}
 	if n.Id != nil {
-		nodes = append(nodes, n.Id)
-	}
+		logrus.Infof("index has id %q", string(*n.Id))
 
-	locatable := &locate.Locatable{
-		Token:  n,
-		Loc:    *n.Loc(),
-		Parent: parent,
-	}
+		r, err := locate.Index(n, parent, string(v.Source))
+		if err != nil {
+			return err
+		}
 
-	return v.visitList(nodes, locatable, env)
+		locatable := &locate.Locatable{
+			Token:  n,
+			Loc:    r,
+			Parent: parent,
+		}
+
+		return v.visitList([]interface{}{n.Id, n.Target}, locatable, env)
+	} else if n.Index != nil {
+		logrus.Infof("index has []")
+
+		locatable := &locate.Locatable{
+			Token:  n,
+			Loc:    *n.Loc(),
+			Parent: parent,
+		}
+
+		return v.visitList([]interface{}{n.Index}, locatable, env)
+	} else {
+		return errors.New("index id and index were nil")
+	}
 }
 
 // LiteralBooleanVisitor is a visitor for LiteralBoolean.

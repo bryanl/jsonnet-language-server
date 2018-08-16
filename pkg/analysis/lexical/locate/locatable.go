@@ -3,6 +3,7 @@ package locate
 import (
 	"bytes"
 	"fmt"
+	"runtime/debug"
 
 	"github.com/bryanl/jsonnet-language-server/pkg/analysis/lexical/astext"
 	"github.com/davecgh/go-spew/spew"
@@ -50,6 +51,8 @@ func (l *Locatable) Resolve() (*Resolved, error) {
 		return l.handleDefault()
 	case *ast.Import:
 		return l.handleImport(t)
+	case ast.LocalBind:
+		return l.handleLocalBind(t)
 	case *ast.Function:
 		return l.handleFunction(t)
 	case ast.NamedParameter:
@@ -57,9 +60,14 @@ func (l *Locatable) Resolve() (*Resolved, error) {
 	case astext.RequiredParameter:
 		return l.handleRequiredParameter(t)
 	default:
-		logrus.Errorf("unable to resolve %T", l.Token)
+		logrus.Errorf("locatable unable to resolve %T", l.Token)
 		return nil, ErrUnresolvable
 	}
+}
+
+func (l *Locatable) handleLocalBind(b ast.LocalBind) (*Resolved, error) {
+	debug.PrintStack()
+	return &Resolved{}, nil
 }
 
 func (l *Locatable) handleImport(i *ast.Import) (*Resolved, error) {
@@ -71,37 +79,41 @@ func (l *Locatable) handleImport(i *ast.Import) (*Resolved, error) {
 }
 
 func (l *Locatable) handleIndex(i *ast.Index) (*Resolved, error) {
-	description := fmt.Sprintf("(index) %s", string(*i.Id))
+	var indices []string
+	var cur ast.Node = i
+	for {
+		switch t := cur.(type) {
+		case *ast.Index:
+			cur = t.Target
 
-	if i.Id != nil {
-		var keys []string
-		for k := range l.Env {
-			keys = append(keys, k)
+			if t.Id == nil {
+				return nil, errors.New("index didn't have an id")
+			}
+			indices = append([]string{string(*t.Id)}, indices...)
+		case *ast.Var:
+			varID := string(t.Id)
+			if x, ok := l.Env[varID]; ok {
+				logrus.Debugf("it points to a %T", x.Token)
+
+				description, err := describe(x.Token, indices)
+				if err != nil {
+					return nil, err
+				}
+
+				result := &Resolved{
+					Location:    x.Loc,
+					Token:       l.Token,
+					Description: description,
+				}
+
+				return result, nil
+			}
+
+			return nil, errors.Errorf("could not find %s in env", varID)
+		default:
+			return nil, errors.Errorf("unable to handle index target of type %T", t)
 		}
-
-		spew.Dump(keys)
-
-		id := string(*i.Id)
-
-		logrus.Debugf("looking for %s in env", id)
-		if x, ok := l.Env[id]; ok {
-			logrus.Debugf("it points to a %T", x.Token)
-		} else {
-			logrus.Debugf("not ok")
-		}
-	} else {
-		logrus.Debugf("wtf")
 	}
-
-	logrus.Debugf("index points to a %T at %s", i.Target, i.Target.Loc().String())
-
-	result := &Resolved{
-		Location:    *i.Target.Loc(),
-		Token:       l.Token,
-		Description: description,
-	}
-
-	return result, nil
 }
 
 func (l *Locatable) handleNamedParameter(p ast.NamedParameter) (*Resolved, error) {
@@ -263,4 +275,31 @@ func (l *Locatable) IsFunctionParam() bool {
 	}
 
 	return false
+}
+
+func describe(item interface{}, indicies []string) (string, error) {
+	switch t := item.(type) {
+	case *ast.Object:
+		return describeInObject(t, indicies)
+	default:
+		return astext.TokenName(t), nil
+	}
+}
+
+func describeInObject(o *ast.Object, indicies []string) (string, error) {
+	if len(indicies) == 0 {
+		return astext.ObjectDescription(o)
+	}
+
+	for i := range o.Fields {
+		f := o.Fields[i]
+		if astext.ObjectFieldName(f) != indicies[0] {
+			continue
+		}
+
+		return describe(f.Expr2, indicies[1:])
+	}
+
+	spew.Dump(indicies, o)
+	return "", errors.Errorf("unable to find field %q n object", indicies[0])
 }

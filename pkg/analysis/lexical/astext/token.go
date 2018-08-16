@@ -38,7 +38,7 @@ func TokenName(token interface{}) string {
 	case *ast.LiteralNumber:
 		return "(number)"
 	case *ast.LiteralString:
-		return "(string)"
+		return fmt.Sprintf("(string) %s", TokenValue(t))
 	case ast.Identifier:
 		return fmt.Sprintf("(identifier) %s", string(t))
 	case *ast.Identifier:

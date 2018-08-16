@@ -7,7 +7,6 @@ import (
 	"github.com/bryanl/jsonnet-language-server/pkg/analysis/lexical/astext"
 	"github.com/google/go-jsonnet/ast"
 	"github.com/pkg/errors"
-	"github.com/sirupsen/logrus"
 )
 
 func Locate(token interface{}, parent *Locatable, source string) (ast.LocationRange, error) {
@@ -15,6 +14,8 @@ func Locate(token interface{}, parent *Locatable, source string) (ast.LocationRa
 	var err error
 
 	switch t := token.(type) {
+	case *ast.Index:
+		r, err = Index(t, parent, source)
 	case nodeLoc:
 		r = *t.Loc()
 	case ast.DesugaredObjectField:
@@ -38,7 +39,6 @@ func Locate(token interface{}, parent *Locatable, source string) (ast.LocationRa
 	case astext.RequiredParameter:
 		r, err = RequiredParameter(t, parent.Loc, source)
 	default:
-		logrus.Warnf("previsiting an unlocatable %T with parent %T", t, parent.Token)
 		return ast.LocationRange{}, errors.Errorf("unable to locate %T", t)
 	}
 

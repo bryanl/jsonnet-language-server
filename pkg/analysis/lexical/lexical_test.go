@@ -1,3 +1,5 @@
+// +build integration
+
 package lexical_test
 
 import (
