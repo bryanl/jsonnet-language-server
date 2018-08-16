@@ -3,7 +3,6 @@ package locate
 import (
 	"bytes"
 	"fmt"
-	"runtime/debug"
 
 	"github.com/bryanl/jsonnet-language-server/pkg/analysis/lexical/astext"
 	"github.com/davecgh/go-spew/spew"
@@ -66,7 +65,6 @@ func (l *Locatable) Resolve() (*Resolved, error) {
 }
 
 func (l *Locatable) handleLocalBind(b ast.LocalBind) (*Resolved, error) {
-	debug.PrintStack()
 	return &Resolved{}, nil
 }
 

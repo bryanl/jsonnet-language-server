@@ -26,6 +26,12 @@ func (lh *lspHandler) Handle(ctx context.Context, conn *jsonrpc2.Conn, req *json
 
 	var response interface{}
 
+	defer func() {
+		if r := recover(); r != nil {
+			l.Errorf("handler recovered: %f", r)
+		}
+	}()
+
 	switch req.Method {
 	case "initialize":
 		var ip lsp.InitializeParams

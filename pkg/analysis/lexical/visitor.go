@@ -701,8 +701,6 @@ func (v *NodeVisitor) handleIndex(n *ast.Index, parent *locate.Locatable, env lo
 	}
 
 	if n.Id != nil {
-		logrus.Infof("index has id %q", string(*n.Id))
-
 		r, err := locate.Index(n, parent, string(v.Source))
 		if err != nil {
 			return err
