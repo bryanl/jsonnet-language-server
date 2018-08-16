@@ -343,6 +343,7 @@ func TestMatch_Field(t *testing.T) {
 		{name: "fieldname + h expr", file: "field2.jsonnet", pos: 4, expected: 6},
 		{name: "fieldname() h expr", file: "field3.jsonnet", pos: 4, expected: 9},
 		{name: "fieldname h expr (expr is object)", file: "field5.jsonnet", pos: 4, expected: 11},
+		{name: "fieldname h expr (expr is array)", file: "field6.jsonnet", pos: 4, expected: 13},
 	}
 
 	for _, tc := range cases {

@@ -3,7 +3,6 @@ package astext
 import (
 	"fmt"
 
-	"github.com/davecgh/go-spew/spew"
 	"github.com/google/go-jsonnet/ast"
 )
 
@@ -48,8 +47,7 @@ func TokenName(token interface{}) string {
 		return fmt.Sprintf("(importstr) %s", t.File.Value)
 	case *ast.Index:
 		if t.Id == nil {
-			spew.Dump("dumping Index", t)
-			return ("(index) nil?")
+			return fmt.Sprintf("(array index) [%s]", TokenValue(t.Index))
 		}
 		return fmt.Sprintf("(index) %s", string(*t.Id))
 	case *ast.Local:

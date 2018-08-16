@@ -2,7 +2,6 @@ package token
 
 import (
 	"fmt"
-	"runtime/debug"
 
 	"github.com/google/go-jsonnet/ast"
 	"github.com/pkg/errors"
@@ -233,25 +232,15 @@ func (m *Match) expr(pos int) (int, error) {
 			end++
 		}
 
+		if m.kind(end) == TokenBracketR {
+			return end, nil
+		}
+
 		if m.kind(end+1) == TokenFor {
-			// This is an array comprehension
-			end, err = m.Forspec2(end + 1)
-			if err != nil {
-				return 0, err
-			}
-
-			if m.kind(end+1) == TokenBracketR {
-				return end + 1, nil
-			}
-
-			return 0, errors.New("expected ']'")
+			return m.arrayComprehension(end + 1)
 		}
 
-		if m.kind(end) == TokenComma {
-			end++
-		}
-
-		for i := end; i < m.len(); i++ {
+		for i := end + 1; i < m.len(); i++ {
 			if m.kind(i) == TokenBracketR {
 				return i, nil
 			}
@@ -290,8 +279,8 @@ func (m *Match) expr(pos int) (int, error) {
 			if m.kind(end+1) == TokenParenR {
 				return m.Expr(end + 2)
 			}
-
 		}
+		return 0, errors.New("function not matched")
 	case TokenIdentifier:
 		next := m.Tokens[pos+1]
 		if next.Kind == TokenDot {
@@ -338,14 +327,18 @@ func (m *Match) expr(pos int) (int, error) {
 
 			return end, nil
 		}
+
+		return 0, errors.New("conditional not matched")
 	case TokenImport:
 		if isString(m.Tokens[pos+1]) {
 			return pos + 1, nil
 		}
+		return 0, errors.New("import not matched")
 	case TokenImportStr:
 		if isString(m.Tokens[pos+1]) {
 			return pos + 1, nil
 		}
+		return 0, errors.New("importstr not matched")
 	case TokenLocal:
 		for i := pos + 1; i < len(m.Tokens); i++ {
 			m.pos = i
@@ -367,6 +360,7 @@ func (m *Match) expr(pos int) (int, error) {
 			return m.Expr(pos + 2)
 		}
 
+		return 0, errors.New("expr local not matched")
 	case TokenSuper:
 		if t := m.Tokens[pos+1]; t.Kind == TokenDot {
 			if m.kind(pos+2) == TokenIdentifier {
@@ -382,12 +376,25 @@ func (m *Match) expr(pos int) (int, error) {
 				return end + 1, nil
 			}
 		}
+
+		return 0, errors.New("super not matched")
 	}
 
-	debug.PrintStack()
-	fmt.Println("not matched")
-	printTokens(m.Tokens[0 : pos+3]...)
-	return 0, ErrExprNotMatched
+	return 0, errors.Errorf("expr: token %q not matched", m.data(pos))
+}
+
+func (m *Match) arrayComprehension(pos int) (int, error) {
+	end, err := m.Forspec2(pos)
+	if err != nil {
+		return 0, err
+	}
+
+	if m.kind(end+1) == TokenBracketR {
+		return end + 1, nil
+	}
+
+	return 0, errors.New("expected ']'")
+
 }
 
 // Objinside returns the ending position of an item inside an object.
