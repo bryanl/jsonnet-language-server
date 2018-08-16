@@ -43,7 +43,7 @@ func TestExtractUntil(t *testing.T) {
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			got, err := ExtractUntil(data, tc.loc)
+			got, err := ExtractUntil([]byte(data), tc.loc)
 			if tc.isErr {
 				require.Error(t, err)
 				return

@@ -45,6 +45,8 @@ func (l *Locatable) Resolve() (*Resolved, error) {
 		return l.handleDefault()
 	case *ast.Identifier:
 		return l.handleDefault()
+	case *ast.Import:
+		return l.handleImport(t)
 	case *ast.Function:
 		return l.handleFunction(t)
 	case ast.NamedParameter:
@@ -55,6 +57,14 @@ func (l *Locatable) Resolve() (*Resolved, error) {
 		logrus.Errorf("unable to resolve %T", l.Token)
 		return nil, ErrUnresolvable
 	}
+}
+
+func (l *Locatable) handleImport(i *ast.Import) (*Resolved, error) {
+	resolved := &Resolved{
+		Description: astext.TokenName(i),
+		Location:    l.Loc,
+	}
+	return resolved, nil
 }
 
 func (l *Locatable) handleIndex(i *ast.Index) (*Resolved, error) {

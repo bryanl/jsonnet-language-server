@@ -5,6 +5,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/bryanl/jsonnet-language-server/pkg/analysis/lexical/locate"
 	"github.com/bryanl/jsonnet-language-server/pkg/jlstesting"
 	"github.com/google/go-jsonnet/ast"
 	"github.com/stretchr/testify/assert"
@@ -28,7 +29,7 @@ func Test_hoverVisitor(t *testing.T) {
 	lLoc := createRange(2, 7, 2, 10)
 	lLoc.FileName = filepath.Join("example1.jsonnet")
 
-	expected := &Locatable{
+	expected := &locate.Locatable{
 		Token: ast.Identifier("name"),
 		Loc:   lLoc,
 	}

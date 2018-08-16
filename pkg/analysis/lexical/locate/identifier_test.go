@@ -25,7 +25,7 @@ func TestIdentifier_in_local_bind(t *testing.T) {
 	assert.Equal(t, expected, got)
 }
 
-func TestIdentifier_in_index(t *testing.T) {
+func OffTestIdentifier_in_index(t *testing.T) {
 	id := ast.Identifier("name")
 
 	l := &Locatable{
@@ -33,7 +33,7 @@ func TestIdentifier_in_index(t *testing.T) {
 		Loc:   createRange("file.jsonnet", 3, 12, 5, 10),
 	}
 
-	source :=jlstesting.Testdata(t, "identifier2.jsonnet")
+	source := jlstesting.Testdata(t, "identifier2.jsonnet")
 	got, err := Identifier(id, l, source)
 	require.NoError(t, err)
 

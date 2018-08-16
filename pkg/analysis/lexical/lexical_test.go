@@ -10,11 +10,11 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func OffTestHoverAtLocation(t *testing.T) {
-	data := jlstesting.Testdata(t, "lexical", "example1.jsonnet")
+func TestHoverAtLocation(t *testing.T) {
+	data := jlstesting.Testdata(t, "lexical", "example2.jsonnet")
 
 	r := strings.NewReader(data)
-	got, err := HoverAtLocation("example1.jsonnet", r, 2, 7)
+	got, err := HoverAtLocation("example2.jsonnet", r, 1, 13)
 	require.NoError(t, err)
 
 	expected := &lsp.Hover{
