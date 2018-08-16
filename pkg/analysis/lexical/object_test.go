@@ -1,21 +1,13 @@
 package lexical
 
 import (
-	"io/ioutil"
-	"path/filepath"
 	"testing"
 
+	"github.com/bryanl/jsonnet-language-server/pkg/jlstesting"
 	"github.com/google/go-jsonnet/ast"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
-
-func testdata(t *testing.T, elem ...string) string {
-	name := filepath.Join(append([]string{"testdata"}, elem...)...)
-	data, err := ioutil.ReadFile(name)
-	require.NoError(t, err)
-	return string(data)
-}
 
 func Test_fieldRange(t *testing.T) {
 	cases := []struct {
@@ -65,7 +57,7 @@ func Test_fieldRange(t *testing.T) {
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			source := testdata(t, "fieldRange", tc.source)
+			source := jlstesting.Testdata(t, "fieldRange", tc.source)
 
 			got, err := fieldRange(tc.field, source)
 			if tc.isErr {

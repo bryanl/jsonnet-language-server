@@ -3,6 +3,7 @@ package locate
 import (
 	"testing"
 
+	"github.com/bryanl/jsonnet-language-server/pkg/jlstesting"
 	"github.com/google/go-jsonnet/ast"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -31,7 +32,7 @@ func OffTestDesugaredObjectField(t *testing.T) {
 		},
 	}
 
-	source := testdata(t, "desugared_object1.jsonnet")
+	source := jlstesting.Testdata(t, "desugared_object1.jsonnet")
 	got, err := DesugaredObjectField(field, createRange("file.jsonnet", 1, 13, 3, 2), source)
 	require.NoError(t, err)
 

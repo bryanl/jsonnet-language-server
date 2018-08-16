@@ -3,13 +3,14 @@ package locate
 import (
 	"testing"
 
+	"github.com/bryanl/jsonnet-language-server/pkg/jlstesting"
 	"github.com/google/go-jsonnet/ast"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 func Test_fieldRange(t *testing.T) {
-	source := testdata(t, "object-source.txt")
+	source := jlstesting.Testdata(t, "object-source.txt")
 
 	cases := []struct {
 		name     string

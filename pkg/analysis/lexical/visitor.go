@@ -938,7 +938,7 @@ func (v *NodeVisitor) handleObjectField(n ast.ObjectField, parent *locate.Locata
 
 	tokens = append(tokens, n.Expr2, n.Expr3)
 
-	r, err := locate.ObjectField(n, parent.Loc, string(v.Source))
+	r, err := locate.ObjectField(n, parent, string(v.Source))
 	if err != nil {
 		return err
 	}

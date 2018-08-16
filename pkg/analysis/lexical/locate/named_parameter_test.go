@@ -3,6 +3,7 @@ package locate
 import (
 	"testing"
 
+	"github.com/bryanl/jsonnet-language-server/pkg/jlstesting"
 	"github.com/google/go-jsonnet/ast"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -17,7 +18,7 @@ func TestNamedParameter(t *testing.T) {
 		},
 	}
 
-	source := testdata(t, "named_parameter1.jsonnet")
+	source := jlstesting.Testdata(t, "named_parameter1.jsonnet")
 	got, err := NamedParameter(p, createRange("file.jsonnet", 1, 7, 1, 18), source)
 	require.NoError(t, err)
 

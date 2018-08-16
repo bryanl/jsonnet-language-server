@@ -3,11 +3,11 @@ package token
 import (
 	"bytes"
 	"fmt"
-	"io/ioutil"
 	"path/filepath"
 	"runtime/debug"
 	"testing"
 
+	"github.com/bryanl/jsonnet-language-server/pkg/jlstesting"
 	"github.com/google/go-jsonnet/ast"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -428,17 +428,10 @@ func createLoc(l, c int) ast.Location {
 
 func initmatch(t *testing.T, elem ...string) *Match {
 	filename := filepath.Join(elem...)
-	source := testdata(t, elem...)
+	source := jlstesting.Testdata(t, elem...)
 	m, err := NewMatch(filename, source)
 	require.NoError(t, err)
 	return m
-}
-
-func testdata(t *testing.T, elem ...string) string {
-	name := filepath.Join(append([]string{"testdata"}, elem...)...)
-	data, err := ioutil.ReadFile(name)
-	require.NoError(t, err)
-	return string(data)
 }
 
 func sprintTokens(tokens ...Token) string {

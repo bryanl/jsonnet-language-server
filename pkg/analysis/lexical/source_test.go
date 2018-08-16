@@ -1,10 +1,9 @@
 package lexical
 
 import (
-	"io/ioutil"
-	"path/filepath"
 	"testing"
 
+	"github.com/bryanl/jsonnet-language-server/pkg/jlstesting"
 	"github.com/google/go-jsonnet/ast"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -22,8 +21,7 @@ func TestExtractLines(t *testing.T) {
 }
 
 func TestExtractUntil(t *testing.T) {
-	data, err := ioutil.ReadFile(filepath.Join("testdata", "local.jsonnet"))
-	require.NoError(t, err)
+	data := jlstesting.Testdata(t, "local.jsonnet")
 
 	cases := []struct {
 		name     string

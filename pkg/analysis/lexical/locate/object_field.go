@@ -7,12 +7,15 @@ import (
 )
 
 // ObjectField locates object fields.
-func ObjectField(field ast.ObjectField, parentRange ast.LocationRange, source string) (ast.LocationRange, error) {
+// func ObjectField(field ast.ObjectField, parentRange ast.LocationRange, source string) (ast.LocationRange, error) {
+func ObjectField(field ast.ObjectField, parent *Locatable, source string) (ast.LocationRange, error) {
 	fieldName := astext.ObjectFieldName(field)
 	m, err := token.NewMatch("", source)
 	if err != nil {
 		return ast.LocationRange{}, err
 	}
+
+	parentRange := parent.Loc
 
 	tokens, err := m.FindObjectField(parentRange.Begin, fieldName)
 	if err != nil {
@@ -21,6 +24,6 @@ func ObjectField(field ast.ObjectField, parentRange ast.LocationRange, source st
 
 	begin := tokens[0].Loc.Begin
 	end := tokens[len(tokens)-1].Loc.End
-	r := createRange("", begin.Line, begin.Column, end.Line, end.Column)
+	r := createRange(parentRange.FileName, begin.Line, begin.Column, end.Line, end.Column)
 	return r, nil
 }

@@ -1,10 +1,9 @@
 package locate
 
 import (
-	"io/ioutil"
-	"path/filepath"
 	"testing"
 
+	"github.com/bryanl/jsonnet-language-server/pkg/jlstesting"
 	"github.com/google/go-jsonnet/ast"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -20,7 +19,7 @@ func TestLocalBind(t *testing.T) {
 		},
 	}
 
-	got, err := LocalBind(bind, createRange("file.jsonnet", 2, 1, 4, 3), testdata(t, "local_bind1.jsonnet"))
+	got, err := LocalBind(bind, createRange("file.jsonnet", 2, 1, 4, 3), jlstesting.Testdata(t, "local_bind1.jsonnet"))
 	require.NoError(t, err)
 
 	expected := createRange("file.jsonnet", 2, 7, 2, 20)
@@ -43,17 +42,10 @@ func TestLocalBind_function(t *testing.T) {
 		},
 	}
 
-	source := testdata(t, "local_bind2.jsonnet")
+	source := jlstesting.Testdata(t, "local_bind2.jsonnet")
 	got, err := LocalBind(bind, createRange("file.jsonnet", 1, 1, 3, 3), source)
 	require.NoError(t, err)
 
 	expected := createRange("file.jsonnet", 1, 7, 1, 16)
 	assert.Equal(t, expected, got)
-}
-
-func testdata(t *testing.T, elem ...string) string {
-	name := filepath.Join(append([]string{"testdata"}, elem...)...)
-	data, err := ioutil.ReadFile(name)
-	require.NoError(t, err)
-	return string(data)
 }

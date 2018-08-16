@@ -4,13 +4,14 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/bryanl/jsonnet-language-server/pkg/jlstesting"
 	"github.com/sourcegraph/go-langserver/pkg/lsp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 func OffTestHoverAtLocation(t *testing.T) {
-	data := testdata(t, "lexical", "example1.jsonnet")
+	data := jlstesting.Testdata(t, "lexical", "example1.jsonnet")
 
 	r := strings.NewReader(data)
 	got, err := HoverAtLocation("example1.jsonnet", r, 2, 7)

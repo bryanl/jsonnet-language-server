@@ -34,7 +34,7 @@ func Locate(token interface{}, parent *Locatable, source string) (ast.LocationRa
 	case ast.NamedParameter:
 		r, err = NamedParameter(t, parent.Loc, source)
 	case ast.ObjectField:
-		r, err = ObjectField(t, parent.Loc, source)
+		r, err = ObjectField(t, parent, source)
 	case astext.RequiredParameter:
 		r, err = RequiredParameter(t, parent.Loc, source)
 	default:

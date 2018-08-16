@@ -5,13 +5,14 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/bryanl/jsonnet-language-server/pkg/jlstesting"
 	"github.com/google/go-jsonnet/ast"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 func Test_hoverVisitor(t *testing.T) {
-	source := testdata(t, "lexical", "example1.jsonnet")
+	source := jlstesting.Testdata(t, "lexical", "example1.jsonnet")
 	r := strings.NewReader(source)
 	loc := createLoc(2, 9)
 
