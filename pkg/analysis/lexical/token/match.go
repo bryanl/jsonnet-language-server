@@ -40,8 +40,9 @@ func (m *Match) Bind(loc ast.Location, name string) (Tokens, error) {
 	if err != nil {
 		return nil, err
 	}
+	m.pos = pos + 1
 
-	begin, end, err := m.bind(pos + 1)
+	begin, end, err := m.bind()
 	if err != nil {
 		return nil, err
 	}
@@ -56,7 +57,8 @@ func (m *Match) FindObjectField(loc ast.Location, name string) (Tokens, error) {
 	}
 
 	for i := objectStartPos + 1; i < m.len(); i++ {
-		found, err := m.findFieldName(i)
+		m.pos = i
+		found, err := m.findFieldName()
 		if err != nil {
 			return nil, err
 		}
@@ -84,40 +86,41 @@ func (m *Match) FindObjectField(loc ast.Location, name string) (Tokens, error) {
 	return nil, errors.New("object field not found")
 }
 
-func (m *Match) findFieldName(pos int) (string, error) {
-	if m.kind(pos) == TokenIdentifier {
-		return m.data(pos), nil
-	} else if m.isString(pos) {
-		return m.data(pos), nil
-	} else if m.kind(pos) == TokenBracketL {
-		return fmt.Sprintf("[%s]", m.data(pos+1)), nil
+func (m *Match) findFieldName() (string, error) {
+	if m.kind(m.pos) == TokenIdentifier {
+		return m.data(m.pos), nil
+	} else if m.isString(m.pos) {
+		return m.data(m.pos), nil
+	} else if m.kind(m.pos) == TokenBracketL {
+		return fmt.Sprintf("[%s]", m.data(m.pos+1)), nil
 	}
 
 	return "", errors.New("invalid field name")
 }
 
-func (m *Match) bind(pos int) (int, int, error) {
+func (m *Match) bind() (int, int, error) {
 	// bind is:
 	// 1. id = expr
 	// 2. id([params]) = expr
 
-	if m.kind(pos) == TokenIdentifier {
-		if m.kind(pos+1) == TokenParenL {
-			end, err := m.Params(pos + 2)
-			if err != nil {
-				return 0, 0, err
-			}
-			if m.kind(end+1) != TokenParenR {
-				return 0, 0, errors.New("a ')' was expected")
-			}
-			return pos, end, nil
-		} else if m.isOperator(pos+1, "=") {
-			end, err := m.Expr(pos + 2)
+	if m.kind(m.pos) == TokenIdentifier {
+		if m.kind(m.pos+1) == TokenParenL {
+			pos, err := m.Params(m.pos + 2)
 			if err != nil {
 				return 0, 0, err
 			}
 
-			return pos, end, nil
+			if m.kind(pos+1) != TokenParenR {
+				return 0, 0, errors.New("a ')' was expected")
+			}
+			return m.pos, pos, nil
+		} else if m.isOperator(m.pos+1, "=") {
+			end, err := m.Expr(m.pos + 2)
+			if err != nil {
+				return 0, 0, err
+			}
+
+			return m.pos, end, nil
 		}
 	}
 
@@ -345,7 +348,8 @@ func (m *Match) expr(pos int) (int, error) {
 		}
 	case TokenLocal:
 		for i := pos + 1; i < len(m.Tokens); i++ {
-			_, end, err := m.bind(i)
+			m.pos = i
+			_, end, err := m.bind()
 			if err != nil {
 				return 0, err
 			}
@@ -511,7 +515,8 @@ func (m *Match) Member(pos int) (int, error) {
 // Objlocal returns the ending position of an object local started at pos.
 func (m *Match) Objlocal(pos int) (int, error) {
 	if m.kind(pos) == TokenLocal {
-		_, end, err := m.bind(pos + 1)
+		m.pos = pos + 1
+		_, end, err := m.bind()
 		if err != nil {
 			return 0, err
 		}
@@ -810,6 +815,7 @@ func printTokens(tokens ...Token) {
 	}
 }
 
+// nolint: gocyclo
 func inRange(l ast.Location, lr ast.LocationRange) bool {
 	if lr.Begin.Line == l.Line && l.Line == lr.End.Line &&
 		lr.Begin.Column <= l.Column && l.Column <= lr.End.Column {
