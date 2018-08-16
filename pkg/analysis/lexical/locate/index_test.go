@@ -11,18 +11,55 @@ import (
 
 func TestIndex(t *testing.T) {
 	idxID := ast.Identifier("nested2")
-	idx := &ast.Index{
-		Id:       &idxID,
-		NodeBase: ast.NewNodeBaseLoc(createRange("file.jsonnet", 11, 13, 11, 22)),
+
+	cases := []struct {
+		name         string
+		file         string
+		idx          *ast.Index
+		expected     ast.LocationRange
+		notLocatable bool
+		isErr        bool
+	}{
+		{
+			name: "with id",
+			file: "index1.jsonnet",
+			idx: &ast.Index{
+				Id:       &idxID,
+				NodeBase: ast.NewNodeBaseLoc(createRange("file.jsonnet", 11, 13, 11, 22)),
+			},
+			expected: createRange("file.jsonnet", 11, 15, 11, 21),
+		},
+		{
+			name: "with index",
+			file: "index2.jsonnet",
+			idx: &ast.Index{
+				Target: &ast.Var{
+					Id: ast.Identifier("a"),
+				},
+				Index: &ast.LiteralNumber{Value: 2, OriginalString: "2"},
+			},
+			notLocatable: true,
+		},
 	}
 
-	l := &Locatable{}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			l := &Locatable{}
 
-	source := jlstesting.Testdata(t, "index1.jsonnet")
+			source := jlstesting.Testdata(t, tc.file)
 
-	got, err := Index(idx, l, source)
-	require.NoError(t, err)
+			got, err := Index(tc.idx, l, source)
+			if tc.isErr && !tc.notLocatable {
+				require.Error(t, err)
+				return
+			} else if tc.notLocatable {
+				require.Error(t, ErrNotLocatable, err)
+				return
+			}
 
-	expected := createRange("file.jsonnet", 11, 15, 11, 21)
-	assert.Equal(t, expected, got)
+			require.NoError(t, err)
+			assert.Equal(t, tc.expected, got)
+
+		})
+	}
 }

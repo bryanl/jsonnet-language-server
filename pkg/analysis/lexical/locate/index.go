@@ -6,7 +6,7 @@ import (
 )
 
 // Index finds the location of an index.
-func Index(idx *ast.Index, l *Locatable, source string) (ast.LocationRange, error) {
+func Index(idx *ast.Index, parent *Locatable, source string) (ast.LocationRange, error) {
 	if idx.Id != nil {
 		if loc := idx.Loc(); loc != nil {
 			id := string(*idx.Id)
@@ -17,7 +17,8 @@ func Index(idx *ast.Index, l *Locatable, source string) (ast.LocationRange, erro
 			r := createRange(loc.FileName, line, beginCol, line, endCol)
 			return r, nil
 		}
-
+	} else if idx.Index != nil {
+		return ast.LocationRange{}, ErrNotLocatable
 	}
 
 	return ast.LocationRange{}, errors.New("unable to find location for index")

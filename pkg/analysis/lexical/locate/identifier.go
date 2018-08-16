@@ -57,6 +57,15 @@ func idInForSpec(id ast.Identifier, parent *Locatable, source string) (ast.Locat
 }
 
 func idInIndex(id ast.Identifier, parent *Locatable, source string) (ast.LocationRange, error) {
+	idx, ok := parent.Token.(*ast.Index)
+	if !ok {
+		return ast.LocationRange{}, errors.New("parent is not an index")
+	}
+
+	if idx.Index != nil {
+		return ast.LocationRange{}, ErrNotLocatable
+	}
+
 	parentSource, err := extractRange(source, parent.Loc)
 	if err != nil {
 		return ast.LocationRange{}, err
@@ -77,7 +86,7 @@ func idInIndex(id ast.Identifier, parent *Locatable, source string) (ast.Locatio
 		}
 	}
 
-	return ast.LocationRange{}, errors.New("index not found")
+	return ast.LocationRange{}, ErrNotLocatable
 }
 
 func idInObjectField(id ast.Identifier, parent *Locatable, source string) (ast.LocationRange, error) {

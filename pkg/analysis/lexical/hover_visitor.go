@@ -53,6 +53,9 @@ func (hv *hoverVisitor) TokenAtLocation() (*locate.Locatable, error) {
 func (hv *hoverVisitor) previsit(token interface{}, parent *locate.Locatable, env locate.Env) error {
 	r, err := locate.Locate(token, parent, string(hv.Visitor.Source))
 	if err != nil {
+		if err == locate.ErrNotLocatable {
+			return nil
+		}
 		return err
 	}
 

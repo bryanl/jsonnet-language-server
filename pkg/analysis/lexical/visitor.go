@@ -716,15 +716,13 @@ func (v *NodeVisitor) handleIndex(n *ast.Index, parent *locate.Locatable, env lo
 
 		return v.visitList([]interface{}{n.Id, n.Target}, locatable, env)
 	} else if n.Index != nil {
-		logrus.Infof("index has []")
-
 		locatable := &locate.Locatable{
 			Token:  n,
 			Loc:    *n.Loc(),
 			Parent: parent,
 		}
 
-		return v.visitList([]interface{}{n.Index}, locatable, env)
+		return v.visitList([]interface{}{n.Target}, locatable, env)
 	} else {
 		return errors.New("index id and index were nil")
 	}

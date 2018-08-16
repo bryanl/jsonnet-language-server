@@ -9,6 +9,11 @@ import (
 	"github.com/pkg/errors"
 )
 
+var (
+	// ErrNotLocatable is an error returned when a token has no location.
+	ErrNotLocatable = errors.New("not locatable")
+)
+
 func Locate(token interface{}, parent *Locatable, source string) (ast.LocationRange, error) {
 	var r ast.LocationRange
 	var err error
