@@ -86,6 +86,7 @@ func TestMatch_FindObjectField(t *testing.T) {
 				createToken(TokenStringDouble, "foo"),
 				createToken(TokenComma, ","),
 				createToken(TokenBraceR, "}"),
+				createToken(TokenComma, ","),
 			},
 		},
 		{
@@ -311,6 +312,7 @@ func TestMatch_Objinside(t *testing.T) {
 		{name: "objlocal, [expr]: expr forspec", file: "objinside5.jsonnet", pos: 3, expected: 24},
 		{name: "objlocal, [expr]: expr, objlocal, forspec", file: "objinside6.jsonnet", pos: 3, expected: 30},
 		{name: "empty", file: "objinside7.jsonnet", pos: 3, expected: 4},
+		{name: "missing comma", file: "objinside8.jsonnet", pos: 3, expected: 13},
 		// TODO: [expr]: expr forspec compspec
 	}
 
@@ -341,7 +343,7 @@ func TestMatch_Field(t *testing.T) {
 		{name: "fieldname h expr", file: "field1.jsonnet", pos: 4, expected: 6},
 		{name: "fieldname + h expr", file: "field2.jsonnet", pos: 4, expected: 6},
 		{name: "fieldname() h expr", file: "field3.jsonnet", pos: 4, expected: 9},
-		{name: "fieldname h expr (expr is object)", file: "field5.jsonnet", pos: 4, expected: 11},
+		{name: "fieldname h expr (expr is object)", file: "field5.jsonnet", pos: 4, expected: 12},
 	}
 
 	for _, tc := range cases {

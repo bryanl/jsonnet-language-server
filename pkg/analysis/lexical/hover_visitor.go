@@ -5,7 +5,6 @@ import (
 
 	"github.com/bryanl/jsonnet-language-server/pkg/analysis/lexical/astext"
 	"github.com/bryanl/jsonnet-language-server/pkg/analysis/lexical/locate"
-	"github.com/davecgh/go-spew/spew"
 	"github.com/google/go-jsonnet/ast"
 	"github.com/sirupsen/logrus"
 )
@@ -54,7 +53,6 @@ func (hv *hoverVisitor) TokenAtLocation() (*locate.Locatable, error) {
 func (hv *hoverVisitor) previsit(token interface{}, parent *locate.Locatable, env locate.Env) error {
 	r, err := locate.Locate(token, parent, string(hv.Visitor.Source))
 	if err != nil {
-		spew.Dump("locating failed", token, "===", parent)
 		return err
 	}
 

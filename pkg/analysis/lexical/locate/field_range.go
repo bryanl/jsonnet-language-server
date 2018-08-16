@@ -1,7 +1,6 @@
 package locate
 
 import (
-	"github.com/davecgh/go-spew/spew"
 	"github.com/google/go-jsonnet/ast"
 	"github.com/pkg/errors"
 )
@@ -11,7 +10,6 @@ func fieldRange(fieldName, source string) (ast.LocationRange, error) {
 	if err != nil {
 		return ast.LocationRange{}, err
 	}
-	
 
 	if len(tokens) < 2 || (tokens[0].Kind != TokenBraceL && tokens[len(tokens)-1].Kind != TokenBraceR) {
 		return ast.LocationRange{}, errors.New("source is not an object")
@@ -54,8 +52,6 @@ func fieldRange(fieldName, source string) (ast.LocationRange, error) {
 			return r, nil
 		}
 	}
-
-	spew.Dump(source)
 
 	return ast.LocationRange{}, errors.New("object is not complete 1")
 }

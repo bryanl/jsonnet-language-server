@@ -8,7 +8,6 @@ import (
 
 	"github.com/bryanl/jsonnet-language-server/pkg/analysis/lexical/astext"
 	"github.com/bryanl/jsonnet-language-server/pkg/analysis/lexical/locate"
-	"github.com/davecgh/go-spew/spew"
 	"github.com/google/go-jsonnet/ast"
 	"github.com/google/go-jsonnet/parser"
 	"github.com/pkg/errors"
@@ -611,8 +610,6 @@ func (v *NodeVisitor) handleFunction(n *ast.Function, parent *locate.Locatable, 
 	for _, id := range n.Parameters.Required {
 		p := astext.RequiredParameter{ID: id}
 
-		logrus.Debug("failure is here")
-		spew.Dump(parent.Parent.Loc)
 		r, err := locate.RequiredParameter(p, loc, string(v.Source))
 		if err != nil {
 			return err

@@ -2,6 +2,7 @@ package token
 
 import (
 	"fmt"
+	"runtime/debug"
 
 	"github.com/google/go-jsonnet/ast"
 	"github.com/pkg/errors"
@@ -377,12 +378,11 @@ func (m *Match) expr(pos int) (int, error) {
 				return end + 1, nil
 			}
 		}
-	default:
-
 	}
 
+	debug.PrintStack()
 	fmt.Println("not matched")
-	printTokens(m.Tokens[pos])
+	printTokens(m.Tokens[0 : pos+3]...)
 	return 0, ErrExprNotMatched
 }
 
