@@ -120,6 +120,25 @@ func (vm *VM) evaluateSnippet(filename string, snippet string, kind evalKind) (o
 	return output, nil
 }
 
+func (vm *VM) evaluateToNode(filename string, snippet string) (ast.Node, error) {
+	var err error
+	defer func() {
+		if r := recover(); r != nil {
+			err = fmt.Errorf("(CRASH) %v\n%s", r, debug.Stack())
+		}
+	}()
+	node, err := snippetToAST(filename, snippet)
+	if err != nil {
+		return nil, err
+	}
+
+	output, err := evaluateToNode(node, vm.ext, vm.tla, vm.nativeFuncs, vm.MaxStack, vm.importer)
+	if err != nil {
+		return nil, err
+	}
+	return output, nil
+}
+
 // NativeFunction registers a native function.
 func (vm *VM) NativeFunction(f *NativeFunction) {
 	vm.nativeFuncs[f.Name] = f
@@ -136,6 +155,15 @@ func (vm *VM) EvaluateSnippet(filename string, snippet string) (json string, for
 	}
 	json = output.(string)
 	return
+}
+
+func (vm *VM) EvaluateToNode(filename string, snippet string) (ast.Node, error) {
+	output, err := vm.evaluateToNode(filename, snippet)
+	if err != nil {
+		return nil, errors.New(vm.ErrorFormatter.Format(err))
+	}
+
+	return output, nil
 }
 
 // EvaluateSnippetStream evaluates a string containing Jsonnet code to an array.
