@@ -8,7 +8,7 @@ import (
 	"path/filepath"
 
 	"github.com/bryanl/jsonnet-language-server/pkg/analysis/lexical/astext"
-	"github.com/davecgh/go-spew/spew"
+	jsonnet "github.com/google/go-jsonnet"
 	"github.com/google/go-jsonnet/ast"
 	"github.com/google/go-jsonnet/parser"
 	"github.com/pkg/errors"
@@ -266,39 +266,31 @@ func resolvedIdentifier(item interface{}) (string, error) {
 	case *ast.Object:
 		return astext.ObjectDescription(t)
 	default:
-		logrus.Debugf("resolvedIdentifer: did not match %T", t)
+		logrus.Debugf("resolvedIdentifer: unable to resolve %T", t)
 		return astext.TokenName(item), nil
 	}
 }
 
 func importDescription(i *ast.Import) (string, error) {
-	// switch t := token.(type) {
-	// case *ast.Import:
 	// TODO this needs to come from somewhere else
 	jPaths := []string{
+		"/Users/bryan/Development/heptio/infratoo/lib/v1.8.0",
 		"/Users/bryan/go/src/github.com/bryanl/jsonnet-language-server/pkg/analysis/lexical/testdata/lexical",
 	}
 
-	// 	logrus.Infof("replacing import with its node from %q", t.File.Value)
-	// 	node, err := importSource(jPaths, t.File.Value)
-	// 	if err != nil {
-	// 		return err
-	// 	}
-
-	// 	item = node
-
-	// }
-
-	node, err := importSource(jPaths, i.File.Value)
+	// node, err := importSource2(jPaths, i.File.Value)
+	node, err := evalSource(jPaths, i.File.Value)
 	if err != nil {
 		return "", err
 	}
 
+	// spew.Dump(node)
+	node.Context()
 	return resolvedIdentifier(node)
 
 }
 
-func importSource(paths []string, name string) (ast.Node, error) {
+func importSource2(paths []string, name string) (ast.Node, error) {
 	for _, jPath := range paths {
 		sourcePath := filepath.Join(jPath, name)
 		if _, err := os.Stat(sourcePath); os.IsNotExist(err) {
@@ -311,7 +303,49 @@ func importSource(paths []string, name string) (ast.Node, error) {
 			return nil, err
 		}
 
-		return parse(sourcePath, string(source))
+		node, err := parse(sourcePath, string(source))
+		if err != nil {
+			return nil, err
+		}
+
+		return findNonLocal(node)
+	}
+
+	return nil, errors.Errorf("unable to find import %q", name)
+}
+
+func findNonLocal(node ast.Node) (ast.Node, error) {
+	if node == nil {
+		return nil, errors.New("node is nil")
+	}
+
+	if local, ok := node.(*ast.Local); ok {
+		return findNonLocal(local.Body)
+	}
+
+	return node, nil
+}
+
+func evalSource(paths []string, name string) (ast.Node, error) {
+	for _, jPath := range paths {
+		sourcePath := filepath.Join(jPath, name)
+		if _, err := os.Stat(sourcePath); os.IsNotExist(err) {
+			continue
+		}
+
+		/* #nosec */
+		source, err := ioutil.ReadFile(sourcePath)
+		if err != nil {
+			return nil, err
+		}
+
+		vm := jsonnet.MakeVM()
+		importer := &jsonnet.FileImporter{
+			JPaths: paths,
+		}
+		vm.Importer(importer)
+
+		return vm.EvaluateToNode(sourcePath, string(source))
 	}
 
 	return nil, errors.Errorf("unable to find import %q", name)
@@ -350,7 +384,7 @@ func describeInObject(o *ast.Object, indicies []string) (string, error) {
 		return describe(f.Expr2, indicies[1:])
 	}
 
-	spew.Dump(indicies, o)
+	// spew.Dump(indicies, o)
 	return "", errors.Errorf("unable to find field %q n object", indicies[0])
 }
 

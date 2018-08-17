@@ -1,7 +1,4 @@
 /*
-
-This is modified to expose the lexer tokens
-
 Copyright 2016 Google Inc. All rights reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
@@ -29,6 +26,27 @@ import (
 	"github.com/google/go-jsonnet/ast"
 	"github.com/google/go-jsonnet/parser"
 )
+
+// ---------------------------------------------------------------------------
+// Fodder
+//
+// Fodder is stuff that is usually thrown away by lexers/preprocessors but is
+// kept so that the source can be round tripped with full fidelity.
+type fodderKind int
+
+const (
+	fodderWhitespace fodderKind = iota
+	fodderCommentC
+	fodderCommentCpp
+	fodderCommentHash
+)
+
+type FodderElement struct {
+	kind fodderKind
+	data string
+}
+
+type Fodder []FodderElement
 
 // ---------------------------------------------------------------------------
 // Token
@@ -77,12 +95,12 @@ const (
 	TokenThen
 	TokenTrue
 
-	// A special token that holds line/column information about the end of the
+	// A special Token that holds line/column information about the end of the
 	// file.
-	tokenEndOfFile
+	TokenEndOfFile
 )
 
-var tokenKindStrings = []string{
+var TokenKindStrings = []string{
 	// Symbols
 	TokenBraceL:    `"{"`,
 	TokenBraceR:    `"}"`,
@@ -124,31 +142,31 @@ var tokenKindStrings = []string{
 	TokenThen:       "then",
 	TokenTrue:       "true",
 
-	// A special token that holds line/column information about the end of the
+	// A special Token that holds line/column information about the end of the
 	// file.
-	tokenEndOfFile: "end of file",
+	TokenEndOfFile: "end of file",
 }
 
 func (tk TokenKind) String() string {
-	if tk < 0 || int(tk) >= len(tokenKindStrings) {
-		panic(fmt.Sprintf("INTERNAL ERROR: Unknown token kind:: %d", tk))
+	if tk < 0 || int(tk) >= len(TokenKindStrings) {
+		panic(fmt.Sprintf("INTERNAL ERROR: Unknown Token kind:: %d", tk))
 	}
-	return tokenKindStrings[tk]
+	return TokenKindStrings[tk]
 }
 
 type Token struct {
-	Kind   TokenKind  // The type of the token
-	Fodder ast.Fodder // Any fodder that occurs before this token
-	Data   string     // Content of the token if it is not a keyword
+	Kind   TokenKind // The type of the Token
+	fodder Fodder    // Any fodder the occurs before this Token
+	Data   string    // Content of the Token if it is not a keyword
 
-	// Extra info for when kind == tokenStringBlock
-	StringBlockIndent     string // The sequence of whitespace that indented the block.
-	StringBlockTermIndent string // This is always fewer whitespace characters than in stringBlockIndent.
+	// Extra info for when kind == TokenStringBlock
+	stringBlockIndent     string // The sequence of whitespace that indented the block.
+	stringBlockTermIndent string // This is always fewer whitespace characters than in stringBlockIndent.
 
 	Loc ast.LocationRange
 }
 
-// Tokens is a slice of token structs.
+// Tokens is a slice of Token structs.
 type Tokens []Token
 
 func (t *Token) String() string {
@@ -190,47 +208,6 @@ func isSymbol(r rune) bool {
 		return true
 	}
 	return false
-}
-
-func isHorizontalWhitespace(r rune) bool {
-	return r == ' ' || r == '\t' || r == '\r'
-}
-
-func isWhitespace(r rune) bool {
-	return r == '\n' || isHorizontalWhitespace(r)
-}
-
-// stripWhitespace strips whitespace from both ends of a string, but only up to
-// margin on the left hand side.  E.g., stripWhitespace("  foo ", 1) == " foo".
-func stripWhitespace(s string, margin int) string {
-	runes := []rune(s)
-	if len(s) == 0 {
-		return s // Avoid underflow below.
-	}
-	i := 0
-	for i < len(runes) && isHorizontalWhitespace(runes[i]) && i < margin {
-		i++
-	}
-	j := len(runes)
-	for j > i && isHorizontalWhitespace(runes[j-1]) {
-		j--
-	}
-	return string(runes[i:j])
-}
-
-// Split a string by \n and also strip left (up to margin) & right whitespace from each line. */
-func lineSplit(s string, margin int) []string {
-	var ret []string
-	var buf bytes.Buffer
-	for _, r := range s {
-		if r == '\n' {
-			ret = append(ret, stripWhitespace(buf.String(), margin))
-			buf.Reset()
-		} else {
-			buf.WriteRune(r)
-		}
-	}
-	return append(ret, stripWhitespace(buf.String(), margin))
 }
 
 // Check that b has at least the same whitespace prefix as a and returns the
@@ -275,15 +252,12 @@ type lexer struct {
 	pos  position // Current position in input
 	prev position // Previous position in input
 
-	tokens Tokens // The tokens that we've generated so far
+	Tokens Tokens // The Tokens that we've generated so far
 
-	// Information about the token we are working on right now
-	fodder        ast.Fodder
-	tokenStart    int
-	tokenStartLoc ast.Location
-
-	// Was the last rune the first rune on a line (ignoring initial whitespace).
-	freshLine bool
+	// Information about the Token we are working on right now
+	fodder        Fodder
+	TokenStart    int
+	TokenStartLoc ast.Location
 }
 
 const lexEOF = -1
@@ -295,8 +269,7 @@ func makeLexer(fn string, input string) *lexer {
 		source:        ast.BuildSource(input),
 		pos:           position{byteNo: 0, lineNo: 1, lineStart: 0},
 		prev:          position{byteNo: lexEOF, lineNo: 0, lineStart: 0},
-		tokenStartLoc: ast.Location{Line: 1, Column: 1},
-		freshLine:     true,
+		TokenStartLoc: ast.Location{Line: 1, Column: 1},
 	}
 }
 
@@ -312,11 +285,6 @@ func (l *lexer) next() rune {
 	if r == '\n' {
 		l.pos.lineStart = l.pos.byteNo
 		l.pos.lineNo++
-		l.freshLine = true
-	} else if l.freshLine {
-		if !isWhitespace(r) {
-			l.freshLine = false
-		}
 	}
 	return r
 }
@@ -335,7 +303,6 @@ func (l *lexer) peek() rune {
 }
 
 // backup steps back one rune. Can only be called once per call of next.
-// It also does not recover the previous value of freshLine.
 func (l *lexer) backup() {
 	if l.prev.byteNo == lexEOF {
 		panic("backup called with no valid previous rune")
@@ -359,111 +326,64 @@ func (l *lexer) prevLocation() ast.Location {
 	return locationFromPosition(l.prev)
 }
 
-// Reset the current working token start to the current cursor position.  This
+// Reset the current working Token start to the current cursor position.  This
 // may throw away some characters.  This does not throw away any accumulated
 // fodder.
 func (l *lexer) resetTokenStart() {
-	l.tokenStart = l.pos.byteNo
-	l.tokenStartLoc = l.location()
+	l.TokenStart = l.pos.byteNo
+	l.TokenStartLoc = l.location()
 }
 
 func (l *lexer) emitFullToken(kind TokenKind, data, stringBlockIndent, stringBlockTermIndent string) {
-	l.tokens = append(l.tokens, Token{
+	l.Tokens = append(l.Tokens, Token{
 		Kind:                  kind,
-		Fodder:                l.fodder,
+		fodder:                l.fodder,
 		Data:                  data,
-		StringBlockIndent:     stringBlockIndent,
-		StringBlockTermIndent: stringBlockTermIndent,
-		Loc: ast.MakeLocationRange(l.fileName, l.source, l.tokenStartLoc, l.location()),
+		stringBlockIndent:     stringBlockIndent,
+		stringBlockTermIndent: stringBlockTermIndent,
+		Loc: ast.MakeLocationRange(l.fileName, l.source, l.TokenStartLoc, l.location()),
 	})
-	l.fodder = ast.Fodder{}
+	l.fodder = Fodder{}
 }
 
 func (l *lexer) emitToken(kind TokenKind) {
-	l.emitFullToken(kind, l.input[l.tokenStart:l.pos.byteNo], "", "")
+	l.emitFullToken(kind, l.input[l.TokenStart:l.pos.byteNo], "", "")
 	l.resetTokenStart()
 }
 
-func (l *lexer) addFodder(kind ast.FodderKind, blanks int, indent int, comment []string) {
-	elem := ast.MakeFodderElement(kind, blanks, indent, comment)
-	l.fodder = append(l.fodder, elem)
+func (l *lexer) addWhitespaceFodder() {
+	fodderData := l.input[l.TokenStart:l.pos.byteNo]
+	if len(l.fodder) == 0 || l.fodder[len(l.fodder)-1].kind != fodderWhitespace {
+		l.fodder = append(l.fodder, FodderElement{kind: fodderWhitespace, data: fodderData})
+	} else {
+		l.fodder[len(l.fodder)-1].data += fodderData
+	}
+	l.resetTokenStart()
+}
+
+func (l *lexer) addCommentFodder(kind fodderKind) {
+	fodderData := l.input[l.TokenStart:l.pos.byteNo]
+	l.fodder = append(l.fodder, FodderElement{kind: kind, data: fodderData})
+	l.resetTokenStart()
+}
+
+func (l *lexer) addFodder(kind fodderKind, data string) {
+	l.fodder = append(l.fodder, FodderElement{kind: kind, data: data})
 }
 
 func (l *lexer) makeStaticErrorPoint(msg string, loc ast.Location) parser.StaticError {
 	return parser.StaticError{Msg: msg, Loc: ast.MakeLocationRange(l.fileName, l.source, loc, loc)}
 }
 
-// lexWhitespace consumes all whitespace and returns the number of \n and number of
-// spaces after last \n.  It also converts \t to spaces.
-// The parameter 'r' is the rune that begins the whitespace.
-func (l *lexer) lexWhitespace() (int, int) {
-	r := l.next()
-	indent := 0
-	newLines := 0
-	for ; isWhitespace(r); r = l.next() {
-		switch r {
-		case '\r':
-			// Ignore.
-			break
-
-		case '\n':
-			indent = 0
-			newLines++
-			break
-
-		case ' ':
-			indent++
-			break
-
-		// This only works for \t at the beginning of lines, but we strip it everywhere else
-		// anyway.  The only case where this will cause a problem is spaces followed by \t
-		// at the beginning of a line.  However that is rare, ill-advised, and if re-indentation
-		// is enabled it will be fixed later.
-		case '\t':
-			indent += 8
-			break
-		}
-	}
-	l.backup()
-	return newLines, indent
-}
-
-// lexUntilNewLine consumes all text until the end of the line and returns the
-// number of newlines after that as well as the next indent.
-func (l *lexer) lexUntilNewline() (string, int, int) {
-	// Compute 'text'.
-	var buf bytes.Buffer
-	lastNonSpace := 0
-	for r := l.next(); r != lexEOF && r != '\n'; r = l.next() {
-		buf.WriteRune(r)
-		if !isHorizontalWhitespace(r) {
-			lastNonSpace = buf.Len()
-		}
-	}
-	l.backup()
-	// Trim whitespace off the end.
-	buf.Truncate(lastNonSpace)
-	text := buf.String()
-
-	// Consume the '\n' and following indent.
-	var newLines int
-	newLines, indent := l.lexWhitespace()
-	blanks := 0
-	if newLines > 0 {
-		blanks = newLines - 1
-	}
-	return text, blanks, indent
-}
-
-// lexNumber will consume a number and emit a token.  It is assumed
+// lexNumber will consume a number and emit a Token.  It is assumed
 // that the next rune to be served by the lexer will be a leading digit.
 func (l *lexer) lexNumber() error {
 	// This function should be understood with reference to the linked image:
 	// http://www.json.org/number.gif
 
 	// Note, we deviate from the json.org documentation as follows:
-	// There is no reason to lex negative numbers as atomic tokens, it is better to parse them
-	// as a unary operator combined with a numeric literal.  This avoids x-1 being tokenized as
+	// There is no reason to lex negative numbers as atomic Tokens, it is better to parse them
+	// as a unary operator combined with a numeric literal.  This avoids x-1 being Tokenized as
 	// <identifier> <number> instead of the intended <identifier> <binop> <number>.
 
 	type numLexState int
@@ -566,7 +486,7 @@ outerLoop:
 	return nil
 }
 
-// lexIdentifier will consume a identifer and emit a token.  It is assumed
+// lexIdentifier will consume a identifer and emit a Token.  It is assumed
 // that the next rune to be served by the lexer will be a leading digit.  This
 // may emit a keyword or an identifier.
 func (l *lexer) lexIdentifier() {
@@ -581,7 +501,7 @@ func (l *lexer) lexIdentifier() {
 	}
 	l.backup()
 
-	switch l.input[l.tokenStart:l.pos.byteNo] {
+	switch l.input[l.TokenStart:l.pos.byteNo] {
 	case "assert":
 		l.emitToken(TokenAssert)
 	case "else":
@@ -622,81 +542,45 @@ func (l *lexer) lexIdentifier() {
 	}
 }
 
-// lexSymbol will lex a token that starts with a symbol.  This could be a
+// lexSymbol will lex a Token that starts with a symbol.  This could be a
 // C or C++ comment, block quote or an operator.  This function assumes that the next
-// rune to be served by the lexer will be the first rune of the new token.
+// rune to be served by the lexer will be the first rune of the new Token.
 func (l *lexer) lexSymbol() error {
 	r := l.next()
 
 	// Single line C++ style comment
-	if r == '#' || (r == '/' && l.peek() == '/') {
-		comment, blanks, indent := l.lexUntilNewline()
-		var k ast.FodderKind
-		if l.freshLine {
-			k = ast.FodderParagraph
-		} else {
-			k = ast.FodderLineEnd
+	if r == '/' && l.peek() == '/' {
+		l.next()
+		l.resetTokenStart() // Throw out the leading //
+		for r = l.next(); r != lexEOF && r != '\n'; r = l.next() {
 		}
-		l.addFodder(k, blanks, indent, []string{string(r) + comment})
+		// Leave the '\n' in the lexer to be fodder for the next round
+		l.backup()
+		l.addCommentFodder(fodderCommentCpp)
 		return nil
 	}
 
-	// C style comment (could be interstitial or paragraph comment)
 	if r == '/' && l.peek() == '*' {
-		margin := l.pos.byteNo - l.pos.lineStart
-		commentStartLoc := l.tokenStartLoc
-
-		r := l.next() // consume the initial '*'
-		for r = l.next(); r != '*' || l.peek() != '/'; r = l.next() {
+		commentStartLoc := l.TokenStartLoc
+		l.next()            // consume the '*'
+		l.resetTokenStart() // Throw out the leading /*
+		for r = l.next(); ; r = l.next() {
 			if r == lexEOF {
-				return l.makeStaticErrorPoint(
-					"Multi-line comment has no terminating */",
+				return l.makeStaticErrorPoint("Multi-line comment has no terminating */",
 					commentStartLoc)
 			}
+			if r == '*' && l.peek() == '/' {
+				commentData := l.input[l.TokenStart : l.pos.byteNo-1] // Don't include trailing */
+				l.addFodder(fodderCommentC, commentData)
+				l.next()            // Skip past '/'
+				l.resetTokenStart() // Start next Token at this point
+				return nil
+			}
 		}
-
-		l.next() // Consume trailing '/'
-		// Includes the "/*" and "*/".
-		comment := l.input[l.tokenStart:l.pos.byteNo]
-
-		newLinesAfter, indentAfter := l.lexWhitespace()
-		if !strings.ContainsRune(comment, '\n') {
-			l.addFodder(ast.FodderInterstitial, 0, 0, []string{comment})
-			if newLinesAfter > 0 {
-				l.addFodder(ast.FodderLineEnd, newLinesAfter-1, indentAfter, []string{})
-			}
-		} else {
-			lines := lineSplit(comment, margin)
-			if lines[0][0] != '/' {
-				panic(fmt.Sprintf("Invalid parsing of C style comment %v", lines))
-			}
-			// Little hack to support FodderParagraphs with * down the LHS:
-			// Add a space to lines that start with a '*'
-			allStar := true
-			for _, l := range lines {
-				if len(l) == 0 || l[0] != '*' {
-					allStar = false
-				}
-			}
-			if allStar {
-				for _, l := range lines {
-					if l[0] == '*' {
-						l = " " + l
-					}
-				}
-			}
-			if newLinesAfter == 0 {
-				// Ensure a line end after the paragraph.
-				newLinesAfter = 1
-				indentAfter = 0
-			}
-			l.addFodder(ast.FodderParagraph, newLinesAfter-1, indentAfter, lines)
-		}
-		return nil
 	}
 
 	if r == '|' && strings.HasPrefix(l.input[l.pos.byteNo:], "||") {
-		commentStartLoc := l.tokenStartLoc
+		commentStartLoc := l.TokenStartLoc
 		l.acceptN(2) // Skip "||"
 		var cb bytes.Buffer
 
@@ -784,15 +668,15 @@ func (l *lexer) lexSymbol() error {
 	// So, wind it back if we need to, but stop at the first rune.
 	// This relies on the hack that all operator symbols are ASCII and thus there is
 	// no need to treat this substring as general UTF-8.
-	for r = rune(l.input[l.pos.byteNo-1]); l.pos.byteNo > l.tokenStart+1; l.pos.byteNo-- {
+	for r = rune(l.input[l.pos.byteNo-1]); l.pos.byteNo > l.TokenStart+1; l.pos.byteNo-- {
 		switch r {
-		case '+', '-', '~', '!', '$':
+		case '+', '-', '~', '!':
 			continue
 		}
 		break
 	}
 
-	if l.input[l.tokenStart:l.pos.byteNo] == "$" {
+	if l.input[l.TokenStart:l.pos.byteNo] == "$" {
 		l.emitToken(TokenDollar)
 	} else {
 		l.emitToken(TokenOperator)
@@ -800,27 +684,17 @@ func (l *lexer) lexSymbol() error {
 	return nil
 }
 
-// Lex returns a slice of tokens recognised in input.
+// Lex returns a slice of Tokens recognised in input.
 func Lex(fn string, input string) (Tokens, error) {
 	l := makeLexer(fn, input)
 
 	var err error
-	for true {
-		newLines, indent := l.lexWhitespace()
-		// If it's the end of the file, discard final whitespace.
-		if l.peek() == lexEOF {
-			l.next()
-			l.resetTokenStart()
-			break
-		}
-		if newLines > 0 {
-			// Otherwise store whitespace in fodder.
-			blanks := newLines - 1
-			l.addFodder(ast.FodderLineEnd, blanks, indent, []string{})
-		}
-		l.resetTokenStart() // Don't include whitespace in actual token.
-		r := l.next()
+
+	for r := l.next(); r != lexEOF; r = l.next() {
 		switch r {
+		case ' ', '\t', '\r', '\n':
+			l.addWhitespaceFodder()
+			continue
 		case '{':
 			l.emitToken(TokenBraceL)
 		case '}':
@@ -855,8 +729,8 @@ func Lex(fn string, input string) (Tokens, error) {
 					return nil, l.makeStaticErrorPoint("Unterminated String", stringStartLoc)
 				}
 				if r == '"' {
-					// Don't include the quotes in the token data
-					l.emitFullToken(TokenStringDouble, l.input[l.tokenStart+1:l.pos.byteNo-1], "", "")
+					// Don't include the quotes in the Token data
+					l.emitFullToken(TokenStringDouble, l.input[l.TokenStart+1:l.pos.byteNo-1], "", "")
 					l.resetTokenStart()
 					break
 				}
@@ -871,8 +745,8 @@ func Lex(fn string, input string) (Tokens, error) {
 					return nil, l.makeStaticErrorPoint("Unterminated String", stringStartLoc)
 				}
 				if r == '\'' {
-					// Don't include the quotes in the token data
-					l.emitFullToken(TokenStringSingle, l.input[l.tokenStart+1:l.pos.byteNo-1], "", "")
+					// Don't include the quotes in the Token data
+					l.emitFullToken(TokenStringSingle, l.input[l.TokenStart+1:l.pos.byteNo-1], "", "")
 					l.resetTokenStart()
 					break
 				}
@@ -918,11 +792,19 @@ func Lex(fn string, input string) (Tokens, error) {
 				}
 			}
 
+		case '#':
+			l.resetTokenStart() // Throw out the leading #
+			for r = l.next(); r != lexEOF && r != '\n'; r = l.next() {
+			}
+			// Leave the '\n' in the lexer to be fodder for the next round
+			l.backup()
+			l.addCommentFodder(fodderCommentHash)
+
 		default:
 			if isIdentifierFirst(r) {
 				l.backup()
 				l.lexIdentifier()
-			} else if isSymbol(r) || r == '#' {
+			} else if isSymbol(r) {
 				l.backup()
 				err = l.lexSymbol()
 				if err != nil {
@@ -937,8 +819,8 @@ func Lex(fn string, input string) (Tokens, error) {
 		}
 	}
 
-	// We are currently at the EOF.  Emit a special token to capture any
+	// We are currently at the EOF.  Emit a special Token to capture any
 	// trailing fodder
-	l.emitToken(tokenEndOfFile)
-	return l.tokens, nil
+	l.emitToken(TokenEndOfFile)
+	return l.Tokens, nil
 }

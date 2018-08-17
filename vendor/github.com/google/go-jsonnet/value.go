@@ -58,13 +58,13 @@ var arrayType = &valueType{"array"}
 // TODO(sbarzowski) perhaps call it just "Thunk"?
 type potentialValue interface {
 	// fromWhere keeps the information from where the evaluation was requested.
-	getValue(i *interpreter, fromWhere TraceElement) (value, error)
+	getValue(i *interpreter, fromWhere *TraceElement) (value, error)
 
 	aPotentialValue()
 }
 
-// A set of variables with associated thunks.
-type bindingFrame map[ast.Identifier]*cachedThunk
+// A set of variables with associated potentialValues.
+type bindingFrame map[ast.Identifier]potentialValue
 
 type valueBase struct{}
 
@@ -81,11 +81,11 @@ type valueString struct {
 	value []rune
 }
 
-func (s *valueString) index(i *interpreter, trace TraceElement, index int) (value, error) {
+func (s *valueString) index(e *evaluator, index int) (value, error) {
 	if 0 <= index && index < s.length() {
 		return makeValueString(string(s.value[index])), nil
 	}
-	return nil, i.Error(fmt.Sprintf("Index %d out of bounds, not within [0, %v)", index, s.length()), trace)
+	return nil, e.Error(fmt.Sprintf("Index %d out of bounds, not within [0, %v)", index, s.length()))
 }
 
 func concatStrings(a, b *valueString) *valueString {
@@ -199,28 +199,28 @@ func (*valueNull) getType() *valueType {
 
 type valueArray struct {
 	valueBase
-	elements []*cachedThunk
+	elements []potentialValue
 }
 
-func (arr *valueArray) index(i *interpreter, trace TraceElement, index int) (value, error) {
+func (arr *valueArray) index(e *evaluator, index int, tc tailCallStatus) (value, error) {
 	if 0 <= index && index < arr.length() {
-		return i.evaluatePV(arr.elements[index], trace)
+		return e.evaluateTailCall(arr.elements[index], tc)
 	}
-	return nil, i.Error(fmt.Sprintf("Index %d out of bounds, not within [0, %v)", index, arr.length()), trace)
+	return nil, e.Error(fmt.Sprintf("Index %d out of bounds, not within [0, %v)", index, arr.length()))
 }
 
 func (arr *valueArray) length() int {
 	return len(arr.elements)
 }
 
-func makeValueArray(elements []*cachedThunk) *valueArray {
+func makeValueArray(elements []potentialValue) *valueArray {
 	// We don't want to keep a bigger array than necessary
 	// so we create a new one with minimal capacity
-	var arrayElems []*cachedThunk
+	var arrayElems []potentialValue
 	if len(elements) == cap(elements) {
 		arrayElems = elements
 	} else {
-		arrayElems = make([]*cachedThunk, len(elements))
+		arrayElems = make([]potentialValue, len(elements))
 		for i := range elements {
 			arrayElems[i] = elements[i]
 		}
@@ -231,7 +231,7 @@ func makeValueArray(elements []*cachedThunk) *valueArray {
 }
 
 func concatArrays(a, b *valueArray) *valueArray {
-	result := make([]*cachedThunk, 0, len(a.elements)+len(b.elements))
+	result := make([]potentialValue, 0, len(a.elements)+len(b.elements))
 	for _, r := range a.elements {
 		result = append(result, r)
 	}
@@ -255,23 +255,23 @@ type valueFunction struct {
 
 // TODO(sbarzowski) better name?
 type evalCallable interface {
-	EvalCall(args callArguments, i *interpreter, trace TraceElement) (value, error)
+	EvalCall(args callArguments, e *evaluator) (value, error)
 	Parameters() Parameters
 }
 
-func (f *valueFunction) call(i *interpreter, trace TraceElement, args callArguments) (value, error) {
-	err := checkArguments(i, trace, args, f.parameters())
-	if err != nil {
-		return nil, err
-	}
-	return f.ec.EvalCall(args, i, trace)
+type partialPotentialValue interface {
+	inEnv(env *environment) potentialValue
+}
+
+func (f *valueFunction) call(args callArguments) potentialValue {
+	return makeCallThunk(f.ec, args)
 }
 
 func (f *valueFunction) parameters() Parameters {
 	return f.ec.Parameters()
 }
 
-func checkArguments(i *interpreter, trace TraceElement, args callArguments, params Parameters) error {
+func checkArguments(e *evaluator, args callArguments, params Parameters) error {
 	received := make(map[ast.Identifier]bool)
 	accepted := make(map[ast.Identifier]bool)
 
@@ -279,7 +279,7 @@ func checkArguments(i *interpreter, trace TraceElement, args callArguments, para
 	numExpected := len(params.required) + len(params.optional)
 
 	if numPassed > numExpected {
-		return i.Error(fmt.Sprintf("function expected %v positional argument(s), but got %v", numExpected, numPassed), trace)
+		return e.Error(fmt.Sprintf("function expected %v positional argument(s), but got %v", numExpected, numPassed))
 	}
 
 	for _, param := range params.required {
@@ -300,17 +300,17 @@ func checkArguments(i *interpreter, trace TraceElement, args callArguments, para
 
 	for _, arg := range args.named {
 		if _, present := received[arg.name]; present {
-			return i.Error(fmt.Sprintf("Argument %v already provided", arg.name), trace)
+			return e.Error(fmt.Sprintf("Argument %v already provided", arg.name))
 		}
 		if _, present := accepted[arg.name]; !present {
-			return i.Error(fmt.Sprintf("function has no parameter %v", arg.name), trace)
+			return e.Error(fmt.Sprintf("function has no parameter %v", arg.name))
 		}
 		received[arg.name] = true
 	}
 
 	for _, param := range params.required {
 		if _, present := received[param]; !present {
-			return i.Error(fmt.Sprintf("Missing argument: %v", param), trace)
+			return e.Error(fmt.Sprintf("Missing argument: %v", param))
 		}
 	}
 
@@ -330,25 +330,25 @@ type Parameters struct {
 
 type namedParameter struct {
 	name       ast.Identifier
-	defaultArg ast.Node
+	defaultArg potentialValueInEnv
 }
 
 type potentialValueInEnv interface {
-	inEnv(env *environment) *cachedThunk
+	inEnv(env *environment) potentialValue
 }
 
 type callArguments struct {
-	positional []*cachedThunk
+	positional []potentialValue
 	named      []namedCallArgument
 	tailstrict bool
 }
 
 type namedCallArgument struct {
 	name ast.Identifier
-	pv   *cachedThunk
+	pv   potentialValue
 }
 
-func args(xs ...*cachedThunk) callArguments {
+func args(xs ...potentialValue) callArguments {
 	return callArguments{positional: xs}
 }
 
@@ -363,7 +363,7 @@ func args(xs ...*cachedThunk) callArguments {
 type valueObject interface {
 	value
 	inheritanceSize() int
-	index(i *interpreter, trace TraceElement, field string) (value, error)
+	index(e *evaluator, field string) (value, error)
 	assertionsChecked() bool
 	setAssertionsCheckResult(err error)
 	getAssertionsCheckResult() error
@@ -471,22 +471,21 @@ type valueSimpleObject struct {
 	asserts  []unboundField
 }
 
-func checkAssertionsHelper(i *interpreter, trace TraceElement, obj valueObject, curr valueObject, superDepth int) error {
+func checkAssertionsHelper(e *evaluator, obj valueObject, curr valueObject, superDepth int) error {
 	switch curr := curr.(type) {
 	case *valueExtendedObject:
-		err := checkAssertionsHelper(i, trace, obj, curr.right, superDepth)
+		err := checkAssertionsHelper(e, obj, curr.right, superDepth)
 		if err != nil {
 			return err
 		}
-		err = checkAssertionsHelper(i, trace, obj, curr.left, superDepth+curr.right.inheritanceSize())
+		err = checkAssertionsHelper(e, obj, curr.left, superDepth+curr.right.inheritanceSize())
 		if err != nil {
 			return err
 		}
 		return nil
 	case *valueSimpleObject:
 		for _, assert := range curr.asserts {
-			sb := selfBinding{self: obj, superDepth: superDepth}
-			_, err := assert.evaluate(i, trace, sb, curr.upValues, "")
+			_, err := e.evaluate(assert.bindToObject(selfBinding{self: obj, superDepth: superDepth}, curr.upValues, ""))
 			if err != nil {
 				return err
 			}
@@ -497,19 +496,19 @@ func checkAssertionsHelper(i *interpreter, trace TraceElement, obj valueObject, 
 	}
 }
 
-func checkAssertions(i *interpreter, trace TraceElement, obj valueObject) error {
+func checkAssertions(e *evaluator, obj valueObject) error {
 	if !obj.assertionsChecked() {
 		// Assertions may refer to the object that will normally
 		// trigger checking of assertions, resulting in an endless recursion.
 		// To avoid that, while we check them, we treat them as already passed.
 		obj.setAssertionsCheckResult(errNoErrorInObjectInvariants)
-		obj.setAssertionsCheckResult(checkAssertionsHelper(i, trace, obj, obj, 0))
+		obj.setAssertionsCheckResult(checkAssertionsHelper(e, obj, obj, 0))
 	}
 	return obj.getAssertionsCheckResult()
 }
 
-func (o *valueSimpleObject) index(i *interpreter, trace TraceElement, field string) (value, error) {
-	return objectIndex(i, trace, objectBinding(o), field)
+func (o *valueSimpleObject) index(e *evaluator, field string) (value, error) {
+	return objectIndex(e, objectBinding(o), field)
 }
 
 func (*valueSimpleObject) inheritanceSize() int {
@@ -533,7 +532,7 @@ type simpleObjectField struct {
 
 // unboundField is a field that doesn't know yet in which object it is.
 type unboundField interface {
-	evaluate(i *interpreter, trace TraceElement, sb selfBinding, origBinding bindingFrame, fieldName string) (value, error)
+	bindToObject(sb selfBinding, origBinding bindingFrame, fieldName string) potentialValue
 }
 
 // valueExtendedObject represents an object created through inheritence (left + right).
@@ -560,8 +559,8 @@ type valueExtendedObject struct {
 	totalInheritanceSize int
 }
 
-func (o *valueExtendedObject) index(i *interpreter, trace TraceElement, field string) (value, error) {
-	return objectIndex(i, trace, objectBinding(o), field)
+func (o *valueExtendedObject) index(e *evaluator, field string) (value, error) {
+	return objectIndex(e, objectBinding(o), field)
 }
 
 func (o *valueExtendedObject) inheritanceSize() int {
@@ -579,54 +578,53 @@ func makeValueExtendedObject(left, right valueObject) *valueExtendedObject {
 // findField returns a field in object curr, with superDepth at least minSuperDepth
 // It also returns an associated bindingFrame and actual superDepth that the field
 // was found at.
-func findField(curr value, minSuperDepth int, f string) (bool, simpleObjectField, bindingFrame, int) {
+func findField(curr value, minSuperDepth int, f string) (*simpleObjectField, bindingFrame, int) {
 	switch curr := curr.(type) {
 	case *valueExtendedObject:
 		if curr.right.inheritanceSize() > minSuperDepth {
-			found, field, frame, counter := findField(curr.right, minSuperDepth, f)
-			if found {
-				return true, field, frame, counter
+			field, frame, counter := findField(curr.right, minSuperDepth, f)
+			if field != nil {
+				return field, frame, counter
 			}
 		}
-		found, field, frame, counter := findField(curr.left, minSuperDepth-curr.right.inheritanceSize(), f)
-		return found, field, frame, counter + curr.right.inheritanceSize()
+		field, frame, counter := findField(curr.left, minSuperDepth-curr.right.inheritanceSize(), f)
+		return field, frame, counter + curr.right.inheritanceSize()
 
 	case *valueSimpleObject:
 		if minSuperDepth <= 0 {
 			if field, ok := curr.fields[f]; ok {
-				return true, field, curr.upValues, 0
+				return &field, curr.upValues, 0
 			}
 		}
-		return false, simpleObjectField{}, nil, 0
+		return nil, nil, 0
 	default:
 		panic(fmt.Sprintf("Unknown object type %#v", curr))
 	}
 }
 
-func objectIndex(i *interpreter, trace TraceElement, sb selfBinding, fieldName string) (value, error) {
-	err := checkAssertions(i, trace, sb.self)
+func objectIndex(e *evaluator, sb selfBinding, fieldName string) (value, error) {
+	err := checkAssertions(e, sb.self)
 	if err != nil {
 		return nil, err
 	}
 	if sb.superDepth >= sb.self.inheritanceSize() {
-		return nil, i.Error("Attempt to use super when there is no super class.", trace)
+		return nil, e.Error("Attempt to use super when there is no super class.")
 	}
-
-	found, field, upValues, foundAt := findField(sb.self, sb.superDepth, fieldName)
-	if !found {
-		return nil, i.Error(fmt.Sprintf("Field does not exist: %s", fieldName), trace)
+	objp := tryObjectIndex(sb, fieldName, withHidden)
+	if objp == nil {
+		return nil, e.Error(fmt.Sprintf("Field does not exist: %s", fieldName))
 	}
-
-	fieldSelfBinding := selfBinding{self: sb.self, superDepth: foundAt}
-	return field.field.evaluate(i, trace, fieldSelfBinding, upValues, fieldName)
+	return e.evaluate(objp)
 }
 
-func objectHasField(sb selfBinding, fieldName string, h Hidden) bool {
-	found, field, _, _ := findField(sb.self, sb.superDepth, fieldName)
-	if !found || (h == withoutHidden && field.hide == ast.ObjectFieldHidden) {
-		return false
+func tryObjectIndex(sb selfBinding, fieldName string, h Hidden) potentialValue {
+	field, upValues, foundAt := findField(sb.self, sb.superDepth, fieldName)
+	if field == nil || (h == withoutHidden && field.hide == ast.ObjectFieldHidden) {
+		return nil
 	}
-	return true
+	fieldSelfBinding := selfBinding{self: sb.self, superDepth: foundAt}
+
+	return field.field.bindToObject(fieldSelfBinding, upValues, fieldName)
 }
 
 type fieldHideMap map[string]ast.ObjectFieldHide
@@ -656,7 +654,6 @@ func objectFieldsVisibility(obj valueObject) fieldHideMap {
 	return r
 }
 
-// Returns field names of an object. Gotcha: the order of fields is unpredictable.
 func objectFields(obj valueObject, h Hidden) []string {
 	var r []string
 	for fieldName, hide := range objectFieldsVisibility(obj) {

@@ -30,8 +30,12 @@ type readyValue struct {
 	content value
 }
 
-func (rv *readyValue) evaluate(i *interpreter, trace TraceElement, sb selfBinding, origBinding bindingFrame, fieldName string) (value, error) {
+func (rv *readyValue) getValue(i *interpreter, t *TraceElement) (value, error) {
 	return rv.content, nil
+}
+
+func (rv *readyValue) bindToObject(sb selfBinding, origBinding bindingFrame, fieldName string) potentialValue {
+	return rv
 }
 
 func (rv *readyValue) aPotentialValue() {}
@@ -44,49 +48,107 @@ func (rv *readyValue) aPotentialValue() {}
 // potentialValue which guarantees that computation happens at most once).
 type evaluable interface {
 	// fromWhere keeps the information from where the evaluation was requested.
-	getValue(i *interpreter, fromWhere TraceElement) (value, error)
+	getValue(i *interpreter, fromWhere *TraceElement) (value, error)
+}
+
+// thunk holds code and environment in which the code is supposed to be evaluated
+type thunk struct {
+	env  environment
+	body ast.Node
+}
+
+// TODO(sbarzowski) feedback from dcunnin:
+//					makeThunk returning a cachedThunk is weird.
+//					Maybe call thunk 'exprThunk' (or astThunk but then it looks like an AST node).
+//					Then call cachedThunk just thunk?
+//					Or, call this makeCachedExprThunk because that's what it really is.
+func makeThunk(env environment, body ast.Node) *cachedThunk {
+	return makeCachedThunk(&thunk{
+		env:  env,
+		body: body,
+	})
+}
+
+func (t *thunk) getValue(i *interpreter, trace *TraceElement) (value, error) {
+	return i.EvalInCleanEnv(trace, &t.env, t.body, false)
+}
+
+// callThunk represents a concrete, but not yet evaluated call to a function
+type callThunk struct {
+	function evalCallable
+	args     callArguments
+}
+
+func makeCallThunk(ec evalCallable, args callArguments) potentialValue {
+	return makeCachedThunk(&callThunk{function: ec, args: args})
+}
+
+func call(ec evalCallable, arguments ...potentialValue) potentialValue {
+	return makeCallThunk(ec, args(arguments...))
+}
+
+func (th *callThunk) getValue(i *interpreter, trace *TraceElement) (value, error) {
+	evaluator := makeEvaluator(i, trace)
+	err := checkArguments(evaluator, th.args, th.function.Parameters())
+	if err != nil {
+		return nil, err
+	}
+	return th.function.EvalCall(th.args, evaluator)
+}
+
+// deferredThunk allows deferring creation of evaluable until it's actually needed.
+// It's useful for self-recursive structures.
+type deferredThunk func() evaluable
+
+func (th deferredThunk) getValue(i *interpreter, trace *TraceElement) (value, error) {
+	return th().getValue(i, trace)
+}
+
+func makeDeferredThunk(th deferredThunk) potentialValue {
+	return makeCachedThunk(th)
 }
 
 // cachedThunk is a wrapper that caches the value of a potentialValue after
 // the first evaluation.
 // Note: All potentialValues are required to provide the same value every time,
 // so it's only there for efficiency.
+// TODO(sbarzowski) investigate efficiency of various representations
 type cachedThunk struct {
-	// The environment is a pointer because it may be a cyclic structure.  A thunk
-	// may refer to itself, so inside `env` there will be a variable bound back to us.
-	env  *environment
-	body ast.Node
-	// If nil, use err.
-	content value
-	// If also nil, content is not cached yet.
-	err error
+	pv evaluable
 }
 
-func readyThunk(content value) *cachedThunk {
-	return &cachedThunk{content: content}
+func makeCachedThunk(pv evaluable) *cachedThunk {
+	return &cachedThunk{pv}
 }
 
-func (t *cachedThunk) getValue(i *interpreter, trace TraceElement) (value, error) {
-	if t.content != nil {
-		return t.content, nil
-	}
-	if t.err != nil {
-		return nil, t.err
-	}
-	v, err := i.EvalInCleanEnv(trace, t.env, t.body, false)
+func (t *cachedThunk) getValue(i *interpreter, trace *TraceElement) (value, error) {
+	v, err := t.pv.getValue(i, trace)
 	if err != nil {
 		// TODO(sbarzowski) perhaps cache errors as well
 		// may be necessary if we allow handling them in any way
 		return nil, err
 	}
-	t.content = v
-	// No need to keep the environment around anymore.
-	// So, this might reduce memory pressure:
-	t.env = nil
+	t.pv = &readyValue{v}
 	return v, nil
 }
 
 func (t *cachedThunk) aPotentialValue() {}
+
+// errorThunk can be used when potentialValue is expected, but we already
+// know that something went wrong
+type errorThunk struct {
+	err error
+}
+
+func (th *errorThunk) getValue(i *interpreter, trace *TraceElement) (value, error) {
+	return nil, th.err
+}
+
+func makeErrorThunk(err error) *errorThunk {
+	return &errorThunk{err}
+}
+
+func (th *errorThunk) aPotentialValue() {}
 
 // unboundFields
 // -------------------------------------
@@ -95,9 +157,9 @@ type codeUnboundField struct {
 	body ast.Node
 }
 
-func (f *codeUnboundField) evaluate(i *interpreter, trace TraceElement, sb selfBinding, origBindings bindingFrame, fieldName string) (value, error) {
-	env := makeEnvironment(origBindings, sb)
-	return i.EvalInCleanEnv(trace, &env, f.body, false)
+func (f *codeUnboundField) bindToObject(sb selfBinding, origBindings bindingFrame, fieldName string) potentialValue {
+	// TODO(sbarzowski) better object names (perhaps include a field name too?)
+	return makeThunk(makeEnvironment(origBindings, sb), f.body)
 }
 
 // Provide additional bindings for a field. It shadows bindings from the object.
@@ -107,7 +169,7 @@ type bindingsUnboundField struct {
 	bindings bindingFrame
 }
 
-func (f *bindingsUnboundField) evaluate(i *interpreter, trace TraceElement, sb selfBinding, origBindings bindingFrame, fieldName string) (value, error) {
+func (f *bindingsUnboundField) bindToObject(sb selfBinding, origBindings bindingFrame, fieldName string) potentialValue {
 	var upValues bindingFrame
 	upValues = make(bindingFrame)
 	for variable, pvalue := range origBindings {
@@ -116,7 +178,7 @@ func (f *bindingsUnboundField) evaluate(i *interpreter, trace TraceElement, sb s
 	for variable, pvalue := range f.bindings {
 		upValues[variable] = pvalue
 	}
-	return f.inner.evaluate(i, trace, sb, upValues, fieldName)
+	return f.inner.bindToObject(sb, upValues, fieldName)
 }
 
 // PlusSuperUnboundField represents a `field+: ...` that hasn't been bound to an object.
@@ -124,19 +186,13 @@ type PlusSuperUnboundField struct {
 	inner unboundField
 }
 
-func (f *PlusSuperUnboundField) evaluate(i *interpreter, trace TraceElement, sb selfBinding, origBinding bindingFrame, fieldName string) (value, error) {
-	right, err := f.inner.evaluate(i, trace, sb, origBinding, fieldName)
-	if err != nil {
-		return nil, err
+func (f *PlusSuperUnboundField) bindToObject(sb selfBinding, origBinding bindingFrame, fieldName string) potentialValue {
+	left := tryObjectIndex(sb.super(), fieldName, withHidden)
+	right := f.inner.bindToObject(sb, origBinding, fieldName)
+	if left != nil {
+		return call(bopBuiltins[ast.BopPlus], left, right)
 	}
-	if !objectHasField(sb.super(), fieldName, withHidden) {
-		return right, nil
-	}
-	left, err := objectIndex(i, trace, sb.super(), fieldName)
-	if err != nil {
-		return nil, err
-	}
-	return builtinPlus(i, trace, left, right)
+	return right
 }
 
 // evalCallables
@@ -150,9 +206,9 @@ type closure struct {
 	params   Parameters
 }
 
-func forceThunks(i *interpreter, trace TraceElement, args *bindingFrame) error {
-	for _, arg := range *args {
-		_, err := arg.getValue(i, trace)
+func forceThunks(e *evaluator, args bindingFrame) error {
+	for _, arg := range args {
+		_, err := e.evaluate(arg)
 		if err != nil {
 			return err
 		}
@@ -160,7 +216,7 @@ func forceThunks(i *interpreter, trace TraceElement, args *bindingFrame) error {
 	return nil
 }
 
-func (closure *closure) EvalCall(arguments callArguments, i *interpreter, trace TraceElement) (value, error) {
+func (closure *closure) EvalCall(arguments callArguments, e *evaluator) (value, error) {
 	argThunks := make(bindingFrame)
 	parameters := closure.Parameters()
 	for i, arg := range arguments.positional {
@@ -182,16 +238,15 @@ func (closure *closure) EvalCall(arguments callArguments, i *interpreter, trace 
 	for i := range parameters.optional {
 		param := &parameters.optional[i]
 		if _, exists := argThunks[param.name]; !exists {
-			argThunks[param.name] = &cachedThunk{
+			argThunks[param.name] = makeDeferredThunk(func() evaluable {
 				// Default arguments are evaluated in the same environment as function body
-				env:  &calledEnvironment,
-				body: param.defaultArg,
-			}
+				return param.defaultArg.inEnv(&calledEnvironment)
+			})
 		}
 	}
 
 	if arguments.tailstrict {
-		err := forceThunks(i, trace, &argThunks)
+		err := forceThunks(e, argThunks)
 		if err != nil {
 			return nil, err
 		}
@@ -199,9 +254,9 @@ func (closure *closure) EvalCall(arguments callArguments, i *interpreter, trace 
 
 	calledEnvironment = makeEnvironment(
 		addBindings(closure.env.upValues, argThunks),
-		closure.env.selfBinding,
+		closure.env.sb,
 	)
-	return i.EvalInCleanEnv(trace, &calledEnvironment, closure.function.Body, arguments.tailstrict)
+	return e.evalInCleanEnv(&calledEnvironment, closure.function.Body, arguments.tailstrict)
 }
 
 func (closure *closure) Parameters() Parameters {
@@ -213,8 +268,10 @@ func prepareClosureParameters(parameters ast.Parameters, env environment) Parame
 	optionalParameters := make([]namedParameter, 0, len(parameters.Optional))
 	for _, named := range parameters.Optional {
 		optionalParameters = append(optionalParameters, namedParameter{
-			name:       named.Name,
-			defaultArg: named.DefaultArg,
+			name: named.Name,
+			defaultArg: &defaultArgument{
+				body: named.DefaultArg,
+			},
 		})
 	}
 	return Parameters{
@@ -239,15 +296,15 @@ type NativeFunction struct {
 }
 
 // EvalCall evaluates a call to a NativeFunction and returns the result.
-func (native *NativeFunction) EvalCall(arguments callArguments, i *interpreter, trace TraceElement) (value, error) {
+func (native *NativeFunction) EvalCall(arguments callArguments, e *evaluator) (value, error) {
 	flatArgs := flattenArgs(arguments, native.Parameters())
 	nativeArgs := make([]interface{}, 0, len(flatArgs))
 	for _, arg := range flatArgs {
-		v, err := i.evaluatePV(arg, trace)
+		v, err := e.evaluate(arg)
 		if err != nil {
 			return nil, err
 		}
-		json, err := i.manifestJSON(trace, v)
+		json, err := e.i.manifestJSON(e.trace, v)
 		if err != nil {
 			return nil, err
 		}
@@ -255,9 +312,9 @@ func (native *NativeFunction) EvalCall(arguments callArguments, i *interpreter, 
 	}
 	resultJSON, err := native.Func(nativeArgs)
 	if err != nil {
-		return nil, i.Error(err.Error(), trace)
+		return nil, e.Error(err.Error())
 	}
-	return jsonToValue(i, trace, resultJSON)
+	return jsonToValue(e, resultJSON)
 }
 
 // Parameters returns a NativeFunction's parameters.
@@ -265,6 +322,7 @@ func (native *NativeFunction) Parameters() Parameters {
 	return Parameters{required: native.Params}
 }
 
+// partialPotentialValue
 // -------------------------------------
 
 type defaultArgument struct {
@@ -272,5 +330,5 @@ type defaultArgument struct {
 }
 
 func (da *defaultArgument) inEnv(env *environment) potentialValue {
-	return &cachedThunk{env: env, body: da.body}
+	return makeThunk(*env, da.body)
 }

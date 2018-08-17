@@ -134,7 +134,11 @@ func ObjectDescription(o *ast.Object) (string, error) {
 		if err != nil {
 			return "", err
 		}
-		if _, err := buf.WriteString(fmt.Sprintf("  (field) %s%s,\n", fieldName, visibility)); err != nil {
+		label := "field"
+		if field.Params != nil {
+			label = "function"
+		}
+		if _, err := buf.WriteString(fmt.Sprintf("  (%s) %s%s,\n", label, fieldName, visibility)); err != nil {
 			return "", err
 		}
 	}

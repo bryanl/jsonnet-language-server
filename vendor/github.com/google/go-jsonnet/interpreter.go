@@ -18,9 +18,9 @@ package jsonnet
 
 import (
 	"bytes"
-	"errors"
 	"fmt"
 	"math"
+	"path"
 	"reflect"
 	"sort"
 
@@ -30,7 +30,7 @@ import (
 // TODO(sbarzowski) use it as a pointer in most places b/c it can sometimes be shared
 // for example it can be shared between array elements and function arguments
 type environment struct {
-	selfBinding selfBinding
+	sb selfBinding
 
 	// Bindings introduced in this frame. The way previous bindings are treated
 	// depends on the type of a frame.
@@ -43,19 +43,23 @@ type environment struct {
 
 func makeEnvironment(upValues bindingFrame, sb selfBinding) environment {
 	return environment{
-		upValues:    upValues,
-		selfBinding: sb,
+		upValues: upValues,
+		sb:       sb,
 	}
 }
 
-func (i *interpreter) getCurrentStackTrace(additional TraceElement) []TraceFrame {
+func callFrameToTraceFrame(frame *callFrame) TraceFrame {
+	return traceElementToTraceFrame(frame.trace)
+}
+
+func (i *interpreter) getCurrentStackTrace(additional *TraceElement) []TraceFrame {
 	var result []TraceFrame
 	for _, f := range i.stack.stack {
 		if f.isCall {
-			result = append(result, traceElementToTraceFrame(f.trace))
+			result = append(result, callFrameToTraceFrame(f))
 		}
 	}
-	if additional.loc != nil {
+	if additional != nil {
 		result = append(result, traceElementToTraceFrame(additional))
 	}
 	return result
@@ -68,7 +72,7 @@ type callFrame struct {
 	isCall bool
 
 	// Tracing information about the place where it was called from.
-	trace TraceElement
+	trace *TraceElement
 
 	// Whether this frame can be removed from the stack when it doesn't affect
 	// the evaluation result, but in case of an error, it won't appear on the
@@ -81,7 +85,7 @@ type callFrame struct {
 
 func dumpCallFrame(c *callFrame) string {
 	var loc ast.LocationRange
-	if c.trace.loc == nil {
+	if c.trace == nil || c.trace.loc == nil {
 		loc = ast.MakeLocationRangeMessage("?")
 	} else {
 		loc = *c.trace.loc
@@ -148,7 +152,11 @@ const (
 	tailCall
 )
 
-func (s *callStack) newCall(trace TraceElement, env environment, trimmable bool) {
+func (i *interpreter) newCall(trace *TraceElement, env environment, trimmable bool) error {
+	s := &i.stack
+	if s.calls >= s.limit {
+		return makeRuntimeError("max stack frames exceeded.", i.getCurrentStackTrace(trace))
+	}
 	s.stack = append(s.stack, &callFrame{
 		isCall:    true,
 		trace:     trace,
@@ -156,9 +164,11 @@ func (s *callStack) newCall(trace TraceElement, env environment, trimmable bool)
 		trimmable: trimmable,
 	})
 	s.calls++
+	return nil
 }
 
-func (s *callStack) newLocal(vars bindingFrame) {
+func (i *interpreter) newLocal(vars bindingFrame) {
+	s := &i.stack
 	s.stack = append(s.stack, &callFrame{
 		env: makeEnvironment(vars, selfBinding{}),
 	})
@@ -168,17 +178,17 @@ func (s *callStack) newLocal(vars bindingFrame) {
 func (s *callStack) getSelfBinding() selfBinding {
 	for i := len(s.stack) - 1; i >= 0; i-- {
 		if s.stack[i].isCall {
-			return s.stack[i].env.selfBinding
+			return s.stack[i].env.sb
 		}
 	}
 	panic(fmt.Sprintf("malformed stack %v", dumpCallStack(s)))
 }
 
 // lookUpVar finds for the closest variable in scope that matches the given name.
-func (s *callStack) lookUpVar(id ast.Identifier) *cachedThunk {
+func (s *callStack) lookUpVar(id ast.Identifier) potentialValue {
 	for i := len(s.stack) - 1; i >= 0; i-- {
-		bind, present := s.stack[i].env.upValues[id]
-		if present {
+		bind := s.stack[i].env.upValues[id]
+		if bind != nil {
 			return bind
 		}
 		if s.stack[i].isCall {
@@ -187,30 +197,6 @@ func (s *callStack) lookUpVar(id ast.Identifier) *cachedThunk {
 		}
 	}
 	return nil
-}
-
-func (s *callStack) lookUpVarOrPanic(id ast.Identifier) *cachedThunk {
-	th := s.lookUpVar(id)
-	if th == nil {
-		panic(fmt.Sprintf("RUNTIME: Unknown variable: %v (we should have caught this statically)", id))
-	}
-	return th
-}
-
-func (s *callStack) getCurrentEnv(ast ast.Node) environment {
-	return makeEnvironment(
-		s.capture(ast.FreeVariables()),
-		s.getSelfBinding(),
-	)
-}
-
-// Build a binding frame containing specified variables.
-func (s *callStack) capture(freeVars ast.Identifiers) bindingFrame {
-	env := make(bindingFrame)
-	for _, fv := range freeVars {
-		env[fv] = s.lookUpVarOrPanic(fv)
-	}
-	return env
 }
 
 func makeCallStack(limit int) callStack {
@@ -228,7 +214,7 @@ type interpreter struct {
 	stack callStack
 
 	// External variables
-	extVars map[string]*cachedThunk
+	extVars map[string]potentialValue
 
 	// Native functions
 	nativeFuncs map[string]*NativeFunction
@@ -240,7 +226,18 @@ type interpreter struct {
 	importCache *ImportCache
 }
 
-// Map union, b takes precedence when keys collide.
+// Build a binding frame containing specified variables.
+func (i *interpreter) capture(freeVars ast.Identifiers) bindingFrame {
+	env := make(bindingFrame)
+	for _, fv := range freeVars {
+		env[fv] = i.stack.lookUpVar(fv)
+		if env[fv] == nil {
+			panic(fmt.Sprintf("Variable %v vanished", fv))
+		}
+	}
+	return env
+}
+
 func addBindings(a, b bindingFrame) bindingFrame {
 	result := make(bindingFrame)
 
@@ -255,117 +252,82 @@ func addBindings(a, b bindingFrame) bindingFrame {
 	return result
 }
 
-func (i *interpreter) newCall(trace TraceElement, env environment, trimmable bool) error {
-	s := &i.stack
-	if s.calls >= s.limit {
-		return makeRuntimeError("max stack frames exceeded.", i.getCurrentStackTrace(trace))
-	}
-	s.newCall(trace, env, trimmable)
-	return nil
+func (i *interpreter) getCurrentEnv(ast ast.Node) environment {
+	return makeEnvironment(
+		i.capture(ast.FreeVariables()),
+		i.stack.getSelfBinding(),
+	)
 }
 
 func (i *interpreter) evaluate(a ast.Node, tc tailCallStatus) (value, error) {
-	trace := TraceElement{
-		loc:     a.Loc(),
-		context: a.Context(),
+	e := &evaluator{
+		trace: &TraceElement{
+			loc:     a.Loc(),
+			context: a.Context(),
+		},
+		i: i,
 	}
 
 	switch node := a.(type) {
 	case *ast.Array:
 		sb := i.stack.getSelfBinding()
-		var elements []*cachedThunk
+		var elements []potentialValue
 		for _, el := range node.Elements {
-			env := makeEnvironment(i.stack.capture(el.FreeVariables()), sb)
-			elThunk := cachedThunk{env: &env, body: el}
-			elements = append(elements, &elThunk)
+			env := makeEnvironment(i.capture(el.FreeVariables()), sb)
+			elThunk := makeThunk(env, el)
+			elements = append(elements, elThunk)
 		}
 		return makeValueArray(elements), nil
 
 	case *ast.Binary:
-		if node.Op == ast.BopAnd {
-			// Special case for shortcut semantics.
-			xv, err := i.evaluate(node.Left, tc)
-			if err != nil {
-				return nil, err
-			}
-			x, err := i.getBoolean(xv, trace)
-			if err != nil {
-				return nil, err
-			}
-			if !x.value {
-				return x, nil
-			}
-			yv, err := i.evaluate(node.Right, tc)
-			if err != nil {
-				return nil, err
-			}
-			return i.getBoolean(yv, trace)
-		} else if node.Op == ast.BopOr {
-			// Special case for shortcut semantics.
-			xv, err := i.evaluate(node.Left, tc)
-			if err != nil {
-				return nil, err
-			}
-			x, err := i.getBoolean(xv, trace)
-			if err != nil {
-				return nil, err
-			}
-			if x.value {
-				return x, nil
-			}
-			yv, err := i.evaluate(node.Right, tc)
-			if err != nil {
-				return nil, err
-			}
-			return i.getBoolean(yv, trace)
+		// Some binary operators are lazy, so thunks are needed in general
+		env := i.getCurrentEnv(node)
+		// TODO(sbarzowski) make sure it displays nicely in stack trace (thunk names etc.)
+		// TODO(sbarzowski) it may make sense not to show a line in stack trace for operators
+		// 					at all in many cases. 1 + 2 + 3 + 4 + error "x" will show 5 lines
+		//					of stack trace now, and it's not that nice.
+		left := makeThunk(env, node.Left)
+		right := makeThunk(env, node.Right)
 
-		} else {
-			left, err := i.evaluate(node.Left, tc)
-			if err != nil {
-				return nil, err
-			}
-			right, err := i.evaluate(node.Right, tc)
-			if err != nil {
-				return nil, err
-			}
-			// TODO(dcunnin): The double dereference here is probably not necessary.
-			builtin := bopBuiltins[node.Op]
-			return builtin.function(i, trace, left, right)
-		}
+		builtin := bopBuiltins[node.Op]
 
-	case *ast.Unary:
-		value, err := i.evaluate(node.Expr, tc)
+		result, err := builtin.function(e, left, right)
 		if err != nil {
 			return nil, err
 		}
+		return result, nil
+
+	case *ast.Unary:
+		env := i.getCurrentEnv(node)
+		arg := makeThunk(env, node.Expr)
 
 		builtin := uopBuiltins[node.Op]
 
-		result, err := builtin.function(i, trace, value)
+		result, err := builtin.function(e, arg)
 		if err != nil {
 			return nil, err
 		}
 		return result, nil
 
 	case *ast.Conditional:
-		cond, err := i.evaluate(node.Cond, nonTailCall)
+		cond, err := e.evalInCurrentContext(node.Cond, nonTailCall)
 		if err != nil {
 			return nil, err
 		}
-		condBool, err := i.getBoolean(cond, trace)
+		condBool, err := e.getBoolean(cond)
 		if err != nil {
 			return nil, err
 		}
 		if condBool.value {
-			return i.evaluate(node.BranchTrue, tc)
+			return e.evalInCurrentContext(node.BranchTrue, tc)
 		}
-		return i.evaluate(node.BranchFalse, tc)
+		return e.evalInCurrentContext(node.BranchFalse, tc)
 
 	case *ast.DesugaredObject:
 		// Evaluate all the field names.  Check for null, dups, etc.
 		fields := make(simpleObjectFieldMap)
 		for _, field := range node.Fields {
-			fieldNameValue, err := i.evaluate(field.Name, nonTailCall)
+			fieldNameValue, err := e.evalInCurrentContext(field.Name, nonTailCall)
 			if err != nil {
 				return nil, err
 			}
@@ -377,11 +339,11 @@ func (i *interpreter) evaluate(a ast.Node, tc tailCallStatus) (value, error) {
 				// Omitted field.
 				continue
 			default:
-				return nil, i.Error(fmt.Sprintf("Field name must be string, got %v", fieldNameValue.getType().name), trace)
+				return nil, e.Error(fmt.Sprintf("Field name must be string, got %v", fieldNameValue.getType().name))
 			}
 
 			if _, ok := fields[fieldName]; ok {
-				return nil, i.Error(duplicateFieldNameErrMsg(fieldName), trace)
+				return nil, e.Error(duplicateFieldNameErrMsg(fieldName))
 			}
 			var f unboundField = &codeUnboundField{field.Body}
 			if field.PlusSuper {
@@ -393,69 +355,69 @@ func (i *interpreter) evaluate(a ast.Node, tc tailCallStatus) (value, error) {
 		for _, assert := range node.Asserts {
 			asserts = append(asserts, &codeUnboundField{assert})
 		}
-		upValues := i.stack.capture(node.FreeVariables())
+		upValues := i.capture(node.FreeVariables())
 		return makeValueSimpleObject(upValues, fields, asserts), nil
 
 	case *ast.Error:
-		msgVal, err := i.evaluate(node.Expr, nonTailCall)
+		msgVal, err := e.evalInCurrentContext(node.Expr, nonTailCall)
 		if err != nil {
 			// error when evaluating error message
 			return nil, err
 		}
 		if msgVal.getType() != stringType {
-			msgVal, err = builtinToString(i, trace, msgVal)
+			msgVal, err = builtinToString(e, &readyValue{msgVal})
 			if err != nil {
 				return nil, err
 			}
 		}
-		msg, err := i.getString(msgVal, trace)
+		msg, err := e.getString(msgVal)
 		if err != nil {
 			return nil, err
 		}
-		return nil, i.Error(msg.getString(), trace)
+		return nil, e.Error(msg.getString())
 
 	case *ast.Index:
-		targetValue, err := i.evaluate(node.Target, nonTailCall)
+		targetValue, err := e.evalInCurrentContext(node.Target, nonTailCall)
 		if err != nil {
 			return nil, err
 		}
-		index, err := i.evaluate(node.Index, nonTailCall)
+		index, err := e.evalInCurrentContext(node.Index, nonTailCall)
 		if err != nil {
 			return nil, err
 		}
 		switch target := targetValue.(type) {
 		case valueObject:
-			indexString, err := i.getString(index, trace)
+			indexString, err := e.getString(index)
 			if err != nil {
 				return nil, err
 			}
-			return target.index(i, trace, indexString.getString())
+			return target.index(e, indexString.getString())
 		case *valueArray:
-			indexInt, err := i.getNumber(index, trace)
+			indexInt, err := e.getNumber(index)
 			if err != nil {
 				return nil, err
 			}
 			// TODO(https://github.com/google/jsonnet/issues/377): non-integer indexes should be an error
-			return target.index(i, trace, int(indexInt.value))
+			return target.index(e, int(indexInt.value), tc)
 
 		case *valueString:
-			indexInt, err := i.getNumber(index, trace)
+			indexInt, err := e.getNumber(index)
 			if err != nil {
 				return nil, err
 			}
 			// TODO(https://github.com/google/jsonnet/issues/377): non-integer indexes should be an error
-			return target.index(i, trace, int(indexInt.value))
+			return target.index(e, int(indexInt.value))
 		}
 
-		return nil, i.Error(fmt.Sprintf("Value non indexable: %v", reflect.TypeOf(targetValue)), trace)
+		return nil, e.Error(fmt.Sprintf("Value non indexable: %v", reflect.TypeOf(targetValue)))
 
 	case *ast.Import:
-		codePath := node.Loc().FileName
-		return i.importCache.ImportCode(codePath, node.File.Value, i, trace)
+		codeDir, _ := path.Split(node.Loc().FileName)
+		return i.importCache.ImportCode(codeDir, node.File.Value, e)
 
 	case *ast.ImportStr:
-		codePath := node.Loc().FileName
-		return i.importCache.ImportString(codePath, node.File.Value, i, trace)
+		codeDir, _ := path.Split(node.Loc().FileName)
+		return i.importCache.ImportString(codeDir, node.File.Value, e)
 
 	case *ast.LiteralBoolean:
 		return makeValueBoolean(node.Value), nil
@@ -471,19 +433,19 @@ func (i *interpreter) evaluate(a ast.Node, tc tailCallStatus) (value, error) {
 
 	case *ast.Local:
 		vars := make(bindingFrame)
-		bindEnv := i.stack.getCurrentEnv(a)
+		bindEnv := i.getCurrentEnv(a)
 		for _, bind := range node.Binds {
-			th := cachedThunk{env: &bindEnv, body: bind.Body}
+			th := makeThunk(bindEnv, bind.Body)
 
 			// recursive locals
-			vars[bind.Variable] = &th
-			bindEnv.upValues[bind.Variable] = &th
+			vars[bind.Variable] = th
+			bindEnv.upValues[bind.Variable] = th
 		}
-		i.stack.newLocal(vars)
+		i.newLocal(vars)
 		sz := len(i.stack.stack)
 		// Add new stack frame, with new thunk for this variable
 		// execute body WRT stack frame.
-		v, err := i.evaluate(node.Body, tc)
+		v, err := e.evalInCurrentContext(node.Body, tc)
 		i.stack.popIfExists(sz)
 
 		return v, err
@@ -493,76 +455,65 @@ func (i *interpreter) evaluate(a ast.Node, tc tailCallStatus) (value, error) {
 		return sb.self, nil
 
 	case *ast.Var:
-		foo := i.stack.lookUpVarOrPanic(node.Id)
-		return foo.getValue(i, trace)
+		return e.evaluateTailCall(e.lookUpVar(node.Id), tc)
 
 	case *ast.SuperIndex:
-		index, err := i.evaluate(node.Index, nonTailCall)
+		index, err := e.evalInCurrentContext(node.Index, nonTailCall)
 		if err != nil {
 			return nil, err
 		}
-		indexStr, err := i.getString(index, trace)
+		indexStr, err := e.getString(index)
 		if err != nil {
 			return nil, err
 		}
-		return objectIndex(i, trace, i.stack.getSelfBinding().super(), indexStr.getString())
+		return objectIndex(e, i.stack.getSelfBinding().super(), indexStr.getString())
 
 	case *ast.InSuper:
-		index, err := i.evaluate(node.Index, nonTailCall)
+		index, err := e.evalInCurrentContext(node.Index, nonTailCall)
 		if err != nil {
 			return nil, err
 		}
-		indexStr, err := i.getString(index, trace)
+		indexStr, err := e.getString(index)
 		if err != nil {
 			return nil, err
 		}
-		hasField := objectHasField(i.stack.getSelfBinding().super(), indexStr.getString(), withHidden)
-		return makeValueBoolean(hasField), nil
+		field := tryObjectIndex(i.stack.getSelfBinding().super(), indexStr.getString(), withHidden)
+		return makeValueBoolean(field != nil), nil
 
 	case *ast.Function:
 		return &valueFunction{
-			ec: makeClosure(i.stack.getCurrentEnv(a), node),
+			ec: makeClosure(i.getCurrentEnv(a), node),
 		}, nil
 
 	case *ast.Apply:
 		// Eval target
-		target, err := i.evaluate(node.Target, nonTailCall)
+		target, err := e.evalInCurrentContext(node.Target, nonTailCall)
 		if err != nil {
 			return nil, err
 		}
-		function, err := i.getFunction(target, trace)
+		function, err := e.getFunction(target)
 		if err != nil {
 			return nil, err
 		}
 
 		// environment in which we can evaluate arguments
-		argEnv := i.stack.getCurrentEnv(a)
+		argEnv := i.getCurrentEnv(a)
 		arguments := callArguments{
-			positional: make([]*cachedThunk, len(node.Arguments.Positional)),
+			positional: make([]potentialValue, len(node.Arguments.Positional)),
 			named:      make([]namedCallArgument, len(node.Arguments.Named)),
 			tailstrict: node.TailStrict,
 		}
 		for i, arg := range node.Arguments.Positional {
-			arguments.positional[i] = &cachedThunk{env: &argEnv, body: arg}
+			arguments.positional[i] = makeThunk(argEnv, arg)
 		}
 
 		for i, arg := range node.Arguments.Named {
-			arguments.named[i] = namedCallArgument{name: arg.Name, pv: &cachedThunk{env: &argEnv, body: arg.Arg}}
+			arguments.named[i] = namedCallArgument{name: arg.Name, pv: makeThunk(argEnv, arg.Arg)}
 		}
-		return i.evaluateTailCall(function, arguments, tc, trace)
-
-	case *astMakeArrayElement:
-		arguments := callArguments{
-			positional: []*cachedThunk{
-				&cachedThunk{
-					content: intToValue(node.index),
-				},
-			},
-		}
-		return i.evaluateTailCall(node.function, arguments, tc, trace)
+		return e.evaluateTailCall(function.call(arguments), tc)
 
 	default:
-		return nil, i.Error(fmt.Sprintf("Executing this AST type not implemented: %v", reflect.TypeOf(a)), trace)
+		return nil, e.Error(fmt.Sprintf("Executing this AST type not implemented yet: %v", reflect.TypeOf(a)))
 	}
 }
 
@@ -611,129 +562,9 @@ func unparseNumber(v float64) string {
 	return fmt.Sprintf("%.17g", v)
 }
 
-// manifestNode
-func (i *interpreter) manifestNode(trace TraceElement, v value) (interface{}, error) {
-	switch v := v.(type) {
-
-	case *valueBoolean:
-		return &ast.LiteralBoolean{Value: v.value}, nil
-
-	case *valueFunction:
-		cl, ok := v.ec.(*closure)
-		if !ok {
-			return nil, errors.New("expected a closure")
-		}
-
-		return &cl.params, nil
-
-	case *valueNumber:
-		// TODO: figure out original string
-		return &ast.LiteralNumber{Value: v.value, OriginalString: unparseNumber(v.value)}, nil
-
-	case *valueString:
-		// TODO: get string type
-		return &ast.LiteralString{Value: v.getString()}, nil
-
-	case *valueNull:
-		return &ast.LiteralNull{}, nil
-
-	case *valueArray:
-		array := &ast.Array{}
-		for _, th := range v.elements {
-			elVal, err := i.evaluatePV(th, trace)
-			if err != nil {
-				return nil, err
-			}
-			val, err := i.manifestNode(trace, elVal)
-			if err != nil {
-				return nil, err
-			}
-
-			node, ok := val.(ast.Node)
-			if !ok {
-				return nil, errors.New("array element was not a node")
-			}
-			array.Elements = append(array.Elements, node)
-		}
-		return array, nil
-
-	case valueObject:
-		fhm := objectFieldsVisibility(v)
-		fieldNames := make([]string, len(fhm))
-		c := 0
-		for fieldName := range fhm {
-			fieldNames[c] = fieldName
-			c++
-		}
-		sort.Strings(fieldNames)
-
-		err := checkAssertions(i, trace, v)
-		if err != nil {
-			return nil, err
-		}
-
-		result := &ast.Object{}
-		for j := range fieldNames {
-			fieldName := fieldNames[j]
-			fieldValue, err := v.index(i, trace, fieldName)
-			if err != nil {
-				return nil, err
-			}
-
-			if fieldName == "openAPIV3SchemaType" {
-				continue
-			}
-
-			val, err := i.manifestNode(trace, fieldValue)
-			if err != nil {
-				return nil, err
-			}
-
-			var node ast.Node
-			var params *ast.Parameters
-			switch val := val.(type) {
-			case ast.Node:
-				node = val
-			case *Parameters:
-				params = &ast.Parameters{
-					Required: val.required,
-					Optional: []ast.NamedParameter{},
-				}
-
-				params.Optional = make([]ast.NamedParameter, len(val.optional))
-				for j := range val.optional {
-					opt := val.optional[j]
-					p := ast.NamedParameter{
-						DefaultArg: opt.defaultArg,
-						Name:       opt.name,
-					}
-					params.Optional[j] = p
-				}
-			}
-
-			fieldID := ast.Identifier(fieldName)
-			field := ast.ObjectField{
-				Hide:   fhm[fieldName],
-				Kind:   ast.ObjectFieldID,
-				Id:     &fieldID,
-				Expr2:  node,
-				Params: params,
-			}
-			result.Fields = append(result.Fields, field)
-		}
-		return result, nil
-
-	default:
-		return nil, makeRuntimeError(
-			fmt.Sprintf("manifesting this value not implemented yet: %s", reflect.TypeOf(v)),
-			i.getCurrentStackTrace(trace),
-		)
-
-	}
-}
-
 // manifestJSON converts to standard JSON representation as in "encoding/json" package
-func (i *interpreter) manifestJSON(trace TraceElement, v value) (interface{}, error) {
+func (i *interpreter) manifestJSON(trace *TraceElement, v value) (interface{}, error) {
+	e := &evaluator{i: i, trace: trace}
 	switch v := v.(type) {
 
 	case *valueBoolean:
@@ -754,7 +585,7 @@ func (i *interpreter) manifestJSON(trace TraceElement, v value) (interface{}, er
 	case *valueArray:
 		result := make([]interface{}, 0, len(v.elements))
 		for _, th := range v.elements {
-			elVal, err := i.evaluatePV(th, trace)
+			elVal, err := e.evaluate(th)
 			if err != nil {
 				return nil, err
 			}
@@ -770,7 +601,7 @@ func (i *interpreter) manifestJSON(trace TraceElement, v value) (interface{}, er
 		fieldNames := objectFields(v, withoutHidden)
 		sort.Strings(fieldNames)
 
-		err := checkAssertions(i, trace, v)
+		err := checkAssertions(e, v)
 		if err != nil {
 			return nil, err
 		}
@@ -778,7 +609,7 @@ func (i *interpreter) manifestJSON(trace TraceElement, v value) (interface{}, er
 		result := make(map[string]interface{})
 
 		for _, fieldName := range fieldNames {
-			fieldVal, err := v.index(i, trace, fieldName)
+			fieldVal, err := v.index(e, fieldName)
 			if err != nil {
 				return nil, err
 			}
@@ -899,7 +730,7 @@ func serializeJSON(v interface{}, multiline bool, indent string, buf *bytes.Buff
 }
 
 func (i *interpreter) manifestAndSerializeJSON(
-	buf *bytes.Buffer, trace TraceElement, v value, multiline bool, indent string) error {
+	buf *bytes.Buffer, trace *TraceElement, v value, multiline bool, indent string) error {
 	manifested, err := i.manifestJSON(trace, v)
 	if err != nil {
 		return err
@@ -909,7 +740,7 @@ func (i *interpreter) manifestAndSerializeJSON(
 }
 
 // manifestString expects the value to be a string and returns it.
-func (i *interpreter) manifestString(buf *bytes.Buffer, trace TraceElement, v value) error {
+func (i *interpreter) manifestString(buf *bytes.Buffer, trace *TraceElement, v value) error {
 	switch v := v.(type) {
 	case *valueString:
 		buf.WriteString(v.getString())
@@ -919,7 +750,7 @@ func (i *interpreter) manifestString(buf *bytes.Buffer, trace TraceElement, v va
 	}
 }
 
-func (i *interpreter) manifestAndSerializeMulti(trace TraceElement, v value, stringOutputMode bool) (r map[string]string, err error) {
+func (i *interpreter) manifestAndSerializeMulti(trace *TraceElement, v value) (r map[string]string, err error) {
 	r = make(map[string]string)
 	json, err := i.manifestJSON(trace, v)
 	if err != nil {
@@ -928,21 +759,10 @@ func (i *interpreter) manifestAndSerializeMulti(trace TraceElement, v value, str
 	switch json := json.(type) {
 	case map[string]interface{}:
 		for filename, fileJSON := range json {
-			if stringOutputMode {
-				switch val := fileJSON.(type) {
-				case string:
-					r[filename] = val
-				default:
-					msg := fmt.Sprintf("multi mode: top-level object's key %s has a value of type %T, "+
-						"should be a string", filename, val)
-					return r, makeRuntimeError(msg, i.getCurrentStackTrace(trace))
-				}
-			} else {
-				var buf bytes.Buffer
-				serializeJSON(fileJSON, true, "", &buf)
-				buf.WriteString("\n")
-				r[filename] = buf.String()
-			}
+			var buf bytes.Buffer
+			serializeJSON(fileJSON, true, "", &buf)
+			buf.WriteString("\n")
+			r[filename] = buf.String()
 		}
 	default:
 		msg := fmt.Sprintf("multi mode: top-level object was a %s, "+
@@ -953,7 +773,7 @@ func (i *interpreter) manifestAndSerializeMulti(trace TraceElement, v value, str
 	return
 }
 
-func (i *interpreter) manifestAndSerializeYAMLStream(trace TraceElement, v value) (r []string, err error) {
+func (i *interpreter) manifestAndSerializeYAMLStream(trace *TraceElement, v value) (r []string, err error) {
 	r = make([]string, 0)
 	json, err := i.manifestJSON(trace, v)
 	if err != nil {
@@ -976,19 +796,19 @@ func (i *interpreter) manifestAndSerializeYAMLStream(trace TraceElement, v value
 	return
 }
 
-func jsonToValue(i *interpreter, trace TraceElement, v interface{}) (value, error) {
+func jsonToValue(e *evaluator, v interface{}) (value, error) {
 	switch v := v.(type) {
 	case nil:
 		return &nullValue, nil
 
 	case []interface{}:
-		elems := make([]*cachedThunk, len(v))
-		for counter, elem := range v {
-			val, err := jsonToValue(i, trace, elem)
+		elems := make([]potentialValue, len(v))
+		for i, elem := range v {
+			val, err := jsonToValue(e, elem)
 			if err != nil {
 				return nil, err
 			}
-			elems[counter] = readyThunk(val)
+			elems[i] = &readyValue{val}
 		}
 		return makeValueArray(elems), nil
 
@@ -1000,7 +820,7 @@ func jsonToValue(i *interpreter, trace TraceElement, v interface{}) (value, erro
 	case map[string]interface{}:
 		fieldMap := map[string]value{}
 		for name, f := range v {
-			val, err := jsonToValue(i, trace, f)
+			val, err := jsonToValue(e, f)
 			if err != nil {
 				return nil, err
 			}
@@ -1012,11 +832,11 @@ func jsonToValue(i *interpreter, trace TraceElement, v interface{}) (value, erro
 		return makeValueString(v), nil
 
 	default:
-		return nil, i.Error(fmt.Sprintf("Not a json type: %#+v", v), trace)
+		return nil, e.Error(fmt.Sprintf("Not a json type: %#+v", v))
 	}
 }
 
-func (i *interpreter) EvalInCleanEnv(fromWhere TraceElement, env *environment, ast ast.Node, trimmable bool) (value, error) {
+func (i *interpreter) EvalInCleanEnv(fromWhere *TraceElement, env *environment, ast ast.Node, trimmable bool) (value, error) {
 	err := i.newCall(fromWhere, *env, trimmable)
 	if err != nil {
 		return nil, err
@@ -1028,180 +848,6 @@ func (i *interpreter) EvalInCleanEnv(fromWhere TraceElement, env *environment, a
 	i.stack.popIfExists(stackSize)
 
 	return val, err
-}
-
-func (i *interpreter) evaluatePV(ph potentialValue, trace TraceElement) (value, error) {
-	return ph.getValue(i, trace)
-}
-
-func (i *interpreter) evaluateTailCall(function *valueFunction, args callArguments, tc tailCallStatus, trace TraceElement) (value, error) {
-	if tc == tailCall {
-		i.stack.tailCallTrimStack()
-	}
-	return function.call(i, trace, args)
-}
-
-func (i *interpreter) Error(s string, trace TraceElement) error {
-	err := makeRuntimeError(s, i.getCurrentStackTrace(trace))
-	return err
-}
-
-func (i *interpreter) typeErrorSpecific(bad value, good value, trace TraceElement) error {
-	return i.Error(
-		fmt.Sprintf("Unexpected type %v, expected %v", bad.getType().name, good.getType().name),
-		trace,
-	)
-}
-
-func (i *interpreter) typeErrorGeneral(bad value, trace TraceElement) error {
-	return i.Error(
-		fmt.Sprintf("Unexpected type %v", bad.getType().name),
-		trace,
-	)
-}
-
-func (i *interpreter) getNumber(val value, trace TraceElement) (*valueNumber, error) {
-	switch v := val.(type) {
-	case *valueNumber:
-		return v, nil
-	default:
-		return nil, i.typeErrorSpecific(val, &valueNumber{}, trace)
-	}
-}
-
-func (i *interpreter) evaluateNumber(pv potentialValue, trace TraceElement) (*valueNumber, error) {
-	v, err := i.evaluatePV(pv, trace)
-	if err != nil {
-		return nil, err
-	}
-	return i.getNumber(v, trace)
-}
-
-func (i *interpreter) getInt(val value, trace TraceElement) (int, error) {
-	num, err := i.getNumber(val, trace)
-	if err != nil {
-		return 0, err
-	}
-	// We conservatively convert ot int32, so that it can be machine-sized int
-	// on any machine. And it's used only for indexing anyway.
-	intNum := int(int32(num.value))
-	if float64(intNum) != num.value {
-		return 0, i.Error(fmt.Sprintf("Expected an integer, but got %v", num.value), trace)
-	}
-	return intNum, nil
-}
-
-func (i *interpreter) evaluateInt(pv potentialValue, trace TraceElement) (int, error) {
-	v, err := i.evaluatePV(pv, trace)
-	if err != nil {
-		return 0, err
-	}
-	return i.getInt(v, trace)
-}
-
-func (i *interpreter) getInt64(val value, trace TraceElement) (int64, error) {
-	num, err := i.getNumber(val, trace)
-	if err != nil {
-		return 0, err
-	}
-	intNum := int64(num.value)
-	if float64(intNum) != num.value {
-		return 0, i.Error(fmt.Sprintf("Expected an integer, but got %v", num.value), trace)
-	}
-	return intNum, nil
-}
-
-func (i *interpreter) evaluateInt64(pv potentialValue, trace TraceElement) (int64, error) {
-	v, err := i.evaluatePV(pv, trace)
-	if err != nil {
-		return 0, err
-	}
-	return i.getInt64(v, trace)
-}
-
-func (i *interpreter) getString(val value, trace TraceElement) (*valueString, error) {
-	switch v := val.(type) {
-	case *valueString:
-		return v, nil
-	default:
-		return nil, i.typeErrorSpecific(val, &valueString{}, trace)
-	}
-}
-
-func (i *interpreter) evaluateString(pv potentialValue, trace TraceElement) (*valueString, error) {
-	v, err := i.evaluatePV(pv, trace)
-	if err != nil {
-		return nil, err
-	}
-	return i.getString(v, trace)
-}
-
-func (i *interpreter) getBoolean(val value, trace TraceElement) (*valueBoolean, error) {
-	switch v := val.(type) {
-	case *valueBoolean:
-		return v, nil
-	default:
-		return nil, i.typeErrorSpecific(val, &valueBoolean{}, trace)
-	}
-}
-
-func (i *interpreter) evaluateBoolean(pv potentialValue, trace TraceElement) (*valueBoolean, error) {
-	v, err := i.evaluatePV(pv, trace)
-	if err != nil {
-		return nil, err
-	}
-	return i.getBoolean(v, trace)
-}
-
-func (i *interpreter) getArray(val value, trace TraceElement) (*valueArray, error) {
-	switch v := val.(type) {
-	case *valueArray:
-		return v, nil
-	default:
-		return nil, i.typeErrorSpecific(val, &valueArray{}, trace)
-	}
-}
-
-func (i *interpreter) evaluateArray(pv potentialValue, trace TraceElement) (*valueArray, error) {
-	v, err := i.evaluatePV(pv, trace)
-	if err != nil {
-		return nil, err
-	}
-	return i.getArray(v, trace)
-}
-
-func (i *interpreter) getFunction(val value, trace TraceElement) (*valueFunction, error) {
-	switch v := val.(type) {
-	case *valueFunction:
-		return v, nil
-	default:
-		return nil, i.typeErrorSpecific(val, &valueFunction{}, trace)
-	}
-}
-
-func (i *interpreter) evaluateFunction(pv potentialValue, trace TraceElement) (*valueFunction, error) {
-	v, err := i.evaluatePV(pv, trace)
-	if err != nil {
-		return nil, err
-	}
-	return i.getFunction(v, trace)
-}
-
-func (i *interpreter) getObject(val value, trace TraceElement) (valueObject, error) {
-	switch v := val.(type) {
-	case valueObject:
-		return v, nil
-	default:
-		return nil, i.typeErrorSpecific(val, &valueSimpleObject{}, trace)
-	}
-}
-
-func (i *interpreter) evaluateObject(pv potentialValue, trace TraceElement) (valueObject, error) {
-	v, err := i.evaluatePV(pv, trace)
-	if err != nil {
-		return nil, err
-	}
-	return i.getObject(v, trace)
 }
 
 func buildStdObject(i *interpreter) (valueObject, error) {
@@ -1228,18 +874,26 @@ func evaluateStd(i *interpreter) (value, error) {
 		makeUnboundSelfBinding(),
 	)
 	evalLoc := ast.MakeLocationRangeMessage("During evaluation of std")
-	evalTrace := TraceElement{loc: &evalLoc}
+	evalTrace := &TraceElement{loc: &evalLoc}
 	node := ast.StdAst
 	return i.EvalInCleanEnv(evalTrace, &beforeStdEnv, node, false)
 }
 
-func prepareExtVars(i *interpreter, ext vmExtMap, kind string) map[string]*cachedThunk {
-	result := make(map[string]*cachedThunk)
+func prepareExtVars(i *interpreter, ext vmExtMap, kind string) map[string]potentialValue {
+	result := make(map[string]potentialValue)
 	for name, content := range ext {
 		if content.isCode {
-			result[name] = codeToPV(i, "<"+kind+":"+name+">", content.value)
+			varLoc := ast.MakeLocationRangeMessage("During evaluation")
+			varTrace := &TraceElement{
+				loc: &varLoc,
+			}
+			e := &evaluator{
+				i:     i,
+				trace: varTrace,
+			}
+			result[name] = codeToPV(e, "<"+kind+":"+name+">", content.value)
 		} else {
-			result[name] = readyThunk(makeValueString(content.value))
+			result[name] = &readyValue{makeValueString(content.value)}
 		}
 	}
 	return result
@@ -1278,21 +932,21 @@ func makeInitialEnv(filename string, baseStd valueObject) environment {
 	})
 	return makeEnvironment(
 		bindingFrame{
-			"std": readyThunk(makeValueExtendedObject(baseStd, fileSpecific)),
+			"std": &readyValue{makeValueExtendedObject(baseStd, fileSpecific)},
 		},
 		makeUnboundSelfBinding(),
 	)
 }
 
-func evaluateAux(i *interpreter, node ast.Node, tla vmExtMap) (value, TraceElement, error) {
+func evaluateAux(i *interpreter, node ast.Node, tla vmExtMap) (value, *TraceElement, error) {
 	evalLoc := ast.MakeLocationRangeMessage("During evaluation")
-	evalTrace := TraceElement{
+	evalTrace := &TraceElement{
 		loc: &evalLoc,
 	}
 	env := makeInitialEnv(node.Loc().FileName, i.baseStd)
 	result, err := i.EvalInCleanEnv(evalTrace, &env, node, false)
 	if err != nil {
-		return nil, TraceElement{}, err
+		return nil, nil, err
 	}
 	// If it's not a function, ignore TLA
 	if f, ok := result.(*valueFunction); ok {
@@ -1302,57 +956,24 @@ func evaluateAux(i *interpreter, node ast.Node, tla vmExtMap) (value, TraceEleme
 			args.named = append(args.named, namedCallArgument{name: ast.Identifier(argName), pv: pv})
 		}
 		funcLoc := ast.MakeLocationRangeMessage("Top-level function")
-		funcTrace := TraceElement{
+		funcTrace := &TraceElement{
 			loc: &funcLoc,
 		}
-		result, err = f.call(i, funcTrace, args)
+		result, err = f.call(args).getValue(i, funcTrace)
 		if err != nil {
-			return nil, TraceElement{}, err
+			return nil, nil, err
 		}
 	}
 	manifestationLoc := ast.MakeLocationRangeMessage("During manifestation")
-	manifestationTrace := TraceElement{
+	manifestationTrace := &TraceElement{
 		loc: &manifestationLoc,
 	}
 	return result, manifestationTrace, nil
 }
 
-func buildOutputNode(i *interpreter, trace TraceElement, result value) (ast.Node, error) {
-	item, err := i.manifestNode(trace, result)
-	if err != nil {
-		return nil, err
-	}
-	if node, ok := item.(ast.Node); ok {
-		return node, nil
-	}
-
-	return nil, errors.New("result was not a node")
-}
-
 // TODO(sbarzowski) this function takes far too many arguments - build interpreter in vm instead
-func evaluateToNode(node ast.Node, ext vmExtMap, tla vmExtMap, nativeFuncs map[string]*NativeFunction,
-	maxStack int, importer Importer) (ast.Node, error) {
-
-	i, err := buildInterpreter(ext, nativeFuncs, maxStack, importer)
-	if err != nil {
-		return nil, err
-	}
-
-	result, manifestationTrace, err := evaluateAux(i, node, tla)
-	if err != nil {
-		return nil, err
-	}
-
-	newNode, err := buildOutputNode(i, manifestationTrace, result)
-	if err != nil {
-		return nil, err
-	}
-
-	return newNode, nil
-}
-
 func evaluate(node ast.Node, ext vmExtMap, tla vmExtMap, nativeFuncs map[string]*NativeFunction,
-	maxStack int, importer Importer, stringOutputMode bool) (string, error) {
+	maxStack int, importer Importer, stringOutput bool) (string, error) {
 
 	i, err := buildInterpreter(ext, nativeFuncs, maxStack, importer)
 	if err != nil {
@@ -1365,7 +986,7 @@ func evaluate(node ast.Node, ext vmExtMap, tla vmExtMap, nativeFuncs map[string]
 	}
 
 	var buf bytes.Buffer
-	if stringOutputMode {
+	if stringOutput {
 		err = i.manifestString(&buf, manifestationTrace, result)
 	} else {
 		err = i.manifestAndSerializeJSON(&buf, manifestationTrace, result, true, "")
@@ -1379,7 +1000,7 @@ func evaluate(node ast.Node, ext vmExtMap, tla vmExtMap, nativeFuncs map[string]
 
 // TODO(sbarzowski) this function takes far too many arguments - build interpreter in vm instead
 func evaluateMulti(node ast.Node, ext vmExtMap, tla vmExtMap, nativeFuncs map[string]*NativeFunction,
-	maxStack int, importer Importer, stringOutputMode bool) (map[string]string, error) {
+	maxStack int, importer Importer, stringOutput bool) (map[string]string, error) {
 
 	i, err := buildInterpreter(ext, nativeFuncs, maxStack, importer)
 	if err != nil {
@@ -1391,7 +1012,7 @@ func evaluateMulti(node ast.Node, ext vmExtMap, tla vmExtMap, nativeFuncs map[st
 		return nil, err
 	}
 
-	return i.manifestAndSerializeMulti(manifestationTrace, result, stringOutputMode)
+	return i.manifestAndSerializeMulti(manifestationTrace, result)
 }
 
 // TODO(sbarzowski) this function takes far too many arguments - build interpreter in vm instead

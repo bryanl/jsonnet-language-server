@@ -7,16 +7,28 @@ import (
 
 	"github.com/bryanl/jsonnet-language-server/pkg/analysis/lexical"
 	"github.com/davecgh/go-spew/spew"
+	"github.com/pkg/profile"
 	"github.com/sirupsen/logrus"
 )
 
 func main() {
+
 	filename := flag.String("filename", "", "filename")
 	line := flag.Int("l", 0, "line")
 	char := flag.Int("c", 0, "character")
 	debug := flag.Bool("d", false, "debug")
+	cpuProf := flag.Bool("p", false, "enable CPU profiling")
+	memProf := flag.Bool("m", false, "enable memory profiling")
 
 	flag.Parse()
+
+	if *cpuProf {
+		defer profile.Start().Stop()
+	}
+
+	if *memProf {
+		defer profile.Start(profile.MemProfile).Stop()
+	}
 
 	if *debug {
 		logrus.SetLevel(logrus.DebugLevel)

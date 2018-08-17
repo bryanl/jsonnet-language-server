@@ -9,7 +9,7 @@ import (
 	"github.com/pkg/errors"
 )
 
-func ImportSource(paths []string, name string) (ast.Node, error) {
+func importSource(paths []string, name string) (ast.Node, error) {
 	for _, jPath := range paths {
 		sourcePath := filepath.Join(jPath, name)
 		if _, err := os.Stat(sourcePath); os.IsNotExist(err) {

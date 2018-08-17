@@ -33,6 +33,15 @@
   name = "github.com/sirupsen/logrus"
   version = "1.0.6"
 
+[[constraint]]
+  name = "github.com/google/go-jsonnet"
+  source = "github.com/bryanl/go-jsonnet"
+  branch = "manifest-to-node"
+
+[[override]]
+  name = "gopkg.in/fsnotify.v1"
+  source = "https://github.com/fsnotify/fsnotify.git"
+
 [[override]]
   name = "golang.org/x/crypto"
   source = "github.com/bryanl/crypto"
