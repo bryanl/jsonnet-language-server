@@ -5,32 +5,12 @@ import (
 
 	"github.com/bryanl/jsonnet-language-server/pkg/analysis/lexical/locate"
 	"github.com/google/go-jsonnet/ast"
-	"github.com/pkg/errors"
 	"github.com/sourcegraph/go-langserver/pkg/lsp"
 )
 
 var (
 	emptyHover = &lsp.Hover{}
 )
-
-// TokenAtLocation returns the token a location in a file.
-func TokenAtLocation(filename string, r io.Reader, loc ast.Location) (*locate.Locatable, error) {
-	v, err := NewCursorVisitor(filename, r, loc)
-	if err != nil {
-		return nil, errors.Wrap(err, "create cursor visitor")
-	}
-
-	if err = v.Visit(); err != nil {
-		return nil, errors.Wrap(err, "visit tokens")
-	}
-
-	locatable, err := v.TokenAtPosition()
-	if err != nil {
-		return nil, errors.Wrap(err, "find token at position")
-	}
-
-	return locatable, nil
-}
 
 func HoverAtLocation(filename string, r io.Reader, l, c int) (*lsp.Hover, error) {
 	loc := ast.Location{
@@ -67,7 +47,10 @@ func HoverAtLocation(filename string, r io.Reader, l, c int) (*lsp.Hover, error)
 				Value:    resolved.Description,
 			},
 		},
-		Range: lsp.Range{
+	}
+
+	if hasResolvedLocation(resolved.Location) {
+		response.Range = lsp.Range{
 			Start: lsp.Position{
 				Line:      resolved.Location.Begin.Line - 1,
 				Character: resolved.Location.Begin.Column - 1,
@@ -76,8 +59,19 @@ func HoverAtLocation(filename string, r io.Reader, l, c int) (*lsp.Hover, error)
 				Line:      resolved.Location.End.Line - 1,
 				Character: resolved.Location.End.Column - 1,
 			},
-		},
+		}
 	}
 
 	return response, nil
+}
+
+func hasResolvedLocation(r ast.LocationRange) bool {
+	locs := []int{r.Begin.Line, r.Begin.Column,
+		r.End.Line, r.End.Column}
+	for _, l := range locs {
+		if l == 0 {
+			return false
+		}
+	}
+	return true
 }

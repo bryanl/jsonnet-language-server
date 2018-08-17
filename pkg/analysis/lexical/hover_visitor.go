@@ -70,8 +70,10 @@ func (hv *hoverVisitor) previsit(token interface{}, parent *locate.Locatable, en
 		r.FileName = parent.Loc.FileName
 	}
 
+	item := token
+
 	nl := &locate.Locatable{
-		Token:  token,
+		Token:  item,
 		Loc:    r,
 		Parent: parent,
 		Env:    env,

@@ -2,6 +2,7 @@ package token
 
 import (
 	"fmt"
+	"runtime/debug"
 
 	"github.com/google/go-jsonnet/ast"
 	"github.com/pkg/errors"
@@ -135,6 +136,7 @@ func (m *Match) Find(start ast.Location, kind TokenKind) (int, error) {
 		}
 	}
 
+	debug.PrintStack()
 	return 0, errors.Errorf("token %q at %s was not found",
 		kind.String(), start.String())
 }

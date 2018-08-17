@@ -658,15 +658,11 @@ func (v *NodeVisitor) handleImport(n *ast.Import, parent *locate.Locatable, env 
 		return err
 	}
 
-	nodes := []interface{}{n.File}
-
-	locatable := &locate.Locatable{
-		Token:  n,
-		Loc:    *n.Loc(),
-		Parent: parent,
+	if n.File == nil {
+		return errors.New("import file value is nil")
 	}
 
-	return v.visitList(nodes, locatable, env)
+	return nil
 }
 
 // ImportStrVisitor is a visitor for ImportStr.

@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"encoding/json"
+	"runtime/debug"
 
 	"github.com/sirupsen/logrus"
 	"github.com/sourcegraph/go-langserver/pkg/lsp"
@@ -28,7 +29,7 @@ func (lh *lspHandler) Handle(ctx context.Context, conn *jsonrpc2.Conn, req *json
 
 	defer func() {
 		if r := recover(); r != nil {
-			l.Errorf("handler recovered: %f", r)
+			l.Errorf("(CRASH) %v: %s", r, debug.Stack())
 		}
 	}()
 

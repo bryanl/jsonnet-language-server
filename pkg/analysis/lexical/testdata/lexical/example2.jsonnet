@@ -1,4 +1,4 @@
-local f = import "data.jsonnet";
+// local f = import "data.jsonnet";
 
 local o = {
     nested1: {

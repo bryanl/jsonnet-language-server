@@ -3,10 +3,14 @@ package locate
 import (
 	"bytes"
 	"fmt"
+	"io/ioutil"
+	"os"
+	"path/filepath"
 
 	"github.com/bryanl/jsonnet-language-server/pkg/analysis/lexical/astext"
 	"github.com/davecgh/go-spew/spew"
 	"github.com/google/go-jsonnet/ast"
+	"github.com/google/go-jsonnet/parser"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 )
@@ -239,7 +243,7 @@ func (l *Locatable) handleFunction(f *ast.Function) (*Resolved, error) {
 func (l *Locatable) handleVar(t *ast.Var) (*Resolved, error) {
 	if ref, ok := l.Env[string(t.Id)]; ok {
 		logrus.Debugf("%s points to a %T", t.Id, ref.Token)
-		s, err := l.resolvedIdentifier(&ref)
+		s, err := resolvedIdentifier(ref.Token)
 		if err != nil {
 			return nil, err
 		}
@@ -255,14 +259,62 @@ func (l *Locatable) handleVar(t *ast.Var) (*Resolved, error) {
 	return nil, ErrUnresolvable
 }
 
-func (l *Locatable) resolvedIdentifier(ref *Locatable) (string, error) {
-	switch t := ref.Token.(type) {
+func resolvedIdentifier(item interface{}) (string, error) {
+	switch t := item.(type) {
+	case *ast.Import:
+		return importDescription(t)
 	case *ast.Object:
 		return astext.ObjectDescription(t)
 	default:
 		logrus.Debugf("resolvedIdentifer: did not match %T", t)
-		return astext.TokenName(ref.Token), nil
+		return astext.TokenName(item), nil
 	}
+}
+
+func importDescription(i *ast.Import) (string, error) {
+	// switch t := token.(type) {
+	// case *ast.Import:
+	// TODO this needs to come from somewhere else
+	jPaths := []string{
+		"/Users/bryan/go/src/github.com/bryanl/jsonnet-language-server/pkg/analysis/lexical/testdata/lexical",
+	}
+
+	// 	logrus.Infof("replacing import with its node from %q", t.File.Value)
+	// 	node, err := importSource(jPaths, t.File.Value)
+	// 	if err != nil {
+	// 		return err
+	// 	}
+
+	// 	item = node
+
+	// }
+
+	node, err := importSource(jPaths, i.File.Value)
+	if err != nil {
+		return "", err
+	}
+
+	return resolvedIdentifier(node)
+
+}
+
+func importSource(paths []string, name string) (ast.Node, error) {
+	for _, jPath := range paths {
+		sourcePath := filepath.Join(jPath, name)
+		if _, err := os.Stat(sourcePath); os.IsNotExist(err) {
+			continue
+		}
+
+		/* #nosec */
+		source, err := ioutil.ReadFile(sourcePath)
+		if err != nil {
+			return nil, err
+		}
+
+		return parse(sourcePath, string(source))
+	}
+
+	return nil, errors.Errorf("unable to find import %q", name)
 }
 
 func (l *Locatable) IsFunctionParam() bool {
@@ -300,4 +352,17 @@ func describeInObject(o *ast.Object, indicies []string) (string, error) {
 
 	spew.Dump(indicies, o)
 	return "", errors.Errorf("unable to find field %q n object", indicies[0])
+}
+
+func parse(filename, snippet string) (ast.Node, error) {
+	tokens, err := parser.Lex(filename, snippet)
+	if err != nil {
+		return nil, err
+	}
+	node, err := parser.Parse(tokens)
+	if err != nil {
+		return nil, err
+	}
+
+	return node, nil
 }
