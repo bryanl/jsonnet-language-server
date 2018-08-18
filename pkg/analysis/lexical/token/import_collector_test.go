@@ -12,6 +12,7 @@ func TestImportCollector_Collect(t *testing.T) {
 	cases := []struct {
 		name     string
 		filename string
+		shallow  bool
 		expected []string
 		isErr    bool
 	}{
@@ -28,8 +29,18 @@ func TestImportCollector_Collect(t *testing.T) {
 		{
 			name:     "import has imports",
 			filename: "importcollector3.jsonnet",
-			expected: []string{"importcollector1.jsonnet",
-				"importcollector2.jsonnet"},
+			expected: []string{
+				"importcollector1.jsonnet",
+				"importcollector2.jsonnet",
+			},
+		},
+		{
+			name:     "shallow collect",
+			filename: "importcollector3.jsonnet",
+			shallow:  true,
+			expected: []string{
+				"importcollector2.jsonnet",
+			},
 		},
 	}
 
@@ -43,7 +54,7 @@ func TestImportCollector_Collect(t *testing.T) {
 			libPaths := []string{abs}
 			ic := NewImportCollector(libPaths)
 
-			files, err := ic.Collect(sourceFile)
+			files, err := ic.Collect(sourceFile, tc.shallow)
 			if tc.isErr {
 				require.Error(t, err)
 				return

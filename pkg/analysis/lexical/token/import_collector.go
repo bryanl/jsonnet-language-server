@@ -22,7 +22,7 @@ func NewImportCollector(libPath []string) *ImportCollector {
 }
 
 // Collect collects imports for a file
-func (ic *ImportCollector) Collect(filename string) ([]string, error) {
+func (ic *ImportCollector) Collect(filename string, shallow bool) ([]string, error) {
 	source, err := ioutil.ReadFile(filename)
 	if err != nil {
 		return nil, err
@@ -53,13 +53,15 @@ func (ic *ImportCollector) Collect(filename string) ([]string, error) {
 				return nil, err
 			}
 
-			childPaths, err := ic.Collect(path)
-			if err != nil {
-				return nil, err
-			}
+			if !shallow {
+				childPaths, err := ic.Collect(path, false)
+				if err != nil {
+					return nil, err
+				}
 
-			for _, childPath := range childPaths {
-				matches[childPath] = true
+				for _, childPath := range childPaths {
+					matches[childPath] = true
+				}
 			}
 		}
 	}
