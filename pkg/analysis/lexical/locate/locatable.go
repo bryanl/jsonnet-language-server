@@ -6,7 +6,6 @@ import (
 
 	"github.com/bryanl/jsonnet-language-server/pkg/analysis/lexical/astext"
 	"github.com/google/go-jsonnet/ast"
-	"github.com/google/go-jsonnet/parser"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 )
@@ -281,28 +280,6 @@ func importDescription(i *ast.Import, jPaths []string, cache *NodeCache) (string
 	return resolvedIdentifier(ne.Node, jPaths, cache)
 }
 
-func findNonLocal(node ast.Node) (ast.Node, error) {
-	if node == nil {
-		return nil, errors.New("node is nil")
-	}
-
-	if local, ok := node.(*ast.Local); ok {
-		return findNonLocal(local.Body)
-	}
-
-	return node, nil
-}
-
-func (l *Locatable) IsFunctionParam() bool {
-	if _, isVar := l.Token.(*ast.Var); isVar {
-		if _, isParentLocal := l.Parent.Token.(*ast.Local); isParentLocal {
-			return true
-		}
-	}
-
-	return false
-}
-
 func describe(item interface{}, indicies []string) (string, error) {
 	switch t := item.(type) {
 	case *ast.Object:
@@ -326,19 +303,5 @@ func describeInObject(o *ast.Object, indicies []string) (string, error) {
 		return describe(f.Expr2, indicies[1:])
 	}
 
-	// spew.Dump(indicies, o)
 	return "", errors.Errorf("unable to find field %q n object", indicies[0])
-}
-
-func parse(filename, snippet string) (ast.Node, error) {
-	tokens, err := parser.Lex(filename, snippet)
-	if err != nil {
-		return nil, err
-	}
-	node, err := parser.Parse(tokens)
-	if err != nil {
-		return nil, err
-	}
-
-	return node, nil
 }
