@@ -18,6 +18,10 @@ type operation func(*request, *Config) (interface{}, error)
 var operations = map[string]operation{
 	"textDocument/hover":        textDocumentHover,
 	"initialize":                initialize,
+	"textDocument/didChange":    textDocumentDidChange,
+	"textDocument/didClose":     textDocumentDidClose,
+	"textDocument/didOpen":      textDocumentDidOpen,
+	"textDocument/didSave":      textDocumentDidSave,
 	"updateClientConfiguration": updateClientConfiguration,
 }
 
@@ -207,6 +211,46 @@ func updateClientConfiguration(r *request, c *Config) (interface{}, error) {
 		return nil, err
 	}
 
+	return nil, nil
+}
+
+func textDocumentDidOpen(r *request, c *Config) (interface{}, error) {
+	var dotdp lsp.DidOpenTextDocumentParams
+	if err := r.Decode(&dotdp); err != nil {
+		return nil, err
+	}
+
+	r.log().WithField("uri", dotdp.TextDocument.URI).Info("opened file")
+	return nil, nil
+}
+
+func textDocumentDidSave(r *request, c *Config) (interface{}, error) {
+	var dotdp lsp.DidOpenTextDocumentParams
+	if err := r.Decode(&dotdp); err != nil {
+		return nil, err
+	}
+
+	r.log().WithField("uri", dotdp.TextDocument.URI).Info("saved file")
+	return nil, nil
+}
+
+func textDocumentDidClose(r *request, c *Config) (interface{}, error) {
+	var dotdp lsp.DidOpenTextDocumentParams
+	if err := r.Decode(&dotdp); err != nil {
+		return nil, err
+	}
+
+	r.log().WithField("uri", dotdp.TextDocument.URI).Info("closed file")
+	return nil, nil
+}
+
+func textDocumentDidChange(r *request, c *Config) (interface{}, error) {
+	var dotdp lsp.DidOpenTextDocumentParams
+	if err := r.Decode(&dotdp); err != nil {
+		return nil, err
+	}
+
+	// r.log().WithField("uri", dotdp.TextDocument.URI).Info("changed file")
 	return nil, nil
 }
 
