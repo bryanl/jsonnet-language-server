@@ -175,7 +175,8 @@ func initialize(r *request, c *Config) (interface{}, error) {
 
 	response := &lsp.InitializeResult{
 		Capabilities: lsp.ServerCapabilities{
-			HoverProvider: true,
+			HoverProvider:    true,
+			TextDocumentSync: lsp.TDSKFull,
 		},
 	}
 
