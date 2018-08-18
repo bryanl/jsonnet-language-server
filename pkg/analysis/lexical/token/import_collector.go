@@ -11,13 +11,13 @@ import (
 
 // ImportCollector collects imports from a file and its imports
 type ImportCollector struct {
-	libPath []string
+	libPaths []string
 }
 
 // NewImportCollector creates an instance of ImportCollector.
 func NewImportCollector(libPath []string) *ImportCollector {
 	return &ImportCollector{
-		libPath: libPath,
+		libPaths: libPath,
 	}
 }
 
@@ -48,7 +48,7 @@ func (ic *ImportCollector) Collect(filename string, shallow bool) ([]string, err
 			matches[next.Data] = true
 			i++
 
-			path, err := ic.importPath(next.Data)
+			path, err := ImportPath(next.Data, ic.libPaths)
 			if err != nil {
 				return nil, err
 			}
@@ -77,9 +77,10 @@ func (ic *ImportCollector) Collect(filename string, shallow bool) ([]string, err
 	return imports, nil
 }
 
-func (ic *ImportCollector) importPath(filename string) (string, error) {
-	for _, dir := range ic.libPath {
-		path := filepath.Join(dir, filename)
+// ImportPath finds the absolute path to an import.
+func ImportPath(filename string, libPaths []string) (string, error) {
+	for _, libPath := range libPaths {
+		path := filepath.Join(libPath, filename)
 		if _, err := os.Stat(path); os.IsNotExist(err) {
 			continue
 		}
