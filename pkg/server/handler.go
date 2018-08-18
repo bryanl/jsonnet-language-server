@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"runtime/debug"
 
+	"github.com/bryanl/jsonnet-language-server/pkg/analysis/lexical/token"
 	"github.com/bryanl/jsonnet-language-server/pkg/lsp"
 	"github.com/pkg/errors"
 	uuid "github.com/satori/go.uuid"
@@ -221,6 +222,20 @@ func textDocumentDidOpen(r *request, c *Config) (interface{}, error) {
 	}
 
 	r.log().WithField("uri", dotdp.TextDocument.URI).Info("opened file")
+
+	path, err := uriToPath(dotdp.TextDocument.URI)
+	if err != nil {
+		return nil, err
+	}
+
+	ic := token.NewImportCollector(c.JsonnetLibPaths)
+	imports, err := ic.Collect(path, true)
+	if err != nil {
+		return nil, err
+	}
+
+	r.log().WithField("imports", imports).Info("found imports")
+
 	return nil, nil
 }
 

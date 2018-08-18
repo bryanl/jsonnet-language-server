@@ -20,19 +20,28 @@ func newHover(params lsp.TextDocumentPositionParams) *hover {
 }
 
 func (h *hover) handle() (interface{}, error) {
-	u, err := url.Parse(string(h.params.TextDocument.URI))
+	path, err := uriToPath(h.params.TextDocument.URI)
 	if err != nil {
-		return nil, errors.Wrap(err, "parsing file URL")
+		return nil, err
 	}
 
-	if u.Scheme != "file" {
-		return nil, errors.Wrap(err, "invalid file schema")
-	}
-
-	f, err := os.Open(u.Path)
+	f, err := os.Open(path)
 	if err != nil {
 		return nil, errors.Wrap(err, "opening file")
 	}
 
-	return lexical.HoverAtLocation(u.Path, f, h.params.Position.Line+1, h.params.Position.Character+1)
+	return lexical.HoverAtLocation(path, f, h.params.Position.Line+1, h.params.Position.Character+1)
+}
+
+func uriToPath(uri string) (string, error) {
+	u, err := url.Parse(uri)
+	if err != nil {
+		return "", errors.Wrap(err, "parsing file URL")
+	}
+
+	if u.Scheme != "file" {
+		return "", errors.Wrap(err, "invalid file schema")
+	}
+
+	return u.Path, nil
 }
