@@ -4,8 +4,8 @@ import (
 	"io"
 
 	"github.com/bryanl/jsonnet-language-server/pkg/analysis/lexical/locate"
+	"github.com/bryanl/jsonnet-language-server/pkg/lsp"
 	"github.com/google/go-jsonnet/ast"
-	"github.com/sourcegraph/go-langserver/pkg/lsp"
 )
 
 var (

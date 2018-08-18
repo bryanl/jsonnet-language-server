@@ -6,12 +6,12 @@ import (
 	"io"
 	"strings"
 
-	. "github.com/onsi/ginkgo"
-	. "github.com/onsi/gomega"
-	"github.com/sourcegraph/go-langserver/pkg/lsp"
+	"github.com/bryanl/jsonnet-language-server/pkg/jlstesting"
+	"github.com/bryanl/jsonnet-language-server/pkg/lsp"
 
 	. "github.com/bryanl/jsonnet-language-server/pkg/analysis/lexical"
-	"github.com/bryanl/jsonnet-language-server/pkg/jlstesting"
+	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/gomega"
 )
 
 var _ = Describe("Lexical", func() {

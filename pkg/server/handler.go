@@ -5,9 +5,9 @@ import (
 	"encoding/json"
 	"runtime/debug"
 
+	"github.com/bryanl/jsonnet-language-server/pkg/lsp"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
-	"github.com/sourcegraph/go-langserver/pkg/lsp"
 	"github.com/sourcegraph/jsonrpc2"
 )
 

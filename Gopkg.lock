@@ -117,14 +117,6 @@
   version = "v1.0.6"
 
 [[projects]]
-  digest = "1:a93eb0fdb839bb6756f08115708b371d7f7dbd35fc28944b823e4685214b4707"
-  name = "github.com/sourcegraph/go-langserver"
-  packages = ["pkg/lsp"]
-  pruneopts = "UT"
-  revision = "00b99356a4548dba7494a8d10596f7b9e0c2fd91"
-  version = "v1.0.0"
-
-[[projects]]
   branch = "master"
   digest = "1:2b36de9d58253dfb01ceb22d85ace23b69210908a8191f2d967f46db4b94833a"
   name = "github.com/sourcegraph/jsonrpc2"
@@ -239,7 +231,6 @@
     "github.com/pkg/errors",
     "github.com/pkg/profile",
     "github.com/sirupsen/logrus",
-    "github.com/sourcegraph/go-langserver/pkg/lsp",
     "github.com/sourcegraph/jsonrpc2",
     "github.com/stretchr/testify/assert",
     "github.com/stretchr/testify/require",

@@ -5,8 +5,8 @@ import (
 	"os"
 
 	"github.com/bryanl/jsonnet-language-server/pkg/analysis/lexical"
+	"github.com/bryanl/jsonnet-language-server/pkg/lsp"
 	"github.com/pkg/errors"
-	"github.com/sourcegraph/go-langserver/pkg/lsp"
 )
 
 type hover struct {
