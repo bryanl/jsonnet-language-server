@@ -8,33 +8,61 @@ import (
 )
 
 const (
-	cfgJsonnetLibPaths = "jsonnet.libPaths"
+	// CfgJsonnetLibPaths are jsonnet lib paths.
+	CfgJsonnetLibPaths = "jsonnet.libPaths"
 )
 
 // Config is configuration setting for the server.
 type Config struct {
 	// JsonnetLibPaths are jsonnet lib paths.
 	JsonnetLibPaths []string
+
+	dispatchers map[string]*Dispatcher
 }
 
 // NewConfig creates an instance of Config.
 func NewConfig() *Config {
 	return &Config{
 		JsonnetLibPaths: make([]string, 0),
+
+		dispatchers: map[string]*Dispatcher{},
 	}
+}
+
+// Watch will call `fn`` when key `k` is updated. It returns a
+// cancel function.
+func (c *Config) Watch(k string, fn func(interface{})) func() {
+	d := c.dispatcher(k)
+	return d.Watch(fn)
+}
+
+func (c *Config) dispatcher(k string) *Dispatcher {
+	d, ok := c.dispatchers[k]
+	if !ok {
+		d = NewDispatcher()
+		c.dispatchers[k] = d
+	}
+
+	return d
+}
+
+func (c *Config) dispatch(k string, msg interface{}) {
+	d := c.dispatcher(k)
+	d.Dispatch(msg)
 }
 
 // Update updates the configuration.
 func (c *Config) Update(update map[string]interface{}) error {
 	for k, v := range update {
 		switch k {
-		case cfgJsonnetLibPaths:
+		case CfgJsonnetLibPaths:
 			paths, err := interfaceToStrings(v)
 			if err != nil {
-				return errors.Wrapf(err, "setting %q", cfgJsonnetLibPaths)
+				return errors.Wrapf(err, "setting %q", CfgJsonnetLibPaths)
 			}
 
 			c.JsonnetLibPaths = paths
+			c.dispatch(CfgJsonnetLibPaths, paths)
 		default:
 			return errors.Errorf("setting %q is unknown to the jsonnet language server", k)
 		}

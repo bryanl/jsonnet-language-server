@@ -329,3 +329,36 @@ type DocumentOnTypeFormattingParams struct {
 	Ch           string                 `json:"ch"`
 	Options      FormattingOptions      `json:"formattingOptions"`
 }
+
+// DidChangeWatchedFilesRegistrationOptions describe options to
+// be used when registering for text document change events.
+type DidChangeWatchedFilesRegistrationOptions struct {
+	Watchers []FileSystemWatcher `json:"watchers,omitempty"`
+}
+
+// FileSystemWatcher is a watcher to register.
+type FileSystemWatcher struct {
+	GlobPattern string `json:"globPattern,omitempty"`
+	Kind        int    `json:"kind,omitempty"`
+}
+
+const (
+	// WatchKindCreate is interested in create events.
+	WatchKindCreate int = 1
+	// WatchKindChange is interested in change events.
+	WatchKindChange int = 2
+	// WatchKindDelete is interested in delete events.
+	WatchKindDelete int = 4
+)
+
+// Registration is general parameters to register for a capability.
+type Registration struct {
+	ID              string      `json:"id,omitempty"`
+	Method          string      `json:"method,omitempty"`
+	RegisterOptions interface{} `json:"registerOptions,omitempty"`
+}
+
+// RegistrationParams are a list of registrations.
+type RegistrationParams struct {
+	Registrations []Registration `json:"registrations,omitempty"`
+}

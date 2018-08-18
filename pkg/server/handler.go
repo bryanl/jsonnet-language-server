@@ -3,10 +3,12 @@ package server
 import (
 	"context"
 	"encoding/json"
+	"path/filepath"
 	"runtime/debug"
 
 	"github.com/bryanl/jsonnet-language-server/pkg/lsp"
 	"github.com/pkg/errors"
+	uuid "github.com/satori/go.uuid"
 	"github.com/sirupsen/logrus"
 	"github.com/sourcegraph/jsonrpc2"
 )
@@ -21,10 +23,12 @@ var operations = map[string]operation{
 
 // NewHandler creates a handler to handle rpc commands.
 func NewHandler(logger logrus.FieldLogger) jsonrpc2.Handler {
+	config := NewConfig()
+
 	return &lspHandler{
 		logger:  logger.WithField("component", "handler"),
 		decoder: &requestDecoder{},
-		config:  NewConfig(),
+		config:  config,
 	}
 }
 
@@ -44,6 +48,28 @@ func (r *request) log() logrus.FieldLogger {
 
 func (r *request) Decode(v interface{}) error {
 	return r.decoder.Decode(r.req, v)
+}
+
+func (r *request) RegisterCapability(method string, options interface{}) (string, error) {
+	id := uuid.Must(uuid.NewV4())
+
+	registrations := &lsp.RegistrationParams{
+		Registrations: []lsp.Registration{
+			{
+				ID:              id.String(),
+				Method:          method,
+				RegisterOptions: options,
+			},
+		},
+	}
+
+	var result interface{}
+
+	if err := r.conn.Call(r.ctx, "client/registerCapability", registrations, result); err != nil {
+		return "", err
+	}
+
+	return id.String(), nil
 }
 
 type lspHandler struct {
@@ -100,6 +126,38 @@ func initialize(r *request, c *Config) (interface{}, error) {
 	if err := r.Decode(&ip); err != nil {
 		return nil, err
 	}
+
+	fn := func(v interface{}) {
+		// When lib paths are updated, tell the client to send
+		// watch updates for all the lib paths.
+
+		paths, ok := v.([]string)
+		if !ok {
+			r.log().Error("lib paths are not []string")
+		}
+
+		options := &lsp.DidChangeWatchedFilesRegistrationOptions{
+			Watchers: make([]lsp.FileSystemWatcher, 0),
+		}
+
+		for _, path := range paths {
+			path = filepath.Clean(path)
+			for _, ext := range []string{"libsonnet", "jsonnet"} {
+				watcher := lsp.FileSystemWatcher{
+					GlobPattern: filepath.Join(path, "*."+ext),
+					Kind:        lsp.WatchKindChange + lsp.WatchKindCreate + lsp.WatchKindDelete,
+				}
+
+				options.Watchers = append(options.Watchers, watcher)
+			}
+		}
+
+		if _, err := r.RegisterCapability("workspace/didChangeWatchedFiles", options); err != nil {
+			r.log().WithError(err).Error("registering file watchers")
+		}
+	}
+
+	c.Watch(CfgJsonnetLibPaths, fn)
 
 	update, ok := ip.InitializationOptions.(map[string]interface{})
 	if !ok {

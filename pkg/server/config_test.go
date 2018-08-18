@@ -64,3 +64,28 @@ func TestConfig_Update(t *testing.T) {
 		})
 	}
 }
+
+func TestConfig_Update_watcher(t *testing.T) {
+	update := map[string]interface{}{
+		CfgJsonnetLibPaths: []string{"new"},
+	}
+
+	c := NewConfig()
+
+	done := make(chan bool)
+
+	wasDispatched := false
+	fn := func(v interface{}) {
+		wasDispatched = true
+		assert.Equal(t, update[CfgJsonnetLibPaths], v)
+
+		done <- true
+	}
+
+	cancel := c.Watch(CfgJsonnetLibPaths, fn)
+	c.Update(update)
+
+	<-done
+	require.True(t, wasDispatched)
+	cancel()
+}
