@@ -2,10 +2,13 @@ package locate
 
 import (
 	"fmt"
+	"strings"
 	"sync"
 	"time"
 
+	"github.com/bryanl/jsonnet-language-server/pkg/analysis/lexical/token"
 	"github.com/google/go-jsonnet/ast"
+	"github.com/sirupsen/logrus"
 )
 
 // NodeCacheMissErr is an error for a cache miss.
@@ -17,11 +20,16 @@ func (e *NodeCacheMissErr) Error() string {
 	return fmt.Sprintf("%q did not exist", e.key)
 }
 
+// NodeCacheDependency is a depedency of a cached item.
+type NodeCacheDependency struct {
+	Name      string
+	UpdatedAt *time.Time
+}
+
 // NodeEntry is an entry in the NodeCache.
 type NodeEntry struct {
 	Node         ast.Node
-	Dependencies []string
-	UpdatedAt    *time.Time
+	Dependencies []NodeCacheDependency
 }
 
 // NodeCache is a cache for nodes.
@@ -38,6 +46,19 @@ func NewNodeCache() *NodeCache {
 	}
 
 	return c
+}
+
+// Keys returns a list of keys in the cache.
+func (c *NodeCache) Keys() []string {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	var keys []string
+	for k := range c.store {
+		keys = append(keys, k)
+	}
+
+	return keys
 }
 
 // Get gets a key from the cache.
@@ -59,6 +80,51 @@ func (c *NodeCache) Set(key string, e *NodeEntry) error {
 	defer c.mu.Unlock()
 
 	c.store[key] = *e
+
+	return nil
+}
+
+// UpdateNodeCache updates the node cache using a file.
+func UpdateNodeCache(path string, libPaths []string, cache *NodeCache) error {
+	ic := token.NewImportCollector(libPaths)
+	imports, err := ic.Collect(path, true)
+	if err != nil {
+		return err
+	}
+
+	logrus.Infof("(before) cache keys %s", strings.Join(cache.Keys(), ","))
+
+	for _, jsonnetImport := range imports {
+		path, err := token.ImportPath(jsonnetImport, libPaths)
+		if err != nil {
+			return err
+		}
+
+		importImports, err := ic.Collect(path, false)
+		if err != nil {
+			return err
+		}
+
+		ncds := []NodeCacheDependency{}
+		for _, importImport := range importImports {
+			ncd := NodeCacheDependency{
+				Name: importImport,
+			}
+
+			ncds = append(ncds, ncd)
+		}
+
+		ne := &NodeEntry{
+			Node:         &ast.Object{},
+			Dependencies: ncds,
+		}
+
+		if err := cache.Set(jsonnetImport, ne); err != nil {
+			return err
+		}
+	}
+
+	logrus.Infof("(after) cache keys %s", strings.Join(cache.Keys(), ","))
 
 	return nil
 }

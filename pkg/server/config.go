@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"fmt"
 
+	"github.com/bryanl/jsonnet-language-server/pkg/analysis/lexical/locate"
+
 	"github.com/pkg/errors"
 )
 
@@ -16,6 +18,7 @@ const (
 type Config struct {
 	// JsonnetLibPaths are jsonnet lib paths.
 	JsonnetLibPaths []string
+	NodeCache       *locate.NodeCache
 
 	dispatchers map[string]*Dispatcher
 }
@@ -24,6 +27,7 @@ type Config struct {
 func NewConfig() *Config {
 	return &Config{
 		JsonnetLibPaths: make([]string, 0),
+		NodeCache:       locate.NewNodeCache(),
 
 		dispatchers: map[string]*Dispatcher{},
 	}

@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 	"runtime/debug"
 
-	"github.com/bryanl/jsonnet-language-server/pkg/analysis/lexical/token"
+	"github.com/bryanl/jsonnet-language-server/pkg/analysis/lexical/locate"
 	"github.com/bryanl/jsonnet-language-server/pkg/lsp"
 	"github.com/pkg/errors"
 	uuid "github.com/satori/go.uuid"
@@ -26,14 +26,22 @@ var operations = map[string]operation{
 	"updateClientConfiguration": updateClientConfiguration,
 }
 
+type lspHandler struct {
+	logger    logrus.FieldLogger
+	config    *Config
+	decoder   *requestDecoder
+	nodeCache *locate.NodeCache
+}
+
 // NewHandler creates a handler to handle rpc commands.
 func NewHandler(logger logrus.FieldLogger) jsonrpc2.Handler {
 	config := NewConfig()
 
 	return &lspHandler{
-		logger:  logger.WithField("component", "handler"),
-		decoder: &requestDecoder{},
-		config:  config,
+		logger:    logger.WithField("component", "handler"),
+		decoder:   &requestDecoder{},
+		config:    config,
+		nodeCache: locate.NewNodeCache(),
 	}
 }
 
@@ -75,12 +83,6 @@ func (r *request) RegisterCapability(method string, options interface{}) (string
 	}
 
 	return id.String(), nil
-}
-
-type lspHandler struct {
-	logger  logrus.FieldLogger
-	config  *Config
-	decoder *requestDecoder
 }
 
 func (lh *lspHandler) Handle(ctx context.Context, conn *jsonrpc2.Conn, req *jsonrpc2.Request) {
@@ -215,6 +217,20 @@ func updateClientConfiguration(r *request, c *Config) (interface{}, error) {
 	return nil, nil
 }
 
+func updateNodeCache(r *request, c *Config, uri string) {
+	path, err := uriToPath(uri)
+	if err != nil {
+		r.log().WithError(err).Error("converting URI to path")
+		return
+	}
+
+	if err := locate.UpdateNodeCache(path, c.JsonnetLibPaths, c.NodeCache); err != nil {
+		r.log().WithError(err).
+			WithField("uri", path).
+			Error("updating node cache")
+	}
+}
+
 func textDocumentDidOpen(r *request, c *Config) (interface{}, error) {
 	var dotdp lsp.DidOpenTextDocumentParams
 	if err := r.Decode(&dotdp); err != nil {
@@ -223,18 +239,7 @@ func textDocumentDidOpen(r *request, c *Config) (interface{}, error) {
 
 	r.log().WithField("uri", dotdp.TextDocument.URI).Info("opened file")
 
-	path, err := uriToPath(dotdp.TextDocument.URI)
-	if err != nil {
-		return nil, err
-	}
-
-	ic := token.NewImportCollector(c.JsonnetLibPaths)
-	imports, err := ic.Collect(path, true)
-	if err != nil {
-		return nil, err
-	}
-
-	r.log().WithField("imports", imports).Info("found imports")
+	go updateNodeCache(r, c, dotdp.TextDocument.URI)
 
 	return nil, nil
 }
@@ -256,6 +261,9 @@ func textDocumentDidClose(r *request, c *Config) (interface{}, error) {
 	}
 
 	r.log().WithField("uri", dotdp.TextDocument.URI).Info("closed file")
+
+	go updateNodeCache(r, c, dotdp.TextDocument.URI)
+
 	return nil, nil
 }
 
