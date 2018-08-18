@@ -3,12 +3,8 @@ package locate
 import (
 	"bytes"
 	"fmt"
-	"io/ioutil"
-	"os"
-	"path/filepath"
 
 	"github.com/bryanl/jsonnet-language-server/pkg/analysis/lexical/astext"
-	jsonnet "github.com/google/go-jsonnet"
 	"github.com/google/go-jsonnet/ast"
 	"github.com/google/go-jsonnet/parser"
 	"github.com/pkg/errors"
@@ -36,7 +32,7 @@ type Locatable struct {
 	Env    Env
 }
 
-func (l *Locatable) Resolve() (*Resolved, error) {
+func (l *Locatable) Resolve(jPaths []string, cache *NodeCache) (*Resolved, error) {
 	if l == nil {
 		return nil, errors.Errorf("locatable is nil")
 	}
@@ -45,7 +41,7 @@ func (l *Locatable) Resolve() (*Resolved, error) {
 
 	switch t := l.Token.(type) {
 	case *ast.Var:
-		return l.handleVar(t)
+		return l.handleVar(t, jPaths, cache)
 	case *ast.Index:
 		return l.handleIndex(t)
 	case ast.Identifier:
@@ -240,10 +236,10 @@ func (l *Locatable) handleFunction(f *ast.Function) (*Resolved, error) {
 
 }
 
-func (l *Locatable) handleVar(t *ast.Var) (*Resolved, error) {
+func (l *Locatable) handleVar(t *ast.Var, jPaths []string, cache *NodeCache) (*Resolved, error) {
 	if ref, ok := l.Env[string(t.Id)]; ok {
 		logrus.Debugf("%s points to a %T", t.Id, ref.Token)
-		s, err := resolvedIdentifier(ref.Token)
+		s, err := resolvedIdentifier(ref.Token, jPaths, cache)
 		if err != nil {
 			return nil, err
 		}
@@ -259,10 +255,10 @@ func (l *Locatable) handleVar(t *ast.Var) (*Resolved, error) {
 	return nil, ErrUnresolvable
 }
 
-func resolvedIdentifier(item interface{}) (string, error) {
+func resolvedIdentifier(item interface{}, jPaths []string, cache *NodeCache) (string, error) {
 	switch t := item.(type) {
 	case *ast.Import:
-		return importDescription(t)
+		return importDescription(t, jPaths, cache)
 	case *ast.Object:
 		return astext.ObjectDescription(t)
 	default:
@@ -271,47 +267,18 @@ func resolvedIdentifier(item interface{}) (string, error) {
 	}
 }
 
-func importDescription(i *ast.Import) (string, error) {
-	// TODO this needs to come from somewhere else
-	jPaths := []string{
-		"/Users/bryan/Development/heptio/infratoo/lib/v1.8.0",
-		"/Users/bryan/go/src/github.com/bryanl/jsonnet-language-server/pkg/analysis/lexical/testdata/lexical",
-	}
-
-	// node, err := importSource2(jPaths, i.File.Value)
-	node, err := evalSource(jPaths, i.File.Value)
+func importDescription(i *ast.Import, jPaths []string, cache *NodeCache) (string, error) {
+	ne, err := cache.Get(i.File.Value)
 	if err != nil {
-		return "", err
+		switch err.(type) {
+		case *NodeCacheMissErr:
+			return "node cache miss", nil
+		default:
+			return "", err
+		}
 	}
 
-	// spew.Dump(node)
-	node.Context()
-	return resolvedIdentifier(node)
-
-}
-
-func importSource2(paths []string, name string) (ast.Node, error) {
-	for _, jPath := range paths {
-		sourcePath := filepath.Join(jPath, name)
-		if _, err := os.Stat(sourcePath); os.IsNotExist(err) {
-			continue
-		}
-
-		/* #nosec */
-		source, err := ioutil.ReadFile(sourcePath)
-		if err != nil {
-			return nil, err
-		}
-
-		node, err := parse(sourcePath, string(source))
-		if err != nil {
-			return nil, err
-		}
-
-		return findNonLocal(node)
-	}
-
-	return nil, errors.Errorf("unable to find import %q", name)
+	return resolvedIdentifier(ne.Node, jPaths, cache)
 }
 
 func findNonLocal(node ast.Node) (ast.Node, error) {
@@ -324,31 +291,6 @@ func findNonLocal(node ast.Node) (ast.Node, error) {
 	}
 
 	return node, nil
-}
-
-func evalSource(paths []string, name string) (ast.Node, error) {
-	for _, jPath := range paths {
-		sourcePath := filepath.Join(jPath, name)
-		if _, err := os.Stat(sourcePath); os.IsNotExist(err) {
-			continue
-		}
-
-		/* #nosec */
-		source, err := ioutil.ReadFile(sourcePath)
-		if err != nil {
-			return nil, err
-		}
-
-		vm := jsonnet.MakeVM()
-		importer := &jsonnet.FileImporter{
-			JPaths: paths,
-		}
-		vm.Importer(importer)
-
-		return vm.EvaluateToNode(sourcePath, string(source))
-	}
-
-	return nil, errors.Errorf("unable to find import %q", name)
 }
 
 func (l *Locatable) IsFunctionParam() bool {

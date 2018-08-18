@@ -2,12 +2,17 @@ package locate
 
 import (
 	"fmt"
+	"io/ioutil"
+	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/bryanl/jsonnet-language-server/pkg/analysis/lexical/token"
+	jsonnet "github.com/google/go-jsonnet"
 	"github.com/google/go-jsonnet/ast"
+	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 )
 
@@ -114,8 +119,13 @@ func UpdateNodeCache(path string, libPaths []string, cache *NodeCache) error {
 			ncds = append(ncds, ncd)
 		}
 
+		node, err := sourceToNode(libPaths, jsonnetImport)
+		if err != nil {
+			return err
+		}
+
 		ne := &NodeEntry{
-			Node:         &ast.Object{},
+			Node:         node,
 			Dependencies: ncds,
 		}
 
@@ -127,4 +137,29 @@ func UpdateNodeCache(path string, libPaths []string, cache *NodeCache) error {
 	logrus.Infof("(after) cache keys %s", strings.Join(cache.Keys(), ","))
 
 	return nil
+}
+
+func sourceToNode(libPaths []string, name string) (ast.Node, error) {
+	for _, libPath := range libPaths {
+		sourcePath := filepath.Join(libPath, name)
+		if _, err := os.Stat(sourcePath); os.IsNotExist(err) {
+			continue
+		}
+
+		/* #nosec */
+		source, err := ioutil.ReadFile(sourcePath)
+		if err != nil {
+			return nil, err
+		}
+
+		vm := jsonnet.MakeVM()
+		importer := &jsonnet.FileImporter{
+			JPaths: libPaths,
+		}
+		vm.Importer(importer)
+
+		return vm.EvaluateToNode(sourcePath, string(source))
+	}
+
+	return nil, errors.Errorf("unable to find import %q", name)
 }

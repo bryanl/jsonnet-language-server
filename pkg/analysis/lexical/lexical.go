@@ -12,7 +12,7 @@ var (
 	emptyHover = &lsp.Hover{}
 )
 
-func HoverAtLocation(filename string, r io.Reader, l, c int) (*lsp.Hover, error) {
+func HoverAtLocation(filename string, r io.Reader, l, c int, jPaths []string, cache *locate.NodeCache) (*lsp.Hover, error) {
 	loc := ast.Location{
 		Line:   l,
 		Column: c,
@@ -32,7 +32,7 @@ func HoverAtLocation(filename string, r io.Reader, l, c int) (*lsp.Hover, error)
 		return emptyHover, nil
 	}
 
-	resolved, err := locatable.Resolve()
+	resolved, err := locatable.Resolve(jPaths, cache)
 	if err != nil {
 		if err == locate.ErrUnresolvable {
 			return emptyHover, nil

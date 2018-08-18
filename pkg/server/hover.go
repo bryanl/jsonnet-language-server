@@ -11,11 +11,13 @@ import (
 
 type hover struct {
 	params lsp.TextDocumentPositionParams
+	config *Config
 }
 
-func newHover(params lsp.TextDocumentPositionParams) *hover {
+func newHover(params lsp.TextDocumentPositionParams, c *Config) *hover {
 	return &hover{
 		params: params,
+		config: c,
 	}
 }
 
@@ -25,12 +27,13 @@ func (h *hover) handle() (interface{}, error) {
 		return nil, err
 	}
 
+	/* nosec */
 	f, err := os.Open(path)
 	if err != nil {
 		return nil, errors.Wrap(err, "opening file")
 	}
 
-	return lexical.HoverAtLocation(path, f, h.params.Position.Line+1, h.params.Position.Character+1)
+	return lexical.HoverAtLocation(path, f, h.params.Position.Line+1, h.params.Position.Character+1, h.config.JsonnetLibPaths, h.config.NodeCache)
 }
 
 func uriToPath(uri string) (string, error) {
