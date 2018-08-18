@@ -18,6 +18,7 @@ func NewHandler(logger logrus.FieldLogger) jsonrpc2.Handler {
 
 type lspHandler struct {
 	logger logrus.FieldLogger
+	config *Config
 }
 
 func (lh *lspHandler) Handle(ctx context.Context, conn *jsonrpc2.Conn, req *jsonrpc2.Request) {
@@ -41,9 +42,16 @@ func (lh *lspHandler) Handle(ctx context.Context, conn *jsonrpc2.Conn, req *json
 			return
 		}
 
+		var err error
+		lh.config, err = loadConfig(ip.InitializationOptions)
+		if err != nil {
+			l.WithError(err).Error("initialization options")
+		}
+
 		l.WithFields(logrus.Fields{
 			"workspace": ip.RootPath,
-		}).Info("initialzing")
+			"config":    lh.config,
+		}).Info("initializing")
 
 		response = &lsp.InitializeResult{
 			Capabilities: lsp.ServerCapabilities{
