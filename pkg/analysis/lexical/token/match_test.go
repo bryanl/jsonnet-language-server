@@ -36,9 +36,6 @@ func assertTokens(t *testing.T, expected, got []Token) {
 				i, expected[i].Kind.String(), got[i].Kind.String())
 			assert.Equal(t, expected[i].Data, got[i].Data)
 		}
-	} else {
-		t.Logf("this is what I wanted")
-		printTokens(got...)
 	}
 }
 
@@ -115,8 +112,6 @@ func TestMatch_FindObjectField(t *testing.T) {
 				require.Error(t, err)
 				return
 			}
-
-			printTokens(got...)
 
 			require.NoError(t, err)
 			assertTokens(t, tc.expected, got)
