@@ -5,9 +5,7 @@ import (
 	"encoding/json"
 	"flag"
 	"os"
-	"path/filepath"
 	"sync"
-	"time"
 
 	"github.com/bryanl/jsonnet-language-server/pkg/server"
 
@@ -46,16 +44,17 @@ func initLogger(debug bool) logrus.FieldLogger {
 	logger := logrus.New()
 	logger.Formatter = &logrus.TextFormatter{}
 
-	logName := filepath.Join("/tmp", "jsp-"+time.Now().Format("20060102150405")+".log")
-	logger.WithField("log-path", logName).Info("configuring log output")
+	// TODO set up an option to configure logging to a file or stderr
+	// logName := filepath.Join("/tmp", "jsp-"+time.Now().Format("20060102150405")+".log")
+	// logger.WithField("log-path", logName).Info("configuring log output")
 
-	f, err := os.OpenFile(logName, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0600)
-	if err != nil {
-		logger.WithError(err).Fatal("unable to open log file")
-	}
+	// f, err := os.OpenFile(logName, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0600)
+	// if err != nil {
+	// 	logger.WithError(err).Fatal("unable to open log file")
+	// }
 
-	logger.SetOutput(f)
-	logrus.SetOutput(f)
+	// logger.SetOutput(f)
+	// logrus.SetOutput(f)
 
 	if debug {
 		logger.SetLevel(logrus.DebugLevel)

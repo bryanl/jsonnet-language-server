@@ -28,18 +28,31 @@ func (e *NodeCacheMissErr) Error() string {
 // NodeCacheDependency is a depedency of a cached item.
 type NodeCacheDependency struct {
 	Name      string
-	UpdatedAt *time.Time
+	UpdatedAt time.Time
 }
 
 // NodeEntry is an entry in the NodeCache.
 type NodeEntry struct {
 	Node         ast.Node
 	Dependencies []NodeCacheDependency
+
+	libPaths []string
+	filename string
+}
+
+// NewNodeEntry creates an instance of NodeEntry.
+func NewNodeEntry(deps []NodeCacheDependency, libPaths []string, filename string) *NodeEntry {
+	return &NodeEntry{
+		Dependencies: deps,
+		libPaths:     libPaths,
+		filename:     filename,
+	}
 }
 
 // NodeCache is a cache for nodes.
 type NodeCache struct {
-	store map[string]NodeEntry
+	store       map[string]NodeEntry
+	nodeBuilder NodeBuilder
 
 	mu sync.Mutex
 }
@@ -47,7 +60,8 @@ type NodeCache struct {
 // NewNodeCache creates an instance of NodeCache.
 func NewNodeCache() *NodeCache {
 	c := &NodeCache{
-		store: make(map[string]NodeEntry),
+		store:       make(map[string]NodeEntry),
+		nodeBuilder: &nodeBuilder{},
 	}
 
 	return c
@@ -84,13 +98,52 @@ func (c *NodeCache) Set(key string, e *NodeEntry) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	c.store[key] = *e
+	existing, ok := c.store[key]
+	if !ok {
+		logrus.WithField("key", key).Info("setting new cache entry")
+		return c.set(key, e)
+	}
 
+	isUpdate := false
+
+	for _, dep := range e.Dependencies {
+		for _, existingDep := range existing.Dependencies {
+			if existingDep.Name == dep.Name &&
+				dep.UpdatedAt.After(existingDep.UpdatedAt) {
+				isUpdate = true
+			}
+		}
+	}
+
+	if isUpdate {
+		logrus.WithField("key", key).Info("updating existing cache entry")
+		return c.set(key, e)
+	} else {
+		logrus.WithField("key", key).Info("cache entry is up to date")
+	}
+
+	return nil
+}
+
+func (c *NodeCache) set(key string, e *NodeEntry) error {
+	now := time.Now()
+	defer func() {
+		logrus.WithField("elapsed", time.Since(now)).Info("node evaluate time")
+	}()
+
+	node, err := c.nodeBuilder.Build(e.libPaths, e.filename)
+	if err != nil {
+		return err
+	}
+
+	e.Node = node
+	c.store[key] = *e
 	return nil
 }
 
 // UpdateNodeCache updates the node cache using a file.
 func UpdateNodeCache(path string, libPaths []string, cache *NodeCache) error {
+
 	ic := token.NewImportCollector(libPaths)
 	imports, err := ic.Collect(path, true)
 	if err != nil {
@@ -112,23 +165,27 @@ func UpdateNodeCache(path string, libPaths []string, cache *NodeCache) error {
 
 		ncds := []NodeCacheDependency{}
 		for _, importImport := range importImports {
+			importPath, err := token.ImportPath(importImport, libPaths)
+			if err != nil {
+				return errors.Wrap(err, "finding path for import in import")
+			}
+
+			logrus.Infof("statting %s", importPath)
+			fi, err := os.Stat(importPath)
+			if err != nil {
+				return err
+			}
+
+			logrus.Info("building cache dependency")
 			ncd := NodeCacheDependency{
-				Name: importImport,
+				Name:      importImport,
+				UpdatedAt: fi.ModTime(),
 			}
 
 			ncds = append(ncds, ncd)
 		}
 
-		node, err := sourceToNode(libPaths, jsonnetImport)
-		if err != nil {
-			return err
-		}
-
-		ne := &NodeEntry{
-			Node:         node,
-			Dependencies: ncds,
-		}
-
+		ne := NewNodeEntry(ncds, libPaths, jsonnetImport)
 		if err := cache.Set(jsonnetImport, ne); err != nil {
 			return err
 		}
@@ -139,7 +196,15 @@ func UpdateNodeCache(path string, libPaths []string, cache *NodeCache) error {
 	return nil
 }
 
-func sourceToNode(libPaths []string, name string) (ast.Node, error) {
+// NodeBuilder builds ast.Node from source.
+type NodeBuilder interface {
+	Build(libPaths []string, name string) (ast.Node, error)
+}
+
+type nodeBuilder struct {
+}
+
+func (nb *nodeBuilder) Build(libPaths []string, name string) (ast.Node, error) {
 	for _, libPath := range libPaths {
 		sourcePath := filepath.Join(libPath, name)
 		if _, err := os.Stat(sourcePath); os.IsNotExist(err) {

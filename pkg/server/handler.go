@@ -251,6 +251,9 @@ func textDocumentDidSave(r *request, c *Config) (interface{}, error) {
 	}
 
 	r.log().WithField("uri", dotdp.TextDocument.URI).Info("saved file")
+
+	go updateNodeCache(r, c, dotdp.TextDocument.URI)
+
 	return nil, nil
 }
 
