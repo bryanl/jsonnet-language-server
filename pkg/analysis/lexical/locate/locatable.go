@@ -76,41 +76,17 @@ func (l *Locatable) handleImport(i *ast.Import) (*Resolved, error) {
 }
 
 func (l *Locatable) handleIndex(i *ast.Index, cache *NodeCache) (*Resolved, error) {
-	var indices []string
-	var cur ast.Node = i
-	for {
-		switch t := cur.(type) {
-		case *ast.Index:
-			cur = t.Target
-
-			if t.Id == nil {
-				return nil, errors.New("index didn't have an id")
-			}
-			indices = append([]string{string(*t.Id)}, indices...)
-		case *ast.Var:
-			varID := string(t.Id)
-			if x, ok := l.Env[varID]; ok {
-				logrus.Debugf("it points to a %T", x.Token)
-
-				description, err := describe(x.Token, indices, cache)
-				if err != nil {
-					return nil, err
-				}
-
-				result := &Resolved{
-					Location:    x.Loc,
-					Token:       l.Token,
-					Description: description,
-				}
-
-				return result, nil
-			}
-
-			return nil, errors.Errorf("could not find %s in env", varID)
-		default:
-			return nil, errors.Errorf("unable to handle index target of type %T", t)
-		}
+	description, err := resolvedIndex(i, cache, l.Env)
+	if err != nil {
+		return nil, err
 	}
+
+	result := &Resolved{
+		Token:       l.Token,
+		Description: description,
+	}
+
+	return result, nil
 }
 
 func (l *Locatable) handleNamedParameter(p ast.NamedParameter) (*Resolved, error) {
@@ -238,7 +214,7 @@ func (l *Locatable) handleFunction(f *ast.Function) (*Resolved, error) {
 func (l *Locatable) handleVar(t *ast.Var, jPaths []string, cache *NodeCache) (*Resolved, error) {
 	if ref, ok := l.Env[string(t.Id)]; ok {
 		logrus.Debugf("%s points to a %T", t.Id, ref.Token)
-		s, err := resolvedIdentifier(ref.Token, jPaths, cache)
+		s, err := resolvedIdentifier(ref.Token, jPaths, cache, l.Env)
 		if err != nil {
 			return nil, err
 		}
@@ -254,19 +230,48 @@ func (l *Locatable) handleVar(t *ast.Var, jPaths []string, cache *NodeCache) (*R
 	return nil, ErrUnresolvable
 }
 
-func resolvedIdentifier(item interface{}, jPaths []string, cache *NodeCache) (string, error) {
+func resolvedIdentifier(item interface{}, jPaths []string, cache *NodeCache, env Env) (string, error) {
 	switch t := item.(type) {
 	case *ast.Import:
-		return importDescription(t, jPaths, cache)
+		return importDescription(t, jPaths, cache, env)
+	case *ast.Index:
+		return resolvedIndex(t, cache, env)
 	case *ast.Object:
 		return astext.ObjectDescription(t)
 	default:
 		logrus.Debugf("resolvedIdentifer: unable to resolve %T", t)
-		return astext.TokenName(item), nil
+		return fmt.Sprintf("resolvedIdentifer %T: %s", t, astext.TokenName(item)), nil
 	}
 }
 
-func importDescription(i *ast.Import, jPaths []string, cache *NodeCache) (string, error) {
+func resolvedIndex(i *ast.Index, cache *NodeCache, env Env) (string, error) {
+	var indices []string
+	var cur ast.Node = i
+	for {
+		switch t := cur.(type) {
+		case *ast.Index:
+			cur = t.Target
+
+			if t.Id == nil {
+				return "", errors.New("index didn't have an id")
+			}
+			indices = append([]string{string(*t.Id)}, indices...)
+		case *ast.Var:
+			varID := string(t.Id)
+			if x, ok := env[varID]; ok {
+				logrus.Debugf("it points to a %T", x.Token)
+
+				return describe(x.Token, indices, cache)
+			}
+
+			return "", errors.Errorf("could not find %s in env", varID)
+		default:
+			return "", errors.Errorf("unable to handle index target of type %T", t)
+		}
+	}
+}
+
+func importDescription(i *ast.Import, jPaths []string, cache *NodeCache, env Env) (string, error) {
 	ne, err := cache.Get(i.File.Value)
 	if err != nil {
 		switch err.(type) {
@@ -277,7 +282,7 @@ func importDescription(i *ast.Import, jPaths []string, cache *NodeCache) (string
 		}
 	}
 
-	return resolvedIdentifier(ne.Node, jPaths, cache)
+	return resolvedIdentifier(ne.Node, jPaths, cache, env)
 }
 
 func describe(item interface{}, indicies []string, cache *NodeCache) (string, error) {
