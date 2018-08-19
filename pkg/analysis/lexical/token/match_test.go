@@ -97,6 +97,16 @@ func TestMatch_FindObjectField(t *testing.T) {
 			},
 		},
 		{
+			name:      "find local field",
+			fieldName: "z",
+			expected: Tokens{
+				createToken(TokenLocal, "local"),
+				createToken(TokenIdentifier, "z"),
+				createToken(TokenOperator, "="),
+				createToken(TokenStringDouble, "1"),
+			},
+		},
+		{
 			name:      "find invalid field",
 			fieldName: "invalid",
 			isErr:     true,

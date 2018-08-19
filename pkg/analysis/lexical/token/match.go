@@ -57,29 +57,59 @@ func (m *Match) FindObjectField(loc ast.Location, name string) (Tokens, error) {
 	}
 
 	for i := objectStartPos + 1; i < m.len(); i++ {
-		m.pos = i
-		found, err := m.findFieldName()
-		if err != nil {
-			return nil, err
-		}
+		if m.kind(i) == TokenLocal {
+			end, err := m.Objlocal(i)
+			if err != nil {
+				return nil, err
+			}
 
-		fieldEndPos, err := m.Field(i)
-		if err != nil {
-			return nil, err
-		}
+			if m.kind(i+1) == TokenIdentifier &&
+				name == m.data(i+1) {
+				return m.Tokens[i : end+1], nil
+			}
 
-		if name == found {
-			return m.Tokens[i : fieldEndPos+1], nil
-		}
+			if m.hasTrailingComma(end) {
+				end++
+			}
 
-		i = fieldEndPos
+			i = end
 
-		if m.hasTrailingComma(i) {
-			i++
-		}
+		} else if m.kind(i) == TokenAssert {
+			end, err := m.Assert(i)
+			if err != nil {
+				return nil, err
+			}
 
-		if m.kind(i+1) == TokenBraceR {
-			return nil, errors.Errorf("was not able to find field %s in object")
+			if m.hasTrailingComma(end) {
+				end++
+			}
+
+			i = end
+		} else {
+			m.pos = i
+			found, err := m.findFieldName()
+			if err != nil {
+				return nil, err
+			}
+
+			fieldEndPos, err := m.Field(i)
+			if err != nil {
+				return nil, err
+			}
+
+			if name == found {
+				return m.Tokens[i : fieldEndPos+1], nil
+			}
+
+			i = fieldEndPos
+
+			if m.hasTrailingComma(i) {
+				i++
+			}
+
+			if m.kind(i+1) == TokenBraceR {
+				return nil, errors.Errorf("was not able to find field %q in object", name)
+			}
 		}
 	}
 
@@ -93,9 +123,12 @@ func (m *Match) findFieldName() (string, error) {
 		return m.data(m.pos), nil
 	} else if m.kind(m.pos) == TokenBracketL {
 		return fmt.Sprintf("[%s]", m.data(m.pos+1)), nil
+	} else if m.kind(m.pos) == TokenLocal {
+		return TokenLocal.String(), nil
 	}
 
-	return "", errors.New("invalid field name")
+	return "", errors.Errorf("invalid field name at %s; token = %s",
+		m.Tokens[m.pos].Loc.String(), m.kind(m.pos))
 }
 
 func (m *Match) bind() (int, int, error) {
@@ -201,6 +234,11 @@ func (m *Match) expr(pos int) (int, error) {
 	if pos > len(m.Tokens)-1 {
 		return 0, errors.New("position overflows tokens")
 	}
+
+	if m.isKind(pos, []TokenKind{TokenComma}) {
+		pos++
+	}
+
 	t := m.Tokens[pos]
 
 	switch t.Kind {
@@ -382,7 +420,8 @@ func (m *Match) expr(pos int) (int, error) {
 		return 0, errors.New("super not matched")
 	}
 
-	return 0, errors.Errorf("expr: token %q not matched", m.data(pos))
+	loc := m.loc(pos)
+	return 0, errors.Errorf("expr: token %q not matched at %s", m.data(pos), loc.String())
 }
 
 func (m *Match) arrayComprehension(pos int) (int, error) {
@@ -403,7 +442,7 @@ func (m *Match) arrayComprehension(pos int) (int, error) {
 // nolint: gocyclo
 func (m *Match) Objinside(pos int) (int, error) {
 	if m.kind(pos) != TokenBraceL {
-		return 0, errors.New("expected '{'")
+		return 0, errors.Errorf("expected '{' at %s", m.locString(pos))
 	}
 
 	if m.kind(pos+1) == TokenBraceR {
@@ -605,13 +644,34 @@ func (m *Match) Field(pos int) (int, error) {
 	return 0, errors.New("did not match a field")
 }
 
+func (m *Match) isKind(pos int, kinds []TokenKind) bool {
+	posKind := m.kind(pos)
+
+	for _, kind := range kinds {
+		if posKind == kind {
+			return true
+		}
+	}
+
+	return false
+}
+
 // Params returns the ending position of params starting at pos.
 func (m *Match) Params(pos int) (int, error) {
 	inOptional := false
 	for cur := pos; cur < len(m.Tokens)-1; cur++ {
-		if m.kind(cur) != TokenIdentifier {
-			return 0, errors.Errorf("expected an identifier at %d", cur)
-		}
+
+		// cur, err := m.Expr(cur)
+		// if err != nil {
+		// 	return 0, err
+		// }
+
+		// if (m.kind(cur) != TokenIdentifier) && (!m.isString(cur)) &&
+		// 	m.kind(cur) != TokenNumber && m.kind(cur) != TokenSelf {
+		// 	loc := m.loc(cur)
+		// 	return 0, errors.Errorf("expected an identifier at %d (%s) was %s",
+		// 		cur, loc.String(), m.kind(cur))
+		// }
 
 		if m.kind(cur+1) == TokenComma {
 			if inOptional {
@@ -723,6 +783,15 @@ func (m *Match) handleSliceOperator(pos int) (int, error) {
 	}
 
 	return 0, errors.New("expected ] after expression")
+}
+
+func (m *Match) loc(pos int) ast.LocationRange {
+	return m.Tokens[pos].Loc
+}
+
+func (m *Match) locString(pos int) string {
+	loc := m.Tokens[pos].Loc
+	return loc.String()
 }
 
 func (m *Match) kind(pos int) TokenKind {
