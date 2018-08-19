@@ -22,7 +22,7 @@ type NodeCacheMissErr struct {
 }
 
 func (e *NodeCacheMissErr) Error() string {
-	return fmt.Sprintf("%q did not exist", e.key)
+	return fmt.Sprintf("%q did not exist in cache", e.key)
 }
 
 // NodeCacheDependency is a depedency of a cached item.

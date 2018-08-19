@@ -42,7 +42,7 @@ func (l *Locatable) Resolve(jPaths []string, cache *NodeCache) (*Resolved, error
 	case *ast.Var:
 		return l.handleVar(t, jPaths, cache)
 	case *ast.Index:
-		return l.handleIndex(t)
+		return l.handleIndex(t, cache)
 	case ast.Identifier:
 		return l.handleDefault()
 	case *ast.Identifier:
@@ -75,7 +75,7 @@ func (l *Locatable) handleImport(i *ast.Import) (*Resolved, error) {
 	return resolved, nil
 }
 
-func (l *Locatable) handleIndex(i *ast.Index) (*Resolved, error) {
+func (l *Locatable) handleIndex(i *ast.Index, cache *NodeCache) (*Resolved, error) {
 	var indices []string
 	var cur ast.Node = i
 	for {
@@ -92,7 +92,7 @@ func (l *Locatable) handleIndex(i *ast.Index) (*Resolved, error) {
 			if x, ok := l.Env[varID]; ok {
 				logrus.Debugf("it points to a %T", x.Token)
 
-				description, err := describe(x.Token, indices)
+				description, err := describe(x.Token, indices, cache)
 				if err != nil {
 					return nil, err
 				}
@@ -280,16 +280,28 @@ func importDescription(i *ast.Import, jPaths []string, cache *NodeCache) (string
 	return resolvedIdentifier(ne.Node, jPaths, cache)
 }
 
-func describe(item interface{}, indicies []string) (string, error) {
+func describe(item interface{}, indicies []string, cache *NodeCache) (string, error) {
 	switch t := item.(type) {
 	case *ast.Object:
-		return describeInObject(t, indicies)
+		return describeInObject(t, indicies, cache)
+	case *ast.Import:
+		ne, err := cache.Get(t.File.Value)
+		if err != nil {
+			switch err.(type) {
+			case *NodeCacheMissErr:
+				return "node cache miss", nil
+			default:
+				return "", err
+			}
+		}
+
+		return describe(ne.Node, indicies, cache)
 	default:
 		return astext.TokenName(t), nil
 	}
 }
 
-func describeInObject(o *ast.Object, indicies []string) (string, error) {
+func describeInObject(o *ast.Object, indicies []string, cache *NodeCache) (string, error) {
 	if len(indicies) == 0 {
 		return astext.ObjectDescription(o)
 	}
@@ -300,7 +312,7 @@ func describeInObject(o *ast.Object, indicies []string) (string, error) {
 			continue
 		}
 
-		return describe(f.Expr2, indicies[1:])
+		return describe(f.Expr2, indicies[1:], cache)
 	}
 
 	return "", errors.Errorf("unable to find field %q n object", indicies[0])
