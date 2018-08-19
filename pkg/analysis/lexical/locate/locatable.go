@@ -3,8 +3,10 @@ package locate
 import (
 	"bytes"
 	"fmt"
+	"os"
 
 	"github.com/bryanl/jsonnet-language-server/pkg/analysis/lexical/astext"
+	"github.com/davecgh/go-spew/spew"
 	"github.com/google/go-jsonnet/ast"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
@@ -44,9 +46,9 @@ func (l *Locatable) Resolve(jPaths []string, cache *NodeCache) (*Resolved, error
 	case *ast.Index:
 		return l.handleIndex(t, cache)
 	case ast.Identifier:
-		return l.handleDefault()
+		return l.handleDefault(cache, jPaths)
 	case *ast.Identifier:
-		return l.handleDefault()
+		return l.handleDefault(cache, jPaths)
 	case *ast.Import:
 		return l.handleImport(t)
 	case ast.LocalBind:
@@ -113,16 +115,15 @@ func (l *Locatable) handleRequiredParameter(p astext.RequiredParameter) (*Resolv
 	return result, nil
 }
 
-func (l *Locatable) handleDefault() (*Resolved, error) {
+func (l *Locatable) handleDefault(cache *NodeCache, jPaths []string) (*Resolved, error) {
 	var name string
 	var err error
 
 	switch t := l.Parent.Token.(type) {
 	case ast.LocalBind:
-		logrus.Debug("bind output")
-		name, err = bindOutput(t)
+		name, err = bindOutput(t, cache, l.Env, jPaths)
 	default:
-		logrus.Debug("default output")
+		logrus.Infof("handleDefault: %T", t)
 		name = astext.TokenName(l.Token)
 	}
 
@@ -141,7 +142,7 @@ func (l *Locatable) handleDefault() (*Resolved, error) {
 	return resolved, nil
 }
 
-func bindOutput(bind ast.LocalBind) (string, error) {
+func bindOutput(bind ast.LocalBind, cache *NodeCache, env Env, jPaths []string) (string, error) {
 	var name string
 
 	switch t := bind.Body.(type) {
@@ -153,6 +154,10 @@ func bindOutput(bind ast.LocalBind) (string, error) {
 		name = "function"
 	case *ast.Object:
 		return astext.ObjectDescription(t)
+	case *ast.Index:
+		return resolvedIndex(t, cache, env)
+	case *ast.Var:
+		return resolvedVar(t, jPaths, cache, env)
 	default:
 		return fmt.Sprintf("(unknown) %s: %T", string(bind.Variable), t), nil
 	}
@@ -230,6 +235,15 @@ func (l *Locatable) handleVar(t *ast.Var, jPaths []string, cache *NodeCache) (*R
 	return nil, ErrUnresolvable
 }
 
+func resolvedVar(t *ast.Var, jPaths []string, cache *NodeCache, env Env) (string, error) {
+	if ref, ok := env[string(t.Id)]; ok {
+		logrus.Debugf("%s points to a %T", t.Id, ref.Token)
+		return resolvedIdentifier(ref.Token, jPaths, cache, env)
+	}
+
+	return "", ErrUnresolvable
+}
+
 func resolvedIdentifier(item interface{}, jPaths []string, cache *NodeCache, env Env) (string, error) {
 	switch t := item.(type) {
 	case *ast.Import:
@@ -239,7 +253,7 @@ func resolvedIdentifier(item interface{}, jPaths []string, cache *NodeCache, env
 	case *ast.Object:
 		return astext.ObjectDescription(t)
 	default:
-		logrus.Debugf("resolvedIdentifer: unable to resolve %T", t)
+		logrus.Infof("resolvedIdentifer: unable to resolve %T", t)
 		return fmt.Sprintf("resolvedIdentifer %T: %s", t, astext.TokenName(item)), nil
 	}
 }
@@ -261,7 +275,7 @@ func resolvedIndex(i *ast.Index, cache *NodeCache, env Env) (string, error) {
 			if x, ok := env[varID]; ok {
 				logrus.Debugf("it points to a %T", x.Token)
 
-				return describe(x.Token, indices, cache)
+				return describe(x.Token, indices, cache, env)
 			}
 
 			return "", errors.Errorf("could not find %s in env", varID)
@@ -285,10 +299,10 @@ func importDescription(i *ast.Import, jPaths []string, cache *NodeCache, env Env
 	return resolvedIdentifier(ne.Node, jPaths, cache, env)
 }
 
-func describe(item interface{}, indicies []string, cache *NodeCache) (string, error) {
+func describe(item interface{}, indicies []string, cache *NodeCache, env Env) (string, error) {
 	switch t := item.(type) {
 	case *ast.Object:
-		return describeInObject(t, indicies, cache)
+		return describeInObject(t, indicies, cache, env)
 	case *ast.Import:
 		ne, err := cache.Get(t.File.Value)
 		if err != nil {
@@ -300,13 +314,17 @@ func describe(item interface{}, indicies []string, cache *NodeCache) (string, er
 			}
 		}
 
-		return describe(ne.Node, indicies, cache)
+		return describe(ne.Node, indicies, cache, env)
+	case *ast.Index:
+		spew.Fdump(os.Stderr, t)
+		return resolvedIndex(t, cache, env)
 	default:
+		logrus.Infof("describe %T", t)
 		return astext.TokenName(t), nil
 	}
 }
 
-func describeInObject(o *ast.Object, indicies []string, cache *NodeCache) (string, error) {
+func describeInObject(o *ast.Object, indicies []string, cache *NodeCache, env Env) (string, error) {
 	if len(indicies) == 0 {
 		return astext.ObjectDescription(o)
 	}
@@ -317,7 +335,7 @@ func describeInObject(o *ast.Object, indicies []string, cache *NodeCache) (strin
 			continue
 		}
 
-		return describe(f.Expr2, indicies[1:], cache)
+		return describe(f.Expr2, indicies[1:], cache, env)
 	}
 
 	return "", errors.Errorf("unable to find field %q n object", indicies[0])
