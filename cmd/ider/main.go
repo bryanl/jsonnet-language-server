@@ -4,6 +4,9 @@ import (
 	"flag"
 	"log"
 	"os"
+	"strings"
+
+	"github.com/bryanl/jsonnet-language-server/pkg/analysis/lexical/locate"
 
 	"github.com/bryanl/jsonnet-language-server/pkg/analysis/lexical"
 	"github.com/davecgh/go-spew/spew"
@@ -12,6 +15,8 @@ import (
 )
 
 func main() {
+	var jlibPaths arrayFlags
+	flag.Var(&jlibPaths, "J", "jsonnet lib path")
 
 	filename := flag.String("filename", "", "filename")
 	line := flag.Int("l", 0, "line")
@@ -49,9 +54,10 @@ func main() {
 }
 
 type request struct {
-	Filename string
-	Line     int
-	Char     int
+	Filename  string
+	Line      int
+	Char      int
+	jlibPaths []string
 }
 
 func run(req request) error {
@@ -60,12 +66,25 @@ func run(req request) error {
 		return err
 	}
 
-	response, err := lexical.HoverAtLocation(req.Filename, f, req.Line, req.Char)
+	nodeCache := locate.NewNodeCache()
+
+	response, err := lexical.HoverAtLocation(req.Filename, f, req.Line, req.Char, req.jlibPaths, nodeCache)
 	if err != nil {
 		return err
 	}
 
 	spew.Dump(response)
 
+	return nil
+}
+
+type arrayFlags []string
+
+func (i *arrayFlags) String() string {
+	return strings.Join(*i, ", ")
+}
+
+func (i *arrayFlags) Set(value string) error {
+	*i = append(*i, value)
 	return nil
 }
