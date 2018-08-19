@@ -43,6 +43,14 @@ func createToken(kind TokenKind, data string) Token {
 	return Token{Kind: kind, Data: data}
 }
 
+func TestMatch_FindBeforeLocation(t *testing.T) {
+	m := initmatch(t, "findbeforeloc1.jsonnet")
+	i, err := m.FindBeforeLocation(createLoc(1, 2))
+	require.NoError(t, err)
+
+	assert.Equal(t, 0, i)
+}
+
 func TestMatch_FindObjectField(t *testing.T) {
 	cases := []struct {
 		name      string

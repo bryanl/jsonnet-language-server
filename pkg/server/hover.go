@@ -6,6 +6,7 @@ import (
 
 	"github.com/bryanl/jsonnet-language-server/pkg/analysis/lexical"
 	"github.com/bryanl/jsonnet-language-server/pkg/lsp"
+	"github.com/google/go-jsonnet/ast"
 	"github.com/pkg/errors"
 )
 
@@ -47,4 +48,11 @@ func uriToPath(uri string) (string, error) {
 	}
 
 	return u.Path, nil
+}
+
+func posToLoc(pos lsp.Position) ast.Location {
+	return ast.Location{
+		Line:   pos.Line + 1,
+		Column: pos.Character + 1,
+	}
 }

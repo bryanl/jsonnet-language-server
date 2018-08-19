@@ -3,9 +3,11 @@ package server
 import (
 	"encoding/json"
 	"fmt"
+	"io/ioutil"
 
 	"github.com/bryanl/jsonnet-language-server/pkg/analysis/lexical/locate"
 	"github.com/bryanl/jsonnet-language-server/pkg/lsp"
+	"github.com/sirupsen/logrus"
 
 	"github.com/pkg/errors"
 )
@@ -42,13 +44,29 @@ func NewConfig() *Config {
 
 // UpdateFile updates the local file cache.
 func (c *Config) UpdateFile(tdi lsp.TextDocumentItem) error {
-	path, err := uriToPath(tdi.URI)
+	c.Files[tdi.URI] = tdi
+	return nil
+}
+
+// Text retrieves text from our local cache or from the file system.
+func (c *Config) Text(uri string) (string, error) {
+	text, ok := c.Files[uri]
+	if ok {
+		logrus.Info("returning text from cache")
+		return text.Text, nil
+	}
+	logrus.Info("returning text from disk")
+	path, err := uriToPath(uri)
 	if err != nil {
-		return err
+		return "", err
 	}
 
-	c.Files[path] = tdi
-	return nil
+	data, err := ioutil.ReadFile(path)
+	if err != nil {
+		return "", err
+	}
+
+	return string(data), nil
 }
 
 // Watch will call `fn`` when key `k` is updated. It returns a

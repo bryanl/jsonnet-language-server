@@ -95,13 +95,11 @@ func TestConfig_UpdateFile(t *testing.T) {
 	cases := []struct {
 		name  string
 		uri   string
-		file  string
 		isErr bool
 	}{
 		{
 			name: "valid uri",
 			uri:  "file:///file.jsonnet",
-			file: "/file.jsonnet",
 		},
 	}
 
@@ -122,7 +120,7 @@ func TestConfig_UpdateFile(t *testing.T) {
 			require.NoError(t, err)
 
 			assert.Len(t, c.Files, 1)
-			_, ok := c.Files[tc.file]
+			_, ok := c.Files[tc.uri]
 			assert.True(t, ok, "file created with incorrect key")
 		})
 	}

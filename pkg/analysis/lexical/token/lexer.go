@@ -160,8 +160,8 @@ type Token struct {
 	Data   string    // Content of the Token if it is not a keyword
 
 	// Extra info for when kind == TokenStringBlock
-	stringBlockIndent     string // The sequence of whitespace that indented the block.
-	stringBlockTermIndent string // This is always fewer whitespace characters than in stringBlockIndent.
+	StringBlockIndent     string // The sequence of whitespace that indented the block.
+	StringBlockTermIndent string // This is always fewer whitespace characters than in StringBlockIndent.
 
 	Loc ast.LocationRange
 }
@@ -334,13 +334,13 @@ func (l *lexer) resetTokenStart() {
 	l.TokenStartLoc = l.location()
 }
 
-func (l *lexer) emitFullToken(kind TokenKind, data, stringBlockIndent, stringBlockTermIndent string) {
+func (l *lexer) emitFullToken(kind TokenKind, data, StringBlockIndent, StringBlockTermIndent string) {
 	l.Tokens = append(l.Tokens, Token{
 		Kind:                  kind,
 		fodder:                l.fodder,
 		Data:                  data,
-		stringBlockIndent:     stringBlockIndent,
-		stringBlockTermIndent: stringBlockTermIndent,
+		StringBlockIndent:     StringBlockIndent,
+		StringBlockTermIndent: StringBlockTermIndent,
 		Loc: ast.MakeLocationRange(l.fileName, l.source, l.TokenStartLoc, l.location()),
 	})
 	l.fodder = Fodder{}
@@ -594,13 +594,13 @@ func (l *lexer) lexSymbol() error {
 				commentStartLoc)
 		}
 
-		// Process leading blank lines before calculating stringBlockIndent
+		// Process leading blank lines before calculating StringBlockIndent
 		for r = l.next(); r == '\n'; r = l.next() {
 			cb.WriteRune(r)
 		}
 		l.backup()
 		numWhiteSpace := checkWhitespace(l.input[l.pos.byteNo:], l.input[l.pos.byteNo:])
-		stringBlockIndent := l.input[l.pos.byteNo : l.pos.byteNo+numWhiteSpace]
+		StringBlockIndent := l.input[l.pos.byteNo : l.pos.byteNo+numWhiteSpace]
 		if numWhiteSpace == 0 {
 			return l.makeStaticErrorPoint("Text block's first line must start with whitespace",
 				commentStartLoc)
@@ -626,12 +626,12 @@ func (l *lexer) lexSymbol() error {
 			l.backup()
 
 			// Look at the next line
-			numWhiteSpace = checkWhitespace(stringBlockIndent, l.input[l.pos.byteNo:])
+			numWhiteSpace = checkWhitespace(StringBlockIndent, l.input[l.pos.byteNo:])
 			if numWhiteSpace == 0 {
 				// End of the text block
-				var stringBlockTermIndent string
+				var StringBlockTermIndent string
 				for r = l.next(); r == ' ' || r == '\t'; r = l.next() {
-					stringBlockTermIndent += string(r)
+					StringBlockTermIndent += string(r)
 				}
 				l.backup()
 				if !strings.HasPrefix(l.input[l.pos.byteNo:], "|||") {
@@ -639,7 +639,7 @@ func (l *lexer) lexSymbol() error {
 				}
 				l.acceptN(3) // Skip '|||'
 				l.emitFullToken(TokenStringBlock, cb.String(),
-					stringBlockIndent, stringBlockTermIndent)
+					StringBlockIndent, StringBlockTermIndent)
 				l.resetTokenStart()
 				return nil
 			}

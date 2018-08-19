@@ -2,7 +2,6 @@ package token
 
 import (
 	"fmt"
-	"runtime/debug"
 
 	"github.com/google/go-jsonnet/ast"
 	"github.com/pkg/errors"
@@ -169,9 +168,22 @@ func (m *Match) Find(start ast.Location, kind TokenKind) (int, error) {
 		}
 	}
 
-	debug.PrintStack()
 	return 0, errors.Errorf("token %q at %s was not found",
 		kind.String(), start.String())
+}
+
+// FindBeforeLocation finds the token before a location.
+func (m *Match) FindBeforeLocation(loc ast.Location) (int, error) {
+	printTokens(m.Tokens...)
+	for i, t := range m.Tokens {
+		if loc.Line == t.Loc.Begin.Line {
+			if t.Loc.End.Column == loc.Column {
+				return i, nil
+			}
+		}
+	}
+
+	return 0, errors.Errorf("unable to find token at %s", loc.String())
 }
 
 func (m *Match) FindFirst(start ast.Location, kind TokenKind) (int, error) {

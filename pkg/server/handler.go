@@ -17,12 +17,13 @@ import (
 type operation func(*request, *Config) (interface{}, error)
 
 var operations = map[string]operation{
-	"textDocument/hover":        textDocumentHover,
 	"initialize":                initialize,
+	"textDocument/completion":   textDocumentCompletion,
 	"textDocument/didChange":    textDocumentDidChange,
 	"textDocument/didClose":     textDocumentDidClose,
 	"textDocument/didOpen":      textDocumentDidOpen,
 	"textDocument/didSave":      textDocumentDidSave,
+	"textDocument/hover":        textDocumentHover,
 	"updateClientConfiguration": updateClientConfiguration,
 }
 
@@ -188,6 +189,22 @@ func initialize(r *request, c *Config) (interface{}, error) {
 			HoverProvider:    true,
 			TextDocumentSync: lsp.TDSKFull,
 		},
+	}
+
+	return response, nil
+}
+
+func textDocumentCompletion(r *request, c *Config) (interface{}, error) {
+	var rp lsp.ReferenceParams
+	if err := r.Decode(&rp); err != nil {
+		return nil, err
+	}
+
+	cmpl := newComplete(rp, c)
+	response, err := cmpl.handle()
+	if err != nil {
+		logrus.WithError(err).Error("completion erred")
+		return nil, err
 	}
 
 	return response, nil

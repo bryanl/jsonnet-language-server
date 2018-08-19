@@ -9,49 +9,49 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-type hoverVisitor struct {
+type completionVisitor struct {
 	Visitor *NodeVisitor
 	loc     ast.Location
 
 	selectedToken *locate.Locatable
 }
 
-func newHoverVisitor(filename string, r io.Reader, loc ast.Location) (*hoverVisitor, error) {
-	hv := &hoverVisitor{
+func newCompletionVisitor(filename string, r io.Reader, loc ast.Location) (*completionVisitor, error) {
+	cv := &completionVisitor{
 		loc: loc,
 	}
 
 	logrus.WithFields(logrus.Fields{
 		"line":   loc.Line,
 		"column": loc.Column,
-	}).Info("creating hover visitor")
+	}).Info("creating completion visitor")
 
-	v, err := NewNodeVisitor(filename, r, false, PreVisit(hv.previsit))
+	v, err := NewNodeVisitor(filename, r, true, PreVisit(cv.previsit))
 	if err != nil {
 		return nil, err
 	}
 
-	hv.Visitor = v
+	cv.Visitor = v
 
-	return hv, nil
+	return cv, nil
 }
 
-func (hv *hoverVisitor) Visit() error {
-	return hv.Visitor.Visit()
+func (cv *completionVisitor) Visit() error {
+	return cv.Visitor.Visit()
 }
 
-func (hv *hoverVisitor) TokenAtLocation() (*locate.Locatable, error) {
-	if err := hv.Visitor.Visit(); err != nil {
+func (cv *completionVisitor) TokenAtLocation() (*locate.Locatable, error) {
+	if err := cv.Visitor.Visit(); err != nil {
 		return nil, err
 	}
 
-	return hv.selectedToken, nil
+	return cv.selectedToken, nil
 }
 
 // previsit figure out bounds for token. If this is not possible, return an error.
 // nolint: gocyclo
-func (hv *hoverVisitor) previsit(token interface{}, parent *locate.Locatable, env locate.Env) error {
-	r, err := locate.Locate(token, parent, string(hv.Visitor.Source))
+func (cv *completionVisitor) previsit(token interface{}, parent *locate.Locatable, env locate.Env) error {
+	r, err := locate.Locate(token, parent, string(cv.Visitor.Source))
 	if err != nil {
 		if err == locate.ErrNotLocatable {
 			return nil
@@ -79,20 +79,15 @@ func (hv *hoverVisitor) previsit(token interface{}, parent *locate.Locatable, en
 		Env:    env,
 	}
 
-	if hv.selectedToken == nil && inRange(hv.loc, nl.Loc) && nl.Parent != nil {
+	if cv.selectedToken == nil && inRange(cv.loc, nl.Loc) && nl.Parent != nil {
 		logrus.Debugf("setting %T as selected token because there was none (%s)",
 			nl.Token, nl.Loc.String())
-		hv.selectedToken = nl
-	} else if hv.selectedToken != nil && inRange(hv.loc, nl.Loc) && isRangeSmaller(hv.selectedToken.Loc, nl.Loc) {
+		cv.selectedToken = nl
+	} else if cv.selectedToken != nil && inRange(cv.loc, nl.Loc) && isRangeSmaller(cv.selectedToken.Loc, nl.Loc) {
 		logrus.Debugf("setting %T as selected token because its range %s is smaller than %s from %T",
-			nl.Token, nl.Loc.String(), hv.selectedToken.Loc.String(), hv.selectedToken.Token)
-		hv.selectedToken = nl
+			nl.Token, nl.Loc.String(), cv.selectedToken.Loc.String(), cv.selectedToken.Token)
+		cv.selectedToken = nl
 	}
 
 	return nil
-}
-
-func isInvalidRange(r ast.LocationRange) bool {
-	return r.Begin.Line == 0 || r.Begin.Column == 0 &&
-		r.End.Line == 0 || r.End.Column == 0
 }

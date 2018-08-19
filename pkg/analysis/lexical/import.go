@@ -22,7 +22,7 @@ func importSource(paths []string, name string) (ast.Node, error) {
 			return nil, err
 		}
 
-		return parse(sourcePath, string(source))
+		return convertToNode(sourcePath, string(source))
 	}
 
 	return nil, errors.Errorf("unable to find import %q", name)

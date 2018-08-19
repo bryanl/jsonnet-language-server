@@ -8,6 +8,7 @@ import (
 
 	"github.com/bryanl/jsonnet-language-server/pkg/analysis/lexical/astext"
 	"github.com/bryanl/jsonnet-language-server/pkg/analysis/lexical/locate"
+	"github.com/davecgh/go-spew/spew"
 	"github.com/google/go-jsonnet/ast"
 	"github.com/google/go-jsonnet/parser"
 	"github.com/pkg/errors"
@@ -83,29 +84,33 @@ func PostVisit(fn VisitFn) VisitOpt {
 	}
 }
 
-func parse(filename, snippet string) (ast.Node, error) {
+func convertToNode(filename, snippet string) (ast.Node, error) {
 	tokens, err := parser.Lex(filename, snippet)
 	if err != nil {
-		return nil, err
+		return nil, errors.Wrap(err, "lexing source")
 	}
 	node, err := parser.Parse(tokens)
 	if err != nil {
-		return nil, err
+		return nil, errors.Wrap(err, "parsing source")
 	}
 
 	return node, nil
 }
 
 // NewNodeVisitor creates an instance of Visitor.
-func NewNodeVisitor(filename string, r io.Reader, opts ...VisitOpt) (*NodeVisitor, error) {
+func NewNodeVisitor(filename string, r io.Reader, partial bool, opts ...VisitOpt) (*NodeVisitor, error) {
 	data, err := ioutil.ReadAll(r)
 	if err != nil {
 		return nil, errors.Wrap(err, "reading source")
 	}
 
-	node, err := parse(filename, string(data))
+	node, err := convertToNode(filename, string(data))
 	if err != nil {
-		return nil, errors.Wrap(err, "parsing source")
+		if !partial {
+			return nil, errors.Wrap(err, "parsing source")
+		}
+
+		logrus.WithField("node", spew.Sdump(node)).Info("parsing failed, but continuing")
 	}
 
 	env := locate.Env{}
