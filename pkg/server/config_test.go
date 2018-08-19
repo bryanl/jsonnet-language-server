@@ -3,6 +3,7 @@ package server
 import (
 	"testing"
 
+	"github.com/bryanl/jsonnet-language-server/pkg/lsp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -88,4 +89,41 @@ func TestConfig_Update_watcher(t *testing.T) {
 	<-done
 	require.True(t, wasDispatched)
 	cancel()
+}
+
+func TestConfig_UpdateFile(t *testing.T) {
+	cases := []struct {
+		name  string
+		uri   string
+		file  string
+		isErr bool
+	}{
+		{
+			name: "valid uri",
+			uri:  "file:///file.jsonnet",
+			file: "/file.jsonnet",
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			file := lsp.TextDocumentItem{
+				URI: tc.uri,
+			}
+
+			c := NewConfig()
+			require.Len(t, c.Files, 0)
+
+			err := c.UpdateFile(file)
+			if tc.isErr {
+				require.Error(t, err)
+				return
+			}
+			require.NoError(t, err)
+
+			assert.Len(t, c.Files, 1)
+			_, ok := c.Files[tc.file]
+			assert.True(t, ok, "file created with incorrect key")
+		})
+	}
 }

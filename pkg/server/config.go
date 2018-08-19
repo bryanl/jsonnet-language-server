@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/bryanl/jsonnet-language-server/pkg/analysis/lexical/locate"
+	"github.com/bryanl/jsonnet-language-server/pkg/lsp"
 
 	"github.com/pkg/errors"
 )
@@ -16,9 +17,14 @@ const (
 
 // Config is configuration setting for the server.
 type Config struct {
+	// Files holds the files as sent from the client.
+	Files map[string]lsp.TextDocumentItem
+
 	// JsonnetLibPaths are jsonnet lib paths.
 	JsonnetLibPaths []string
-	NodeCache       *locate.NodeCache
+
+	// NodeCache holds the node cache.
+	NodeCache *locate.NodeCache
 
 	dispatchers map[string]*Dispatcher
 }
@@ -26,11 +32,23 @@ type Config struct {
 // NewConfig creates an instance of Config.
 func NewConfig() *Config {
 	return &Config{
+		Files:           make(map[string]lsp.TextDocumentItem),
 		JsonnetLibPaths: make([]string, 0),
 		NodeCache:       locate.NewNodeCache(),
 
 		dispatchers: map[string]*Dispatcher{},
 	}
+}
+
+// UpdateFile updates the local file cache.
+func (c *Config) UpdateFile(tdi lsp.TextDocumentItem) error {
+	path, err := uriToPath(tdi.URI)
+	if err != nil {
+		return err
+	}
+
+	c.Files[path] = tdi
+	return nil
 }
 
 // Watch will call `fn`` when key `k` is updated. It returns a

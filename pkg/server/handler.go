@@ -182,6 +182,9 @@ func initialize(r *request, c *Config) (interface{}, error) {
 
 	response := &lsp.InitializeResult{
 		Capabilities: lsp.ServerCapabilities{
+			CompletionProvider: &lsp.CompletionOptions{
+				ResolveProvider: true,
+			},
 			HoverProvider:    true,
 			TextDocumentSync: lsp.TDSKFull,
 		},
@@ -276,7 +279,10 @@ func textDocumentDidChange(r *request, c *Config) (interface{}, error) {
 		return nil, err
 	}
 
-	// r.log().WithField("uri", dotdp.TextDocument.URI).Info("changed file")
+	if err := c.UpdateFile(dotdp.TextDocument); err != nil {
+		return nil, err
+	}
+
 	return nil, nil
 }
 
