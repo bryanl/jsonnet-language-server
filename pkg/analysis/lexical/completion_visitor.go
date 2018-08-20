@@ -50,7 +50,7 @@ func (cv *completionVisitor) TokenAtLocation() (*locate.Locatable, error) {
 
 // previsit figure out bounds for token. If this is not possible, return an error.
 // nolint: gocyclo
-func (cv *completionVisitor) previsit(token interface{}, parent *locate.Locatable, env locate.Env) error {
+func (cv *completionVisitor) previsit(token interface{}, parent *locate.Locatable, scope locate.Scope) error {
 	r, err := locate.Locate(token, parent, string(cv.Visitor.Source))
 	if err != nil {
 		if err == locate.ErrNotLocatable {
@@ -76,7 +76,7 @@ func (cv *completionVisitor) previsit(token interface{}, parent *locate.Locatabl
 		Token:  item,
 		Loc:    r,
 		Parent: parent,
-		Env:    env,
+		Scope:  scope,
 	}
 
 	if cv.selectedToken == nil && inRange(cv.loc, nl.Loc) && nl.Parent != nil {

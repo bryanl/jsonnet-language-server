@@ -37,7 +37,7 @@ func CompletionAtLocation(filename string, r io.Reader, loc ast.Location, jpaths
 		id = string(t.Id)
 	}
 
-	for k := range l.Env {
+	for k := range l.Scope {
 		if strings.HasPrefix(k, id) {
 			pos := lsp.Position{
 				Line:      loc.Line - 1,

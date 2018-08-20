@@ -17,8 +17,8 @@ var (
 	ErrUnresolvable = errors.New("unresolvable")
 )
 
-// Env is a map of options.
-type Env map[string]Locatable
+// Scope is a map of options.
+type Scope map[string]Locatable
 
 type Resolved struct {
 	Location    ast.LocationRange
@@ -30,7 +30,7 @@ type Locatable struct {
 	Token  interface{}
 	Loc    ast.LocationRange
 	Parent *Locatable
-	Env    Env
+	Scope  Scope
 }
 
 func (l *Locatable) Resolve(jPaths []string, cache *NodeCache) (*Resolved, error) {
@@ -78,7 +78,7 @@ func (l *Locatable) handleImport(i *ast.Import) (*Resolved, error) {
 }
 
 func (l *Locatable) handleIndex(i *ast.Index, cache *NodeCache) (*Resolved, error) {
-	description, err := resolvedIndex(i, cache, l.Env)
+	description, err := resolvedIndex(i, cache, l.Scope)
 	if err != nil {
 		return nil, err
 	}
@@ -121,7 +121,7 @@ func (l *Locatable) handleDefault(cache *NodeCache, jPaths []string) (*Resolved,
 
 	switch t := l.Parent.Token.(type) {
 	case ast.LocalBind:
-		name, err = bindOutput(t, cache, l.Env, jPaths)
+		name, err = bindOutput(t, cache, l.Scope, jPaths)
 	default:
 		logrus.Infof("handleDefault: %T", t)
 		name = astext.TokenName(l.Token)
@@ -142,7 +142,7 @@ func (l *Locatable) handleDefault(cache *NodeCache, jPaths []string) (*Resolved,
 	return resolved, nil
 }
 
-func bindOutput(bind ast.LocalBind, cache *NodeCache, env Env, jPaths []string) (string, error) {
+func bindOutput(bind ast.LocalBind, cache *NodeCache, scope Scope, jPaths []string) (string, error) {
 	var name string
 
 	switch t := bind.Body.(type) {
@@ -155,9 +155,9 @@ func bindOutput(bind ast.LocalBind, cache *NodeCache, env Env, jPaths []string) 
 	case *ast.Object:
 		return astext.ObjectDescription(t)
 	case *ast.Index:
-		return resolvedIndex(t, cache, env)
+		return resolvedIndex(t, cache, scope)
 	case *ast.Var:
-		return resolvedVar(t, jPaths, cache, env)
+		return resolvedVar(t, jPaths, cache, scope)
 	default:
 		return fmt.Sprintf("(unknown) %s: %T", string(bind.Variable), t), nil
 	}
@@ -217,9 +217,9 @@ func (l *Locatable) handleFunction(f *ast.Function) (*Resolved, error) {
 }
 
 func (l *Locatable) handleVar(t *ast.Var, jPaths []string, cache *NodeCache) (*Resolved, error) {
-	if ref, ok := l.Env[string(t.Id)]; ok {
+	if ref, ok := l.Scope[string(t.Id)]; ok {
 		logrus.Debugf("%s points to a %T", t.Id, ref.Token)
-		s, err := resolvedIdentifier(ref.Token, jPaths, cache, l.Env)
+		s, err := resolvedIdentifier(ref.Token, jPaths, cache, l.Scope)
 		if err != nil {
 			return nil, err
 		}
@@ -235,21 +235,21 @@ func (l *Locatable) handleVar(t *ast.Var, jPaths []string, cache *NodeCache) (*R
 	return nil, ErrUnresolvable
 }
 
-func resolvedVar(t *ast.Var, jPaths []string, cache *NodeCache, env Env) (string, error) {
-	if ref, ok := env[string(t.Id)]; ok {
+func resolvedVar(t *ast.Var, jPaths []string, cache *NodeCache, scope Scope) (string, error) {
+	if ref, ok := scope[string(t.Id)]; ok {
 		logrus.Debugf("%s points to a %T", t.Id, ref.Token)
-		return resolvedIdentifier(ref.Token, jPaths, cache, env)
+		return resolvedIdentifier(ref.Token, jPaths, cache, scope)
 	}
 
 	return "", ErrUnresolvable
 }
 
-func resolvedIdentifier(item interface{}, jPaths []string, cache *NodeCache, env Env) (string, error) {
+func resolvedIdentifier(item interface{}, jPaths []string, cache *NodeCache, scope Scope) (string, error) {
 	switch t := item.(type) {
 	case *ast.Import:
-		return importDescription(t, jPaths, cache, env)
+		return importDescription(t, jPaths, cache, scope)
 	case *ast.Index:
-		return resolvedIndex(t, cache, env)
+		return resolvedIndex(t, cache, scope)
 	case *ast.Object:
 		return astext.ObjectDescription(t)
 	default:
@@ -258,7 +258,7 @@ func resolvedIdentifier(item interface{}, jPaths []string, cache *NodeCache, env
 	}
 }
 
-func resolvedIndex(i *ast.Index, cache *NodeCache, env Env) (string, error) {
+func resolvedIndex(i *ast.Index, cache *NodeCache, scope Scope) (string, error) {
 	var indices []string
 	var cur ast.Node = i
 	for {
@@ -272,20 +272,20 @@ func resolvedIndex(i *ast.Index, cache *NodeCache, env Env) (string, error) {
 			indices = append([]string{string(*t.Id)}, indices...)
 		case *ast.Var:
 			varID := string(t.Id)
-			if x, ok := env[varID]; ok {
+			if x, ok := scope[varID]; ok {
 				logrus.Debugf("it points to a %T", x.Token)
 
-				return describe(x.Token, indices, cache, env)
+				return describe(x.Token, indices, cache, scope)
 			}
 
-			return "", errors.Errorf("could not find %s in env", varID)
+			return "", errors.Errorf("could not find %s in scope", varID)
 		default:
 			return "", errors.Errorf("unable to handle index target of type %T", t)
 		}
 	}
 }
 
-func importDescription(i *ast.Import, jPaths []string, cache *NodeCache, env Env) (string, error) {
+func importDescription(i *ast.Import, jPaths []string, cache *NodeCache, scope Scope) (string, error) {
 	ne, err := cache.Get(i.File.Value)
 	if err != nil {
 		switch err.(type) {
@@ -296,13 +296,13 @@ func importDescription(i *ast.Import, jPaths []string, cache *NodeCache, env Env
 		}
 	}
 
-	return resolvedIdentifier(ne.Node, jPaths, cache, env)
+	return resolvedIdentifier(ne.Node, jPaths, cache, scope)
 }
 
-func describe(item interface{}, indicies []string, cache *NodeCache, env Env) (string, error) {
+func describe(item interface{}, indicies []string, cache *NodeCache, scope Scope) (string, error) {
 	switch t := item.(type) {
 	case *ast.Object:
-		return describeInObject(t, indicies, cache, env)
+		return describeInObject(t, indicies, cache, scope)
 	case *ast.Import:
 		ne, err := cache.Get(t.File.Value)
 		if err != nil {
@@ -314,17 +314,17 @@ func describe(item interface{}, indicies []string, cache *NodeCache, env Env) (s
 			}
 		}
 
-		return describe(ne.Node, indicies, cache, env)
+		return describe(ne.Node, indicies, cache, scope)
 	case *ast.Index:
 		spew.Fdump(os.Stderr, t)
-		return resolvedIndex(t, cache, env)
+		return resolvedIndex(t, cache, scope)
 	default:
 		logrus.Infof("describe %T", t)
 		return astext.TokenName(t), nil
 	}
 }
 
-func describeInObject(o *ast.Object, indicies []string, cache *NodeCache, env Env) (string, error) {
+func describeInObject(o *ast.Object, indicies []string, cache *NodeCache, scope Scope) (string, error) {
 	if len(indicies) == 0 {
 		return astext.ObjectDescription(o)
 	}
@@ -335,7 +335,7 @@ func describeInObject(o *ast.Object, indicies []string, cache *NodeCache, env En
 			continue
 		}
 
-		return describe(f.Expr2, indicies[1:], cache, env)
+		return describe(f.Expr2, indicies[1:], cache, scope)
 	}
 
 	return "", errors.Errorf("unable to find field %q n object", indicies[0])

@@ -50,7 +50,7 @@ func (hv *hoverVisitor) TokenAtLocation() (*locate.Locatable, error) {
 
 // previsit figure out bounds for token. If this is not possible, return an error.
 // nolint: gocyclo
-func (hv *hoverVisitor) previsit(token interface{}, parent *locate.Locatable, env locate.Env) error {
+func (hv *hoverVisitor) previsit(token interface{}, parent *locate.Locatable, scope locate.Scope) error {
 	r, err := locate.Locate(token, parent, string(hv.Visitor.Source))
 	if err != nil {
 		if err == locate.ErrNotLocatable {
@@ -76,7 +76,7 @@ func (hv *hoverVisitor) previsit(token interface{}, parent *locate.Locatable, en
 		Token:  item,
 		Loc:    r,
 		Parent: parent,
-		Env:    env,
+		Scope:  scope,
 	}
 
 	if hv.selectedToken == nil && inRange(hv.loc, nl.Loc) && nl.Parent != nil {

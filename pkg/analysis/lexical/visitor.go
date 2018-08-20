@@ -16,7 +16,7 @@ import (
 )
 
 // VisitFn visits a token.
-type VisitFn func(token interface{}, parent *locate.Locatable, env locate.Env) error
+type VisitFn func(token interface{}, parent *locate.Locatable, scope locate.Scope) error
 
 // Visitor visits.
 type Visitor interface {
@@ -27,7 +27,7 @@ type Visitor interface {
 type NodeVisitor struct {
 	Node   ast.Node
 	Parent ast.Node
-	Env    locate.Env
+	Scope  locate.Scope
 	Source []byte
 
 	PreVisit  VisitFn
@@ -113,12 +113,12 @@ func NewNodeVisitor(filename string, r io.Reader, partial bool, opts ...VisitOpt
 		logrus.WithField("node", spew.Sdump(node)).Info("parsing failed, but continuing")
 	}
 
-	env := locate.Env{}
+	scope := locate.Scope{}
 
 	v := &NodeVisitor{
 		Node:   node,
 		Parent: nil,
-		Env:    env,
+		Scope:  scope,
 		Source: data,
 	}
 
@@ -139,25 +139,25 @@ func (v *NodeVisitor) Visit() error {
 		}
 	}
 
-	return v.visit(v.Node, parent, v.Env)
+	return v.visit(v.Node, parent, v.Scope)
 }
-func (v *NodeVisitor) visit(token interface{}, parent *locate.Locatable, env locate.Env) error {
+func (v *NodeVisitor) visit(token interface{}, parent *locate.Locatable, scope locate.Scope) error {
 	if token == nil {
 		return nil
 	}
 
 	if v.PreVisit != nil {
-		if err := v.PreVisit(token, parent, env); err != nil {
+		if err := v.PreVisit(token, parent, scope); err != nil {
 			return errors.Wrapf(err, "pre visiting %T", token)
 		}
 	}
 
-	if err := v.visitToken(token, parent, env); err != nil {
+	if err := v.visitToken(token, parent, scope); err != nil {
 		return err
 	}
 
 	if v.PostVisit != nil {
-		if err := v.PostVisit(token, parent, env); err != nil {
+		if err := v.PostVisit(token, parent, scope); err != nil {
 			return errors.Wrapf(err, "post visiting %T", token)
 		}
 	}
@@ -166,68 +166,68 @@ func (v *NodeVisitor) visit(token interface{}, parent *locate.Locatable, env loc
 }
 
 // nolint: gocyclo
-func (v *NodeVisitor) visitToken(token interface{}, parent *locate.Locatable, env locate.Env) error {
+func (v *NodeVisitor) visitToken(token interface{}, parent *locate.Locatable, scope locate.Scope) error {
 
 	if node, ok := token.(ast.Node); ok {
-		return v.handleNode(node, parent, env)
+		return v.handleNode(node, parent, scope)
 	}
 
 	switch t := token.(type) {
 	case astext.RequiredParameter:
-		return v.handleIdentifier(t.ID, parent, env)
+		return v.handleIdentifier(t.ID, parent, scope)
 	case ast.DesugaredObjectField:
-		return v.handleDesugaredObjectField(t, parent, env)
+		return v.handleDesugaredObjectField(t, parent, scope)
 	case ast.ForSpec:
-		return v.handleForSpec(t, parent, env)
+		return v.handleForSpec(t, parent, scope)
 	case *ast.Identifier:
 		if t == nil {
 			return nil
 		}
-		return v.handleIdentifier(*t, parent, env)
+		return v.handleIdentifier(*t, parent, scope)
 	case ast.Identifier:
-		return v.handleIdentifier(t, parent, env)
+		return v.handleIdentifier(t, parent, scope)
 	case ast.LocalBind:
-		return v.handleLocalBind(t, parent, env)
+		return v.handleLocalBind(t, parent, scope)
 	case ast.NamedParameter:
-		return v.handleNamedParameter(t, parent, env)
+		return v.handleNamedParameter(t, parent, scope)
 	case ast.ObjectField:
-		return v.handleObjectField(t, parent, env)
+		return v.handleObjectField(t, parent, scope)
 	default:
 		return errors.Errorf("unable to handle token of type %T", t)
 	}
 }
 
 // nolint: gocyclo
-func (v *NodeVisitor) handleNode(node ast.Node, parent *locate.Locatable, env locate.Env) error {
+func (v *NodeVisitor) handleNode(node ast.Node, parent *locate.Locatable, scope locate.Scope) error {
 	switch t := node.(type) {
 	case *ast.Apply:
-		return v.handleApply(t, parent, env)
+		return v.handleApply(t, parent, scope)
 	case *ast.ApplyBrace:
-		return v.handleApplyBrace(t, parent, env)
+		return v.handleApplyBrace(t, parent, scope)
 	case *ast.Array:
-		return v.handleArray(t, parent, env)
+		return v.handleArray(t, parent, scope)
 	case *ast.ArrayComp:
-		return v.handleArrayComp(t, parent, env)
+		return v.handleArrayComp(t, parent, scope)
 	case *ast.Binary:
-		return v.handleBinary(t, parent, env)
+		return v.handleBinary(t, parent, scope)
 	case *ast.Assert:
-		return v.handleAssert(t, parent, env)
+		return v.handleAssert(t, parent, scope)
 	case *ast.Conditional:
-		return v.handleConditional(t, parent, env)
+		return v.handleConditional(t, parent, scope)
 	case *ast.DesugaredObject:
-		return v.handleDesugaredObject(t, parent, env)
+		return v.handleDesugaredObject(t, parent, scope)
 	case *ast.Dollar:
-		return v.handleDollar(t, parent, env)
+		return v.handleDollar(t, parent, scope)
 	case *ast.Error:
-		return v.handleError(t, parent, env)
+		return v.handleError(t, parent, scope)
 	case *ast.Function:
-		return v.handleFunction(t, parent, env)
+		return v.handleFunction(t, parent, scope)
 	case *ast.Import:
-		return v.handleImport(t, parent, env)
+		return v.handleImport(t, parent, scope)
 	case *ast.Index:
-		return v.handleIndex(t, parent, env)
+		return v.handleIndex(t, parent, scope)
 	case *ast.ImportStr:
-		return v.handleImportStr(t, parent, env)
+		return v.handleImportStr(t, parent, scope)
 	case *ast.LiteralBoolean:
 		return v.handleLiteralBoolean(t, parent)
 	case *ast.LiteralNull:
@@ -237,29 +237,29 @@ func (v *NodeVisitor) handleNode(node ast.Node, parent *locate.Locatable, env lo
 	case *ast.LiteralString:
 		return v.handleLiteralString(t, parent)
 	case *ast.Local:
-		return v.handleLocal(t, parent, env)
+		return v.handleLocal(t, parent, scope)
 	case *ast.Parens:
-		return v.handleParens(t, parent, env)
+		return v.handleParens(t, parent, scope)
 	case *ast.Object:
-		return v.handleObject(t, parent, env)
+		return v.handleObject(t, parent, scope)
 	case *ast.ObjectComp:
-		return v.handleObjectComp(t, parent, env)
+		return v.handleObjectComp(t, parent, scope)
 	case *ast.Self:
-		return v.handleSelf(t, parent, env)
+		return v.handleSelf(t, parent, scope)
 	case *ast.Slice:
-		return v.handleSlice(t, parent, env)
+		return v.handleSlice(t, parent, scope)
 	case *ast.SuperIndex:
-		return v.handleSuperIndex(t, parent, env)
+		return v.handleSuperIndex(t, parent, scope)
 	case *ast.Var:
-		return v.handleVar(t, parent, env)
+		return v.handleVar(t, parent, scope)
 	default:
 		return errors.Errorf("unable to handle node type %T", t)
 	}
 }
 
-func (v *NodeVisitor) visitList(list []interface{}, parent *locate.Locatable, env locate.Env) error {
+func (v *NodeVisitor) visitList(list []interface{}, parent *locate.Locatable, scope locate.Scope) error {
 	for _, node := range list {
-		if err := v.visit(node, parent, env); err != nil {
+		if err := v.visit(node, parent, scope); err != nil {
 			return err
 		}
 	}
@@ -294,7 +294,7 @@ func (v *NodeVisitor) visitTypeIfExists(name string, i interface{}) error {
 	return errors.Wrapf(err, "visit %s", name)
 }
 
-func (v *NodeVisitor) handleApply(n *ast.Apply, parent *locate.Locatable, env locate.Env) error {
+func (v *NodeVisitor) handleApply(n *ast.Apply, parent *locate.Locatable, scope locate.Scope) error {
 	if err := v.visitTypeIfExists("Apply", n); err != nil {
 		return err
 	}
@@ -313,7 +313,7 @@ func (v *NodeVisitor) handleApply(n *ast.Apply, parent *locate.Locatable, env lo
 		Parent: parent,
 	}
 
-	return v.visitList(nodes, locatable, env)
+	return v.visitList(nodes, locatable, scope)
 }
 
 // ApplyBraceVisitor is a visitor for ApplyBrace.
@@ -321,7 +321,7 @@ type ApplyBraceVisitor struct {
 	VisitApplyBrace func(a *ast.ApplyBrace) error
 }
 
-func (v *NodeVisitor) handleApplyBrace(n *ast.ApplyBrace, parent *locate.Locatable, env locate.Env) error {
+func (v *NodeVisitor) handleApplyBrace(n *ast.ApplyBrace, parent *locate.Locatable, scope locate.Scope) error {
 	if err := v.visitTypeIfExists("ApplyBrace", n); err != nil {
 		return err
 	}
@@ -334,7 +334,7 @@ func (v *NodeVisitor) handleApplyBrace(n *ast.ApplyBrace, parent *locate.Locatab
 		Parent: parent,
 	}
 
-	return v.visitList(nodes, locatable, env)
+	return v.visitList(nodes, locatable, scope)
 }
 
 // ArrayVisitor is a visitor for Array.
@@ -342,7 +342,7 @@ type ArrayVisitor struct {
 	VisitArray func(a *ast.Array) error
 }
 
-func (v *NodeVisitor) handleArray(n *ast.Array, parent *locate.Locatable, env locate.Env) error {
+func (v *NodeVisitor) handleArray(n *ast.Array, parent *locate.Locatable, scope locate.Scope) error {
 	if err := v.visitTypeIfExists("Array", n); err != nil {
 		return err
 	}
@@ -358,7 +358,7 @@ func (v *NodeVisitor) handleArray(n *ast.Array, parent *locate.Locatable, env lo
 		Parent: parent,
 	}
 
-	return v.visitList(nodes, locatable, env)
+	return v.visitList(nodes, locatable, scope)
 }
 
 // ArrayCompVisitor is a visitory for ArrayComp.
@@ -366,7 +366,7 @@ type ArrayCompVisitor struct {
 	VisitArrayComp func(ac *ast.ArrayComp) error
 }
 
-func (v *NodeVisitor) handleArrayComp(n *ast.ArrayComp, parent *locate.Locatable, env locate.Env) error {
+func (v *NodeVisitor) handleArrayComp(n *ast.ArrayComp, parent *locate.Locatable, scope locate.Scope) error {
 	if err := v.visitTypeIfExists("ArrayComp", n); err != nil {
 		return err
 	}
@@ -389,7 +389,7 @@ func (v *NodeVisitor) handleArrayComp(n *ast.ArrayComp, parent *locate.Locatable
 		Parent: parent,
 	}
 
-	return v.visitList(nodes, locatable, env)
+	return v.visitList(nodes, locatable, scope)
 }
 
 // AssertVisitor is a visitor for Assert.
@@ -397,7 +397,7 @@ type AssertVisitor struct {
 	VisitAssert func(n *ast.Assert) error
 }
 
-func (v *NodeVisitor) handleAssert(n *ast.Assert, parent *locate.Locatable, env locate.Env) error {
+func (v *NodeVisitor) handleAssert(n *ast.Assert, parent *locate.Locatable, scope locate.Scope) error {
 	if err := v.visitTypeIfExists("Assert", n); err != nil {
 		return err
 	}
@@ -410,7 +410,7 @@ func (v *NodeVisitor) handleAssert(n *ast.Assert, parent *locate.Locatable, env 
 		Parent: parent,
 	}
 
-	return v.visitList(nodes, locatable, env)
+	return v.visitList(nodes, locatable, scope)
 }
 
 // BinaryVisitor is a visitor for Binary.
@@ -418,7 +418,7 @@ type BinaryVisitor struct {
 	VisitBinary func(n *ast.Binary) error
 }
 
-func (v *NodeVisitor) handleBinary(n *ast.Binary, parent *locate.Locatable, env locate.Env) error {
+func (v *NodeVisitor) handleBinary(n *ast.Binary, parent *locate.Locatable, scope locate.Scope) error {
 	if err := v.visitTypeIfExists("Binary", n); err != nil {
 		return err
 	}
@@ -431,7 +431,7 @@ func (v *NodeVisitor) handleBinary(n *ast.Binary, parent *locate.Locatable, env 
 		Parent: parent,
 	}
 
-	return v.visitList(nodes, locatable, env)
+	return v.visitList(nodes, locatable, scope)
 }
 
 // ConditionalVisitor is a visitor for Conditional.
@@ -439,7 +439,7 @@ type ConditionalVisitor struct {
 	VisitConditional func(n *ast.Conditional) error
 }
 
-func (v *NodeVisitor) handleConditional(n *ast.Conditional, parent *locate.Locatable, env locate.Env) error {
+func (v *NodeVisitor) handleConditional(n *ast.Conditional, parent *locate.Locatable, scope locate.Scope) error {
 	if err := v.visitTypeIfExists("Conditional", n); err != nil {
 		return err
 	}
@@ -452,7 +452,7 @@ func (v *NodeVisitor) handleConditional(n *ast.Conditional, parent *locate.Locat
 		Parent: parent,
 	}
 
-	return v.visitList(nodes, locatable, env)
+	return v.visitList(nodes, locatable, scope)
 }
 
 // DesugaredObjectFieldVisitor is a visitor for DesugaredObjectField.
@@ -460,7 +460,7 @@ type DesugaredObjectFieldVisitor struct {
 	VisitDesugaredObjectField func(n ast.DesugaredObjectField) error
 }
 
-func (v *NodeVisitor) handleDesugaredObjectField(n ast.DesugaredObjectField, parent *locate.Locatable, env locate.Env) error {
+func (v *NodeVisitor) handleDesugaredObjectField(n ast.DesugaredObjectField, parent *locate.Locatable, scope locate.Scope) error {
 	logrus.Debugf("visiting %T", n)
 	if err := v.visitTypeIfExists("DesugaredObjectField", n); err != nil {
 		return err
@@ -479,7 +479,7 @@ func (v *NodeVisitor) handleDesugaredObjectField(n ast.DesugaredObjectField, par
 		Parent: parent,
 	}
 
-	return v.visitList(nodes, locatable, env)
+	return v.visitList(nodes, locatable, scope)
 }
 
 // DesugaredObjectVisitor is a visitor for DesugaredObject.
@@ -487,7 +487,7 @@ type DesugaredObjectVisitor struct {
 	VisitDesugaredObject func(n *ast.DesugaredObject) error
 }
 
-func (v *NodeVisitor) handleDesugaredObject(n *ast.DesugaredObject, parent *locate.Locatable, env locate.Env) error {
+func (v *NodeVisitor) handleDesugaredObject(n *ast.DesugaredObject, parent *locate.Locatable, scope locate.Scope) error {
 	if err := v.visitTypeIfExists("DesugaredObject", n); err != nil {
 		return err
 	}
@@ -507,7 +507,7 @@ func (v *NodeVisitor) handleDesugaredObject(n *ast.DesugaredObject, parent *loca
 		Parent: parent,
 	}
 
-	return v.visitList(nodes, locatable, env)
+	return v.visitList(nodes, locatable, scope)
 }
 
 // DollarVisitor is a visitor for Dollar.
@@ -515,7 +515,7 @@ type DollarVisitor struct {
 	VisitDollar func(n *ast.Dollar) error
 }
 
-func (v *NodeVisitor) handleDollar(n *ast.Dollar, parent *locate.Locatable, env locate.Env) error {
+func (v *NodeVisitor) handleDollar(n *ast.Dollar, parent *locate.Locatable, scope locate.Scope) error {
 	if err := v.visitTypeIfExists("Dollar", n); err != nil {
 		return err
 	}
@@ -528,7 +528,7 @@ func (v *NodeVisitor) handleDollar(n *ast.Dollar, parent *locate.Locatable, env 
 		Parent: parent,
 	}
 
-	return v.visitList(nodes, locatable, env)
+	return v.visitList(nodes, locatable, scope)
 }
 
 // ErrorVisitor is a visitor for Error.
@@ -536,7 +536,7 @@ type ErrorVisitor struct {
 	VisitError func(n *ast.Error) error
 }
 
-func (v *NodeVisitor) handleError(n *ast.Error, parent *locate.Locatable, env locate.Env) error {
+func (v *NodeVisitor) handleError(n *ast.Error, parent *locate.Locatable, scope locate.Scope) error {
 	if err := v.visitTypeIfExists("Error", n); err != nil {
 		return err
 	}
@@ -549,7 +549,7 @@ func (v *NodeVisitor) handleError(n *ast.Error, parent *locate.Locatable, env lo
 		Parent: parent,
 	}
 
-	return v.visitList(nodes, locatable, env)
+	return v.visitList(nodes, locatable, scope)
 }
 
 // ForSpecVisitor is a visitor for ForSpec.
@@ -557,7 +557,7 @@ type ForSpecVisitor struct {
 	VisitForSpec func(n *ast.ForSpec) error
 }
 
-func (v *NodeVisitor) handleForSpec(n ast.ForSpec, parent *locate.Locatable, env locate.Env) error {
+func (v *NodeVisitor) handleForSpec(n ast.ForSpec, parent *locate.Locatable, scope locate.Scope) error {
 	if err := v.visitTypeIfExists("ForSpec", n); err != nil {
 		return errors.Wrap(err, "visit ForSpec")
 	}
@@ -583,7 +583,7 @@ func (v *NodeVisitor) handleForSpec(n ast.ForSpec, parent *locate.Locatable, env
 		nodes = append(nodes, ifspec)
 	}
 
-	return v.visitList(nodes, locatable, env)
+	return v.visitList(nodes, locatable, scope)
 }
 
 // FunctionVisitor is a visitor for Function.
@@ -591,13 +591,13 @@ type FunctionVisitor struct {
 	VisitFunction func(n *ast.Function) error
 }
 
-func (v *NodeVisitor) handleFunction(n *ast.Function, parent *locate.Locatable, env locate.Env) error {
+func (v *NodeVisitor) handleFunction(n *ast.Function, parent *locate.Locatable, scope locate.Scope) error {
 	if err := v.visitTypeIfExists("Function", n); err != nil {
 		return err
 	}
 
-	// TODO create new env from params and visit the Parameters
-	envWithParams := env
+	// TODO create new scope from params and visit the Parameters
+	scopeWithParams := scope
 
 	nodes := []interface{}{}
 
@@ -626,7 +626,7 @@ func (v *NodeVisitor) handleFunction(n *ast.Function, parent *locate.Locatable, 
 			Loc:    r,
 		}
 
-		envWithParams[string(id)] = l
+		scopeWithParams[string(id)] = l
 
 		nodes = append(nodes, p)
 	}
@@ -637,7 +637,7 @@ func (v *NodeVisitor) handleFunction(n *ast.Function, parent *locate.Locatable, 
 
 	nodes = append(nodes, n.Body)
 
-	return v.visitList(nodes, locatable, envWithParams)
+	return v.visitList(nodes, locatable, scopeWithParams)
 }
 
 // IdentifierVisitor is a visitor for Identifier.
@@ -645,7 +645,7 @@ type IdentifierVisitor struct {
 	VisitIdentifier func(n ast.Identifier) error
 }
 
-func (v *NodeVisitor) handleIdentifier(n ast.Identifier, parent *locate.Locatable, env locate.Env) error {
+func (v *NodeVisitor) handleIdentifier(n ast.Identifier, parent *locate.Locatable, scope locate.Scope) error {
 	if err := v.visitTypeIfExists("Identifier", n); err != nil {
 		return errors.Wrap(err, "visit Identifier")
 	}
@@ -658,7 +658,7 @@ type ImportVisitor struct {
 	VisitImport func(n *ast.Import) error
 }
 
-func (v *NodeVisitor) handleImport(n *ast.Import, parent *locate.Locatable, env locate.Env) error {
+func (v *NodeVisitor) handleImport(n *ast.Import, parent *locate.Locatable, scope locate.Scope) error {
 	if err := v.visitTypeIfExists("Import", n); err != nil {
 		return err
 	}
@@ -675,7 +675,7 @@ type ImportStrVisitor struct {
 	VisitImportStr func(n *ast.ImportStr) error
 }
 
-func (v *NodeVisitor) handleImportStr(n *ast.ImportStr, parent *locate.Locatable, env locate.Env) error {
+func (v *NodeVisitor) handleImportStr(n *ast.ImportStr, parent *locate.Locatable, scope locate.Scope) error {
 	if err := v.visitTypeIfExists("ImportStr", n); err != nil {
 		return err
 	}
@@ -688,7 +688,7 @@ func (v *NodeVisitor) handleImportStr(n *ast.ImportStr, parent *locate.Locatable
 		Parent: parent,
 	}
 
-	return v.visitList(nodes, locatable, env)
+	return v.visitList(nodes, locatable, scope)
 }
 
 // IndexVisitor is a visitor for Index.
@@ -696,7 +696,7 @@ type IndexVisitor struct {
 	VisitIndex func(n *ast.Index) error
 }
 
-func (v *NodeVisitor) handleIndex(n *ast.Index, parent *locate.Locatable, env locate.Env) error {
+func (v *NodeVisitor) handleIndex(n *ast.Index, parent *locate.Locatable, scope locate.Scope) error {
 	if err := v.visitTypeIfExists("Index", n); err != nil {
 		return err
 	}
@@ -713,7 +713,7 @@ func (v *NodeVisitor) handleIndex(n *ast.Index, parent *locate.Locatable, env lo
 			Parent: parent,
 		}
 
-		return v.visitList([]interface{}{n.Id, n.Target}, locatable, env)
+		return v.visitList([]interface{}{n.Id, n.Target}, locatable, scope)
 	} else if n.Index != nil {
 		locatable := &locate.Locatable{
 			Token:  n,
@@ -721,7 +721,7 @@ func (v *NodeVisitor) handleIndex(n *ast.Index, parent *locate.Locatable, env lo
 			Parent: parent,
 		}
 
-		return v.visitList([]interface{}{n.Target}, locatable, env)
+		return v.visitList([]interface{}{n.Target}, locatable, scope)
 	} else {
 		return errors.New("index id and index were nil")
 	}
@@ -784,12 +784,12 @@ type LocalVisitor struct {
 	VisitLocal func(n *ast.Local) error
 }
 
-func (v *NodeVisitor) handleLocal(n *ast.Local, parent *locate.Locatable, env locate.Env) error {
+func (v *NodeVisitor) handleLocal(n *ast.Local, parent *locate.Locatable, scope locate.Scope) error {
 	if err := v.visitTypeIfExists("Local", n); err != nil {
 		return err
 	}
 
-	envWithBinds := env
+	scopeWithBinds := scope
 
 	nodes := []interface{}{}
 
@@ -827,14 +827,14 @@ func (v *NodeVisitor) handleLocal(n *ast.Local, parent *locate.Locatable, env lo
 			Loc:    idLocation,
 		}
 
-		envWithBinds[string(bind.Variable)] = l
+		scopeWithBinds[string(bind.Variable)] = l
 
 		nodes = append(nodes, bind)
 	}
 
 	nodes = append(nodes, n.Body)
 
-	return v.visitList(nodes, locatable, envWithBinds)
+	return v.visitList(nodes, locatable, scopeWithBinds)
 }
 
 // LocalBindVisitor is a visitor for LocalBind.
@@ -842,13 +842,13 @@ type LocalBindVisitor struct {
 	VisitLocalBind func(n ast.LocalBind) error
 }
 
-func (v *NodeVisitor) handleLocalBind(lb ast.LocalBind, parent *locate.Locatable, env locate.Env) error {
+func (v *NodeVisitor) handleLocalBind(lb ast.LocalBind, parent *locate.Locatable, scope locate.Scope) error {
 	if err := v.visitTypeIfExists("LocalBind", lb); err != nil {
 		return err
 	}
 
-	// TODO merge env with local bind params
-	envWithParams := env
+	// TODO merge scope with local bind params
+	scopeWithParams := scope
 
 	nodes := []interface{}{lb.Variable, lb.Body}
 	if lb.Fun != nil {
@@ -866,7 +866,7 @@ func (v *NodeVisitor) handleLocalBind(lb ast.LocalBind, parent *locate.Locatable
 		Parent: parent,
 	}
 
-	return v.visitList(nodes, locatable, envWithParams)
+	return v.visitList(nodes, locatable, scopeWithParams)
 }
 
 // NamedParameterVisitor is a visitor for NamedParameter.
@@ -874,7 +874,7 @@ type NamedParameterVisitor struct {
 	VisitNamedParameter func(n ast.NamedParameter) error
 }
 
-func (v *NodeVisitor) handleNamedParameter(n ast.NamedParameter, parent *locate.Locatable, env locate.Env) error {
+func (v *NodeVisitor) handleNamedParameter(n ast.NamedParameter, parent *locate.Locatable, scope locate.Scope) error {
 	if err := v.visitTypeIfExists("NamedParameter", n); err != nil {
 		return errors.Wrap(err, "visit NamedParameter")
 	}
@@ -887,7 +887,7 @@ type ParensVisitor struct {
 	VisitParens func(n *ast.Parens) error
 }
 
-func (v *NodeVisitor) handleParens(n *ast.Parens, parent *locate.Locatable, env locate.Env) error {
+func (v *NodeVisitor) handleParens(n *ast.Parens, parent *locate.Locatable, scope locate.Scope) error {
 	if err := v.visitTypeIfExists("Parens", n); err != nil {
 		return err
 	}
@@ -900,7 +900,7 @@ func (v *NodeVisitor) handleParens(n *ast.Parens, parent *locate.Locatable, env 
 		Parent: parent,
 	}
 
-	return v.visitList(nodes, locatable, env)
+	return v.visitList(nodes, locatable, scope)
 }
 
 // ObjectCompVisitor is a visitor for ObjectComp.
@@ -908,7 +908,7 @@ type ObjectCompVisitor struct {
 	VisitObjectComp func(n *ast.ObjectComp) error
 }
 
-func (v *NodeVisitor) handleObjectComp(n *ast.ObjectComp, parent *locate.Locatable, env locate.Env) error {
+func (v *NodeVisitor) handleObjectComp(n *ast.ObjectComp, parent *locate.Locatable, scope locate.Scope) error {
 	if err := v.visitTypeIfExists("ObjectComp", n); err != nil {
 		return err
 	}
@@ -924,7 +924,7 @@ func (v *NodeVisitor) handleObjectComp(n *ast.ObjectComp, parent *locate.Locatab
 		Parent: parent,
 	}
 
-	return v.visitList(nodes, locatable, env)
+	return v.visitList(nodes, locatable, scope)
 }
 
 // ObjectFieldVisitor is a visitor for ObjectField.
@@ -932,13 +932,13 @@ type ObjectFieldVisitor struct {
 	VisitObjectField func(n ast.ObjectField) error
 }
 
-func (v *NodeVisitor) handleObjectField(n ast.ObjectField, parent *locate.Locatable, env locate.Env) error {
+func (v *NodeVisitor) handleObjectField(n ast.ObjectField, parent *locate.Locatable, scope locate.Scope) error {
 	if err := v.visitTypeIfExists("ObjectField", n); err != nil {
 		return err
 	}
 
-	// TODO: need env from params here
-	envWithParams := env
+	// TODO: need scope from params here
+	scopeWithParams := scope
 
 	tokens := []interface{}{}
 	if n.Id != nil {
@@ -962,7 +962,7 @@ func (v *NodeVisitor) handleObjectField(n ast.ObjectField, parent *locate.Locata
 		Loc:    r,
 	}
 
-	return v.visitList(tokens, locatable, envWithParams)
+	return v.visitList(tokens, locatable, scopeWithParams)
 }
 
 // ObjectVisitor is a visitor for Object.
@@ -970,13 +970,13 @@ type ObjectVisitor struct {
 	VisitObject func(n *ast.Object) error
 }
 
-func (v *NodeVisitor) handleObject(n *ast.Object, parent *locate.Locatable, env locate.Env) error {
+func (v *NodeVisitor) handleObject(n *ast.Object, parent *locate.Locatable, scope locate.Scope) error {
 	if err := v.visitTypeIfExists("Object", n); err != nil {
 		return err
 	}
 
-	// TODO get env from local
-	envWithLocals := env
+	// TODO get scope from local
+	scopeWithLocals := scope
 
 	nodes := []interface{}{}
 	for _, field := range n.Fields {
@@ -989,7 +989,7 @@ func (v *NodeVisitor) handleObject(n *ast.Object, parent *locate.Locatable, env 
 		Parent: parent,
 	}
 
-	return v.visitList(nodes, locatable, envWithLocals)
+	return v.visitList(nodes, locatable, scopeWithLocals)
 }
 
 // SelfVisitor is a visitor for Self.
@@ -997,7 +997,7 @@ type SelfVisitor struct {
 	VisitSelf func(n *ast.Self) error
 }
 
-func (v *NodeVisitor) handleSelf(n *ast.Self, parent *locate.Locatable, env locate.Env) error {
+func (v *NodeVisitor) handleSelf(n *ast.Self, parent *locate.Locatable, scope locate.Scope) error {
 	if err := v.visitTypeIfExists("Self", n); err != nil {
 		return err
 	}
@@ -1010,7 +1010,7 @@ type SliceVisitor struct {
 	VisitSlice func(n *ast.Slice) error
 }
 
-func (v *NodeVisitor) handleSlice(n *ast.Slice, parent *locate.Locatable, env locate.Env) error {
+func (v *NodeVisitor) handleSlice(n *ast.Slice, parent *locate.Locatable, scope locate.Scope) error {
 	if err := v.visitTypeIfExists("Slice", n); err != nil {
 		return err
 	}
@@ -1023,7 +1023,7 @@ func (v *NodeVisitor) handleSlice(n *ast.Slice, parent *locate.Locatable, env lo
 		Parent: parent,
 	}
 
-	return v.visitList(nodes, locatable, env)
+	return v.visitList(nodes, locatable, scope)
 }
 
 // SuperIndexVisitor is a visitor for SuperIndex.
@@ -1031,7 +1031,7 @@ type SuperIndexVisitor struct {
 	VisitSuperIndex func(n *ast.SuperIndex) error
 }
 
-func (v *NodeVisitor) handleSuperIndex(n *ast.SuperIndex, parent *locate.Locatable, env locate.Env) error {
+func (v *NodeVisitor) handleSuperIndex(n *ast.SuperIndex, parent *locate.Locatable, scope locate.Scope) error {
 	if err := v.visitTypeIfExists("SuperIndex", n); err != nil {
 		return err
 	}
@@ -1044,7 +1044,7 @@ func (v *NodeVisitor) handleSuperIndex(n *ast.SuperIndex, parent *locate.Locatab
 		Parent: parent,
 	}
 
-	return v.visitList(nodes, locatable, env)
+	return v.visitList(nodes, locatable, scope)
 }
 
 // VarVisitor is a visitor for Var.
@@ -1052,7 +1052,7 @@ type VarVisitor struct {
 	VisitVar func(n *ast.Var) error
 }
 
-func (v *NodeVisitor) handleVar(n *ast.Var, parent *locate.Locatable, env locate.Env) error {
+func (v *NodeVisitor) handleVar(n *ast.Var, parent *locate.Locatable, scope locate.Scope) error {
 	if err := v.visitTypeIfExists("Var", n); err != nil {
 		return err
 	}
