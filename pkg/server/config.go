@@ -115,11 +115,23 @@ func (c *Config) updateClientConfiguration(update map[string]interface{}) error 
 }
 
 func (c *Config) String() string {
-	data, err := json.Marshal(c)
+	data, err := c.MarshalJSON()
 	if err != nil {
 		panic(fmt.Sprintf("marshaling config to JSON: %v", err))
 	}
 	return string(data)
+}
+
+type configMarshaled struct {
+	JsonnetLibPaths []string
+}
+
+func (c *Config) MarshalJSON() ([]byte, error) {
+	cm := configMarshaled{
+		JsonnetLibPaths: c.JsonnetLibPaths(),
+	}
+
+	return json.Marshal(&cm)
 }
 
 // getTextDocumentItem returns a text document item by URI.

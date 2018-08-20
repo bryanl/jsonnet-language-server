@@ -128,3 +128,19 @@ func TestConfig_storeTextDocumentItem(t *testing.T) {
 		})
 	}
 }
+
+func TestConfig_String(t *testing.T) {
+	c := NewConfig()
+
+	update := map[string]interface{}{
+		CfgJsonnetLibPaths: []string{"/path"},
+	}
+
+	err := c.updateClientConfiguration(update)
+	require.NoError(t, err)
+
+	got := c.String()
+
+	expected := "{\"JsonnetLibPaths\":[\"/path\"]}"
+	assert.Equal(t, expected, got)
+}
