@@ -1,4 +1,4 @@
-package server
+package config
 
 import (
 	"testing"
@@ -8,7 +8,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestConfig_updateClientConfiguration(t *testing.T) {
+func TestConfig_UpdateClientConfiguration(t *testing.T) {
 	cases := []struct {
 		name     string
 		update   map[string]interface{}
@@ -55,7 +55,7 @@ func TestConfig_updateClientConfiguration(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			c := NewConfig()
-			err := c.updateClientConfiguration(tc.update)
+			err := c.UpdateClientConfiguration(tc.update)
 			if tc.isErr {
 				require.Error(t, err)
 				return
@@ -66,7 +66,7 @@ func TestConfig_updateClientConfiguration(t *testing.T) {
 	}
 }
 
-func TestConfig_updateClientConfiguration_watcher(t *testing.T) {
+func TestConfig_UpdateClientConfiguration_watcher(t *testing.T) {
 	update := map[string]interface{}{
 		CfgJsonnetLibPaths: []string{"new"},
 	}
@@ -76,22 +76,23 @@ func TestConfig_updateClientConfiguration_watcher(t *testing.T) {
 	done := make(chan bool)
 
 	wasDispatched := false
-	fn := func(v interface{}) {
+	fn := func(v interface{}) error {
 		wasDispatched = true
 		assert.Equal(t, update[CfgJsonnetLibPaths], v)
 
 		done <- true
+		return nil
 	}
 
 	cancel := c.Watch(CfgJsonnetLibPaths, fn)
-	c.updateClientConfiguration(update)
+	c.UpdateClientConfiguration(update)
 
 	<-done
 	require.True(t, wasDispatched)
 	cancel()
 }
 
-func TestConfig_storeTextDocumentItem_watcher(t *testing.T) {
+func TestConfig_StoreTextDocumentItem_watcher(t *testing.T) {
 	c := NewConfig()
 
 	tdi := lsp.TextDocumentItem{
@@ -102,21 +103,23 @@ func TestConfig_storeTextDocumentItem_watcher(t *testing.T) {
 	done := make(chan bool)
 
 	wasDispatched := false
-	fn := func(got interface{}) {
+	fn := func(got interface{}) error {
 		wasDispatched = true
 		assert.Equal(t, tdi, got)
 		done <- true
+
+		return nil
 	}
 
 	cancel := c.Watch(CfgTextDocumentUpdates, fn)
-	c.storeTextDocumentItem(tdi)
+	c.StoreTextDocumentItem(tdi)
 
 	<-done
 	require.True(t, wasDispatched)
 	cancel()
 }
 
-func TestConfig_storeTextDocumentItem(t *testing.T) {
+func TestConfig_StoreTextDocumentItem(t *testing.T) {
 	cases := []struct {
 		name  string
 		uri   string
@@ -138,7 +141,7 @@ func TestConfig_storeTextDocumentItem(t *testing.T) {
 			c := NewConfig()
 			require.Len(t, c.textDocuments, 0)
 
-			err := c.storeTextDocumentItem(file)
+			err := c.StoreTextDocumentItem(file)
 			if tc.isErr {
 				require.Error(t, err)
 				return
@@ -161,7 +164,7 @@ func TestConfig_String(t *testing.T) {
 		CfgJsonnetLibPaths: []string{"/path"},
 	}
 
-	err := c.updateClientConfiguration(update)
+	err := c.UpdateClientConfiguration(update)
 	require.NoError(t, err)
 
 	got := c.String()

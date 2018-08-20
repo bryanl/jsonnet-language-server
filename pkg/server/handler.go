@@ -7,14 +7,16 @@ import (
 	"runtime/debug"
 
 	"github.com/bryanl/jsonnet-language-server/pkg/analysis/lexical/locate"
+	"github.com/bryanl/jsonnet-language-server/pkg/config"
 	"github.com/bryanl/jsonnet-language-server/pkg/lsp"
+	"github.com/bryanl/jsonnet-language-server/pkg/util/uri"
 	"github.com/pkg/errors"
 	uuid "github.com/satori/go.uuid"
 	"github.com/sirupsen/logrus"
 	"github.com/sourcegraph/jsonrpc2"
 )
 
-type operation func(*request, *Config) (interface{}, error)
+type operation func(*request, *config.Config) (interface{}, error)
 
 var operations = map[string]operation{
 	"initialize":                initialize,
@@ -29,14 +31,14 @@ var operations = map[string]operation{
 
 type lspHandler struct {
 	logger    logrus.FieldLogger
-	config    *Config
+	config    *config.Config
 	decoder   *requestDecoder
 	nodeCache *locate.NodeCache
 }
 
 // NewHandler creates a handler to handle rpc commands.
 func NewHandler(logger logrus.FieldLogger) jsonrpc2.Handler {
-	config := NewConfig()
+	config := config.NewConfig()
 
 	return &lspHandler{
 		logger:    logger.WithField("component", "handler"),
@@ -129,13 +131,13 @@ func (lh *lspHandler) Handle(ctx context.Context, conn *jsonrpc2.Conn, req *json
 	}
 }
 
-func initialize(r *request, c *Config) (interface{}, error) {
+func initialize(r *request, c *config.Config) (interface{}, error) {
 	var ip lsp.InitializeParams
 	if err := r.Decode(&ip); err != nil {
 		return nil, err
 	}
 
-	fn := func(v interface{}) {
+	fn := func(v interface{}) error {
 		// When lib paths are updated, tell the client to send
 		// watch updates for all the lib paths.
 
@@ -163,16 +165,18 @@ func initialize(r *request, c *Config) (interface{}, error) {
 		if _, err := r.RegisterCapability("workspace/didChangeWatchedFiles", options); err != nil {
 			r.log().WithError(err).Error("registering file watchers")
 		}
+
+		return nil
 	}
 
-	c.Watch(CfgJsonnetLibPaths, fn)
+	c.Watch(config.CfgJsonnetLibPaths, fn)
 
 	update, ok := ip.InitializationOptions.(map[string]interface{})
 	if !ok {
 		return nil, errors.New("initialization options are incorrect type")
 	}
 
-	if err := c.updateClientConfiguration(update); err != nil {
+	if err := c.UpdateClientConfiguration(update); err != nil {
 		return nil, err
 	}
 
@@ -194,7 +198,7 @@ func initialize(r *request, c *Config) (interface{}, error) {
 	return response, nil
 }
 
-func textDocumentCompletion(r *request, c *Config) (interface{}, error) {
+func textDocumentCompletion(r *request, c *config.Config) (interface{}, error) {
 	var rp lsp.ReferenceParams
 	if err := r.Decode(&rp); err != nil {
 		return nil, err
@@ -210,7 +214,7 @@ func textDocumentCompletion(r *request, c *Config) (interface{}, error) {
 	return response, nil
 }
 
-func textDocumentHover(r *request, c *Config) (interface{}, error) {
+func textDocumentHover(r *request, c *config.Config) (interface{}, error) {
 	var tdpp lsp.TextDocumentPositionParams
 	if err := r.Decode(&tdpp); err != nil {
 		return nil, err
@@ -220,13 +224,13 @@ func textDocumentHover(r *request, c *Config) (interface{}, error) {
 	return h.handle()
 }
 
-func updateClientConfiguration(r *request, c *Config) (interface{}, error) {
+func updateClientConfiguration(r *request, c *config.Config) (interface{}, error) {
 	var update map[string]interface{}
 	if err := r.Decode(&update); err != nil {
 		return nil, err
 	}
 
-	if err := c.updateClientConfiguration(update); err != nil {
+	if err := c.UpdateClientConfiguration(update); err != nil {
 		if msgErr := showMessage(r, lsp.MTError, err.Error()); msgErr != nil {
 			r.log().WithError(msgErr).Error("sending message")
 		}
@@ -237,8 +241,8 @@ func updateClientConfiguration(r *request, c *Config) (interface{}, error) {
 	return nil, nil
 }
 
-func updateNodeCache(r *request, c *Config, uri string) {
-	path, err := uriToPath(uri)
+func updateNodeCache(r *request, c *config.Config, uriStr string) {
+	path, err := uri.ToPath(uriStr)
 	if err != nil {
 		r.log().WithError(err).Error("converting URI to path")
 		return
@@ -251,7 +255,7 @@ func updateNodeCache(r *request, c *Config, uri string) {
 	}
 }
 
-func textDocumentDidOpen(r *request, c *Config) (interface{}, error) {
+func textDocumentDidOpen(r *request, c *config.Config) (interface{}, error) {
 	var dotdp lsp.DidOpenTextDocumentParams
 	if err := r.Decode(&dotdp); err != nil {
 		return nil, err
@@ -264,7 +268,7 @@ func textDocumentDidOpen(r *request, c *Config) (interface{}, error) {
 	return nil, nil
 }
 
-func textDocumentDidSave(r *request, c *Config) (interface{}, error) {
+func textDocumentDidSave(r *request, c *config.Config) (interface{}, error) {
 	var dotdp lsp.DidOpenTextDocumentParams
 	if err := r.Decode(&dotdp); err != nil {
 		return nil, err
@@ -277,7 +281,7 @@ func textDocumentDidSave(r *request, c *Config) (interface{}, error) {
 	return nil, nil
 }
 
-func textDocumentDidClose(r *request, c *Config) (interface{}, error) {
+func textDocumentDidClose(r *request, c *config.Config) (interface{}, error) {
 	var dotdp lsp.DidOpenTextDocumentParams
 	if err := r.Decode(&dotdp); err != nil {
 		return nil, err
@@ -290,13 +294,13 @@ func textDocumentDidClose(r *request, c *Config) (interface{}, error) {
 	return nil, nil
 }
 
-func textDocumentDidChange(r *request, c *Config) (interface{}, error) {
+func textDocumentDidChange(r *request, c *config.Config) (interface{}, error) {
 	var dotdp lsp.DidOpenTextDocumentParams
 	if err := r.Decode(&dotdp); err != nil {
 		return nil, err
 	}
 
-	if err := c.storeTextDocumentItem(dotdp.TextDocument); err != nil {
+	if err := c.StoreTextDocumentItem(dotdp.TextDocument); err != nil {
 		return nil, err
 	}
 

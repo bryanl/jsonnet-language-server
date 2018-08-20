@@ -1,22 +1,30 @@
-package server
+package config
 
 import (
 	"sync"
 
 	uuid "github.com/satori/go.uuid"
+	"github.com/sirupsen/logrus"
 )
+
+// DispatchFn is a function that will be dispatched.
+type DispatchFn func(interface{}) error
 
 // Dispatcher implements a dispatcher pattern.
 type Dispatcher struct {
-	keys map[string]func(interface{})
+	logger logrus.FieldLogger
+	keys   map[string]DispatchFn
 
 	mu sync.Mutex
 }
 
 // NewDispatcher creates an instance of Dispatcher.
 func NewDispatcher() *Dispatcher {
+	logger := logrus.WithField("component", "dispatcher")
+
 	return &Dispatcher{
-		keys: make(map[string]func(interface{})),
+		logger: logger,
+		keys:   make(map[string]DispatchFn),
 	}
 }
 
@@ -26,12 +34,16 @@ func (d *Dispatcher) Dispatch(v interface{}) {
 	defer d.mu.Unlock()
 
 	for _, fn := range d.keys {
-		go fn(v)
+		go func() {
+			if err := fn(v); err != nil {
+				d.logger.WithError(err).Error("dispatching to function")
+			}
+		}()
 	}
 }
 
 // Watch configures a watcher.
-func (d *Dispatcher) Watch(fn func(interface{})) func() {
+func (d *Dispatcher) Watch(fn DispatchFn) func() {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 

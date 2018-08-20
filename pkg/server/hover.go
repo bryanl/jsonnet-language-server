@@ -1,21 +1,22 @@
 package server
 
 import (
-	"net/url"
 	"os"
 
 	"github.com/bryanl/jsonnet-language-server/pkg/analysis/lexical"
+	"github.com/bryanl/jsonnet-language-server/pkg/config"
 	"github.com/bryanl/jsonnet-language-server/pkg/lsp"
+	"github.com/bryanl/jsonnet-language-server/pkg/util/uri"
 	"github.com/google/go-jsonnet/ast"
 	"github.com/pkg/errors"
 )
 
 type hover struct {
 	params lsp.TextDocumentPositionParams
-	config *Config
+	config *config.Config
 }
 
-func newHover(params lsp.TextDocumentPositionParams, c *Config) *hover {
+func newHover(params lsp.TextDocumentPositionParams, c *config.Config) *hover {
 	return &hover{
 		params: params,
 		config: c,
@@ -23,7 +24,7 @@ func newHover(params lsp.TextDocumentPositionParams, c *Config) *hover {
 }
 
 func (h *hover) handle() (interface{}, error) {
-	path, err := uriToPath(h.params.TextDocument.URI)
+	path, err := uri.ToPath(h.params.TextDocument.URI)
 	if err != nil {
 		return nil, err
 	}
@@ -35,19 +36,6 @@ func (h *hover) handle() (interface{}, error) {
 	}
 
 	return lexical.HoverAtLocation(path, f, h.params.Position.Line+1, h.params.Position.Character+1, h.config.JsonnetLibPaths(), h.config.NodeCache())
-}
-
-func uriToPath(uri string) (string, error) {
-	u, err := url.Parse(uri)
-	if err != nil {
-		return "", errors.Wrap(err, "parsing file URL")
-	}
-
-	if u.Scheme != "file" {
-		return "", errors.Wrap(err, "invalid file schema")
-	}
-
-	return u.Path, nil
 }
 
 func posToLoc(pos lsp.Position) ast.Location {

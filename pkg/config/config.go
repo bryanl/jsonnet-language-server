@@ -1,4 +1,4 @@
-package server
+package config
 
 import (
 	"encoding/json"
@@ -7,6 +7,7 @@ import (
 
 	"github.com/bryanl/jsonnet-language-server/pkg/analysis/lexical/locate"
 	"github.com/bryanl/jsonnet-language-server/pkg/lsp"
+	"github.com/bryanl/jsonnet-language-server/pkg/util/uri"
 	"github.com/sirupsen/logrus"
 
 	"github.com/pkg/errors"
@@ -49,22 +50,22 @@ func (c *Config) JsonnetLibPaths() []string {
 	return c.jsonnetLibPaths
 }
 
-// storeTextDocumentItem updates the local file cache.
-func (c *Config) storeTextDocumentItem(tdi lsp.TextDocumentItem) error {
+// StoreTextDocumentItem updates the local file cache.
+func (c *Config) StoreTextDocumentItem(tdi lsp.TextDocumentItem) error {
 	c.textDocuments[tdi.URI] = tdi
 	c.dispatch(CfgTextDocumentUpdates, tdi)
 	return nil
 }
 
 // Text retrieves text from our local cache or from the file system.
-func (c *Config) Text(uri string) (string, error) {
-	text, ok := c.textDocuments[uri]
+func (c *Config) Text(uriStr string) (string, error) {
+	text, ok := c.textDocuments[uriStr]
 	if ok {
 		logrus.Info("returning text from cache")
 		return text.Text, nil
 	}
 	logrus.Info("returning text from disk")
-	path, err := uriToPath(uri)
+	path, err := uri.ToPath(uriStr)
 	if err != nil {
 		return "", err
 	}
@@ -79,7 +80,7 @@ func (c *Config) Text(uri string) (string, error) {
 
 // Watch will call `fn`` when key `k` is updated. It returns a
 // cancel function.
-func (c *Config) Watch(k string, fn func(interface{})) func() {
+func (c *Config) Watch(k string, fn DispatchFn) func() {
 	d := c.dispatcher(k)
 	return d.Watch(fn)
 }
@@ -99,8 +100,8 @@ func (c *Config) dispatch(k string, msg interface{}) {
 	d.Dispatch(msg)
 }
 
-// Update updates the configuration.
-func (c *Config) updateClientConfiguration(update map[string]interface{}) error {
+// UpdateClientConfiguration updates the configuration.
+func (c *Config) UpdateClientConfiguration(update map[string]interface{}) error {
 	for k, v := range update {
 		switch k {
 		case CfgJsonnetLibPaths:

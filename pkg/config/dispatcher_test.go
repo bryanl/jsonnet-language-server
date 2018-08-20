@@ -1,4 +1,4 @@
-package server
+package config
 
 import (
 	"testing"
@@ -11,11 +11,12 @@ func TestDispatch(t *testing.T) {
 	done := make(chan bool)
 
 	wasDispatched := false
-	fn := func(v interface{}) {
+	fn := func(v interface{}) error {
 		assert.Equal(t, "msg", v)
 		wasDispatched = true
 
 		done <- true
+		return nil
 	}
 
 	d := NewDispatcher()
