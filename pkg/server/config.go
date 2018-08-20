@@ -15,6 +15,9 @@ import (
 const (
 	// CfgJsonnetLibPaths are jsonnet lib paths.
 	CfgJsonnetLibPaths = "jsonnet.libPaths"
+
+	// CfgTextDocumentUpdates are text document updates.
+	CfgTextDocumentUpdates = "textDocument.update"
 )
 
 // Config is configuration setting for the server.
@@ -49,6 +52,7 @@ func (c *Config) JsonnetLibPaths() []string {
 // storeTextDocumentItem updates the local file cache.
 func (c *Config) storeTextDocumentItem(tdi lsp.TextDocumentItem) error {
 	c.textDocuments[tdi.URI] = tdi
+	c.dispatch(CfgTextDocumentUpdates, tdi)
 	return nil
 }
 

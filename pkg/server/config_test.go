@@ -91,6 +91,31 @@ func TestConfig_updateClientConfiguration_watcher(t *testing.T) {
 	cancel()
 }
 
+func TestConfig_storeTextDocumentItem_watcher(t *testing.T) {
+	c := NewConfig()
+
+	tdi := lsp.TextDocumentItem{
+		URI:  "file:///new",
+		Text: "text",
+	}
+
+	done := make(chan bool)
+
+	wasDispatched := false
+	fn := func(got interface{}) {
+		wasDispatched = true
+		assert.Equal(t, tdi, got)
+		done <- true
+	}
+
+	cancel := c.Watch(CfgTextDocumentUpdates, fn)
+	c.storeTextDocumentItem(tdi)
+
+	<-done
+	require.True(t, wasDispatched)
+	cancel()
+}
+
 func TestConfig_storeTextDocumentItem(t *testing.T) {
 	cases := []struct {
 		name  string
