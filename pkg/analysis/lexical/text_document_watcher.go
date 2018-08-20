@@ -13,14 +13,12 @@ import (
 // TextDocumentWatcher watches text documents.
 type TextDocumentWatcher struct {
 	config *config.Config
-	cache  *LocatableCache
 }
 
 // NewTextDocumentWatcher creates an instance of NewTextDocumentWatcher.
-func NewTextDocumentWatcher(c *config.Config, cache *LocatableCache) *TextDocumentWatcher {
+func NewTextDocumentWatcher(c *config.Config) *TextDocumentWatcher {
 	tdw := &TextDocumentWatcher{
 		config: c,
-		cache:  cache,
 	}
 
 	c.Watch(config.TextDocumentUpdates, tdw.watch)
@@ -41,12 +39,16 @@ func (tdw *TextDocumentWatcher) watch(item interface{}) error {
 
 	r := strings.NewReader(tdi.Text)
 
-	_, err = newLocatableVisitor(filename, r, tdw.cache)
+	lv, err := newLocatableVisitor(filename, r)
 	if err != nil {
 		return err
 	}
 
-	logrus.Info("ran new locatable visitor")
+	logrus.Info("running visitText")
+	if err := lv.Visit(); err != nil {
+		return err
+	}
 
-	return nil
+	locatableCache := tdw.config.LocatableCache()
+	return locatableCache.Store(filename, lv.Locatables())
 }

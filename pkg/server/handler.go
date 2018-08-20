@@ -43,8 +43,7 @@ type lspHandler struct {
 func NewHandler(logger logrus.FieldLogger) jsonrpc2.Handler {
 	c := config.New()
 	nodeCache := locate.NewNodeCache()
-	locatableCache := lexical.NewLocatableCache()
-	tdw := lexical.NewTextDocumentWatcher(c, locatableCache)
+	tdw := lexical.NewTextDocumentWatcher(c)
 
 	return &lspHandler{
 		logger:              logger.WithField("component", "handler"),
@@ -269,6 +268,10 @@ func textDocumentDidOpen(r *request, c *config.Config) (interface{}, error) {
 	}
 
 	r.log().WithField("uri", dotdp.TextDocument.URI).Info("opened file")
+
+	if err := c.StoreTextDocumentItem(dotdp.TextDocument); err != nil {
+		return nil, err
+	}
 
 	go updateNodeCache(r, c, dotdp.TextDocument.URI)
 

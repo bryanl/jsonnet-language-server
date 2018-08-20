@@ -9,15 +9,15 @@ import (
 )
 
 type locatableVisitor struct {
-	filename string
-	visitor  *NodeVisitor
-	cache    *LocatableCache
+	filename   string
+	visitor    *NodeVisitor
+	cache      *locate.LocatableCache
+	locatables []locate.Locatable
 }
 
-func newLocatableVisitor(filename string, r io.Reader, cache *LocatableCache) (*locatableVisitor, error) {
+func newLocatableVisitor(filename string, r io.Reader) (*locatableVisitor, error) {
 	lv := &locatableVisitor{
 		filename: filename,
-		cache:    cache,
 	}
 
 	v, err := NewNodeVisitor(filename, r, true, PreVisit(lv.previsit))
@@ -28,6 +28,14 @@ func newLocatableVisitor(filename string, r io.Reader, cache *LocatableCache) (*
 	lv.visitor = v
 
 	return lv, nil
+}
+
+func (lv *locatableVisitor) Visit() error {
+	return lv.visitor.Visit()
+}
+
+func (lv *locatableVisitor) Locatables() []locate.Locatable {
+	return lv.locatables
 }
 
 func (lv *locatableVisitor) previsit(token interface{}, parent *locate.Locatable, scope locate.Scope) error {
@@ -50,12 +58,13 @@ func (lv *locatableVisitor) previsit(token interface{}, parent *locate.Locatable
 		r.FileName = parent.Loc.FileName
 	}
 
-	nl := &locate.Locatable{
+	nl := locate.Locatable{
 		Token:  token,
 		Loc:    r,
 		Parent: parent,
 		Scope:  scope,
 	}
 
-	return lv.cache.Store(lv.filename, nl)
+	lv.locatables = append(lv.locatables, nl)
+	return nil
 }

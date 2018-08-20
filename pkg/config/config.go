@@ -8,9 +8,8 @@ import (
 	"github.com/bryanl/jsonnet-language-server/pkg/analysis/lexical/locate"
 	"github.com/bryanl/jsonnet-language-server/pkg/lsp"
 	"github.com/bryanl/jsonnet-language-server/pkg/util/uri"
-	"github.com/sirupsen/logrus"
-
 	"github.com/pkg/errors"
+	"github.com/sirupsen/logrus"
 )
 
 const (
@@ -26,6 +25,7 @@ type Config struct {
 	textDocuments   map[string]lsp.TextDocumentItem
 	jsonnetLibPaths []string
 	nodeCache       *locate.NodeCache
+	locatableCache  *locate.LocatableCache
 	dispatchers     map[string]*Dispatcher
 }
 
@@ -35,9 +35,14 @@ func New() *Config {
 		textDocuments:   make(map[string]lsp.TextDocumentItem),
 		jsonnetLibPaths: make([]string, 0),
 		nodeCache:       locate.NewNodeCache(),
-
-		dispatchers: map[string]*Dispatcher{},
+		locatableCache:  locate.NewLocatableCache(),
+		dispatchers:     map[string]*Dispatcher{},
 	}
+}
+
+// LocatableCache returns the locatable cache.
+func (c *Config) LocatableCache() *locate.LocatableCache {
+	return c.locatableCache
 }
 
 // NodeCache returns the node cache.
@@ -131,6 +136,7 @@ type configMarshaled struct {
 	JsonnetLibPaths []string
 }
 
+// MarshalJSON marshals a config to JSON bytes.
 func (c *Config) MarshalJSON() ([]byte, error) {
 	cm := configMarshaled{
 		JsonnetLibPaths: c.JsonnetLibPaths(),
