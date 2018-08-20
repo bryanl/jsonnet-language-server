@@ -213,14 +213,3 @@ func Test_afterRange(t *testing.T) {
 		})
 	}
 }
-
-func createRange(r1l, r1c, r2l, r2c int) ast.LocationRange {
-	return ast.LocationRange{
-		Begin: createLoc(r1l, r1c),
-		End:   createLoc(r2l, r2c),
-	}
-}
-
-func createLoc(line, column int) ast.Location {
-	return ast.Location{Line: line, Column: column}
-}

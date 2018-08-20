@@ -36,5 +36,5 @@ func (c *complete) handle() (interface{}, error) {
 	}
 
 	loc := posToLoc(c.referenceParams.Position)
-	return lexical.CompletionAtLocation(path, r, loc, c.config.JsonnetLibPaths(), c.config.NodeCache())
+	return lexical.CompletionAtLocation(path, r, loc, c.config)
 }

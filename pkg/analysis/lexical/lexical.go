@@ -9,7 +9,6 @@ import (
 	"github.com/bryanl/jsonnet-language-server/pkg/config"
 	"github.com/bryanl/jsonnet-language-server/pkg/lsp"
 	"github.com/google/go-jsonnet/ast"
-	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 )
 
@@ -17,19 +16,15 @@ var (
 	emptyHover = &lsp.Hover{}
 )
 
-func CompletionAtLocation(filename string, r io.Reader, loc ast.Location, jpaths []string, cache *locate.NodeCache) (*lsp.CompletionList, error) {
-	v, err := newCompletionVisitor(filename, r, loc)
+func CompletionAtLocation(filename string, r io.Reader, loc ast.Location, cfg *config.Config) (*lsp.CompletionList, error) {
+	lc := cfg.LocatableCache()
+	l, err := lc.GetAtPosition(filename, loc)
 	if err != nil {
-		return nil, errors.Wrap(err, "visiting tokens")
+		return nil, err
 	}
 
 	list := &lsp.CompletionList{
 		Items: []lsp.CompletionItem{},
-	}
-
-	l, err := v.TokenAtLocation()
-	if err != nil {
-		return nil, errors.Wrap(err, "finding token at location")
 	}
 
 	id := ""
