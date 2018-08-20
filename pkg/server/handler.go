@@ -296,7 +296,7 @@ func textDocumentDidChange(r *request, c *Config) (interface{}, error) {
 		return nil, err
 	}
 
-	if err := c.updateFile(dotdp.TextDocument); err != nil {
+	if err := c.storeTextDocumentItem(dotdp.TextDocument); err != nil {
 		return nil, err
 	}
 

@@ -46,8 +46,8 @@ func (c *Config) JsonnetLibPaths() []string {
 	return c.jsonnetLibPaths
 }
 
-// updateFile updates the local file cache.
-func (c *Config) updateFile(tdi lsp.TextDocumentItem) error {
+// storeTextDocumentItem updates the local file cache.
+func (c *Config) storeTextDocumentItem(tdi lsp.TextDocumentItem) error {
 	c.textDocuments[tdi.URI] = tdi
 	return nil
 }

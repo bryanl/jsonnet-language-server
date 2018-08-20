@@ -91,7 +91,7 @@ func TestConfig_update_watcher(t *testing.T) {
 	cancel()
 }
 
-func TestConfig_updateFile(t *testing.T) {
+func TestConfig_storeTextDocumentItem(t *testing.T) {
 	cases := []struct {
 		name  string
 		uri   string
@@ -113,7 +113,7 @@ func TestConfig_updateFile(t *testing.T) {
 			c := NewConfig()
 			require.Len(t, c.textDocuments, 0)
 
-			err := c.updateFile(file)
+			err := c.storeTextDocumentItem(file)
 			if tc.isErr {
 				require.Error(t, err)
 				return
