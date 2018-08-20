@@ -172,7 +172,7 @@ func initialize(r *request, c *Config) (interface{}, error) {
 		return nil, errors.New("initialization options are incorrect type")
 	}
 
-	if err := c.update(update); err != nil {
+	if err := c.updateClientConfiguration(update); err != nil {
 		return nil, err
 	}
 
@@ -226,7 +226,7 @@ func updateClientConfiguration(r *request, c *Config) (interface{}, error) {
 		return nil, err
 	}
 
-	if err := c.update(update); err != nil {
+	if err := c.updateClientConfiguration(update); err != nil {
 		if msgErr := showMessage(r, lsp.MTError, err.Error()); msgErr != nil {
 			r.log().WithError(msgErr).Error("sending message")
 		}

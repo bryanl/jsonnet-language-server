@@ -8,7 +8,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestConfig_update(t *testing.T) {
+func TestConfig_updateClientConfiguration(t *testing.T) {
 	cases := []struct {
 		name     string
 		update   map[string]interface{}
@@ -55,7 +55,7 @@ func TestConfig_update(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			c := NewConfig()
-			err := c.update(tc.update)
+			err := c.updateClientConfiguration(tc.update)
 			if tc.isErr {
 				require.Error(t, err)
 				return
@@ -66,7 +66,7 @@ func TestConfig_update(t *testing.T) {
 	}
 }
 
-func TestConfig_update_watcher(t *testing.T) {
+func TestConfig_updateClientConfiguration_watcher(t *testing.T) {
 	update := map[string]interface{}{
 		CfgJsonnetLibPaths: []string{"new"},
 	}
@@ -84,7 +84,7 @@ func TestConfig_update_watcher(t *testing.T) {
 	}
 
 	cancel := c.Watch(CfgJsonnetLibPaths, fn)
-	c.update(update)
+	c.updateClientConfiguration(update)
 
 	<-done
 	require.True(t, wasDispatched)

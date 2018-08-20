@@ -96,7 +96,7 @@ func (c *Config) dispatch(k string, msg interface{}) {
 }
 
 // Update updates the configuration.
-func (c *Config) update(update map[string]interface{}) error {
+func (c *Config) updateClientConfiguration(update map[string]interface{}) error {
 	for k, v := range update {
 		switch k {
 		case CfgJsonnetLibPaths:
