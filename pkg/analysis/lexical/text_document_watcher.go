@@ -7,6 +7,7 @@ import (
 	"github.com/bryanl/jsonnet-language-server/pkg/lsp"
 	"github.com/bryanl/jsonnet-language-server/pkg/util/uri"
 	"github.com/pkg/errors"
+	"github.com/sirupsen/logrus"
 )
 
 // TextDocumentWatcher watches text documents.
@@ -22,7 +23,7 @@ func NewTextDocumentWatcher(c *config.Config, cache *LocatableCache) *TextDocume
 		cache:  cache,
 	}
 
-	c.Watch(config.CfgTextDocumentUpdates, tdw.watch)
+	c.Watch(config.TextDocumentUpdates, tdw.watch)
 
 	return tdw
 }
@@ -44,6 +45,8 @@ func (tdw *TextDocumentWatcher) watch(item interface{}) error {
 	if err != nil {
 		return err
 	}
+
+	logrus.Info("ran new locatable visitor")
 
 	return nil
 }

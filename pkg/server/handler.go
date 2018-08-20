@@ -6,6 +6,8 @@ import (
 	"path/filepath"
 	"runtime/debug"
 
+	"github.com/bryanl/jsonnet-language-server/pkg/analysis/lexical"
+
 	"github.com/bryanl/jsonnet-language-server/pkg/analysis/lexical/locate"
 	"github.com/bryanl/jsonnet-language-server/pkg/config"
 	"github.com/bryanl/jsonnet-language-server/pkg/lsp"
@@ -30,21 +32,26 @@ var operations = map[string]operation{
 }
 
 type lspHandler struct {
-	logger    logrus.FieldLogger
-	config    *config.Config
-	decoder   *requestDecoder
-	nodeCache *locate.NodeCache
+	logger              logrus.FieldLogger
+	config              *config.Config
+	decoder             *requestDecoder
+	nodeCache           *locate.NodeCache
+	textDocumentWatcher *lexical.TextDocumentWatcher
 }
 
 // NewHandler creates a handler to handle rpc commands.
 func NewHandler(logger logrus.FieldLogger) jsonrpc2.Handler {
-	config := config.NewConfig()
+	c := config.New()
+	nodeCache := locate.NewNodeCache()
+	locatableCache := lexical.NewLocatableCache()
+	tdw := lexical.NewTextDocumentWatcher(c, locatableCache)
 
 	return &lspHandler{
-		logger:    logger.WithField("component", "handler"),
-		decoder:   &requestDecoder{},
-		config:    config,
-		nodeCache: locate.NewNodeCache(),
+		logger:              logger.WithField("component", "handler"),
+		decoder:             &requestDecoder{},
+		config:              c,
+		nodeCache:           nodeCache,
+		textDocumentWatcher: tdw,
 	}
 }
 
@@ -169,7 +176,7 @@ func initialize(r *request, c *config.Config) (interface{}, error) {
 		return nil
 	}
 
-	c.Watch(config.CfgJsonnetLibPaths, fn)
+	c.Watch(config.JsonnetLibPaths, fn)
 
 	update, ok := ip.InitializationOptions.(map[string]interface{})
 	if !ok {

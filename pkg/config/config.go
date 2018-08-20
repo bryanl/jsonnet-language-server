@@ -14,11 +14,11 @@ import (
 )
 
 const (
-	// CfgJsonnetLibPaths are jsonnet lib paths.
-	CfgJsonnetLibPaths = "jsonnet.libPaths"
+	// JsonnetLibPaths are jsonnet lib paths.
+	JsonnetLibPaths = "jsonnet.libPaths"
 
-	// CfgTextDocumentUpdates are text document updates.
-	CfgTextDocumentUpdates = "textDocument.update"
+	// TextDocumentUpdates are text document updates.
+	TextDocumentUpdates = "textDocument.update"
 )
 
 // Config is configuration setting for the server.
@@ -29,8 +29,8 @@ type Config struct {
 	dispatchers     map[string]*Dispatcher
 }
 
-// NewConfig creates an instance of Config.
-func NewConfig() *Config {
+// New creates an instance of Config.
+func New() *Config {
 	return &Config{
 		textDocuments:   make(map[string]lsp.TextDocumentItem),
 		jsonnetLibPaths: make([]string, 0),
@@ -53,7 +53,7 @@ func (c *Config) JsonnetLibPaths() []string {
 // StoreTextDocumentItem updates the local file cache.
 func (c *Config) StoreTextDocumentItem(tdi lsp.TextDocumentItem) error {
 	c.textDocuments[tdi.URI] = tdi
-	c.dispatch(CfgTextDocumentUpdates, tdi)
+	c.dispatch(TextDocumentUpdates, tdi)
 	return nil
 }
 
@@ -104,14 +104,14 @@ func (c *Config) dispatch(k string, msg interface{}) {
 func (c *Config) UpdateClientConfiguration(update map[string]interface{}) error {
 	for k, v := range update {
 		switch k {
-		case CfgJsonnetLibPaths:
+		case JsonnetLibPaths:
 			paths, err := interfaceToStrings(v)
 			if err != nil {
-				return errors.Wrapf(err, "setting %q", CfgJsonnetLibPaths)
+				return errors.Wrapf(err, "setting %q", JsonnetLibPaths)
 			}
 
 			c.jsonnetLibPaths = paths
-			c.dispatch(CfgJsonnetLibPaths, paths)
+			c.dispatch(JsonnetLibPaths, paths)
 		default:
 			return errors.Errorf("setting %q is unknown to the jsonnet language server", k)
 		}

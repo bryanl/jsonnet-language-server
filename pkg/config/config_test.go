@@ -54,7 +54,7 @@ func TestConfig_UpdateClientConfiguration(t *testing.T) {
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			c := NewConfig()
+			c := New()
 			err := c.UpdateClientConfiguration(tc.update)
 			if tc.isErr {
 				require.Error(t, err)
@@ -68,23 +68,23 @@ func TestConfig_UpdateClientConfiguration(t *testing.T) {
 
 func TestConfig_UpdateClientConfiguration_watcher(t *testing.T) {
 	update := map[string]interface{}{
-		CfgJsonnetLibPaths: []string{"new"},
+		JsonnetLibPaths: []string{"new"},
 	}
 
-	c := NewConfig()
+	c := New()
 
 	done := make(chan bool)
 
 	wasDispatched := false
 	fn := func(v interface{}) error {
 		wasDispatched = true
-		assert.Equal(t, update[CfgJsonnetLibPaths], v)
+		assert.Equal(t, update[JsonnetLibPaths], v)
 
 		done <- true
 		return nil
 	}
 
-	cancel := c.Watch(CfgJsonnetLibPaths, fn)
+	cancel := c.Watch(JsonnetLibPaths, fn)
 	c.UpdateClientConfiguration(update)
 
 	<-done
@@ -93,7 +93,7 @@ func TestConfig_UpdateClientConfiguration_watcher(t *testing.T) {
 }
 
 func TestConfig_StoreTextDocumentItem_watcher(t *testing.T) {
-	c := NewConfig()
+	c := New()
 
 	tdi := lsp.TextDocumentItem{
 		URI:  "file:///new",
@@ -111,7 +111,7 @@ func TestConfig_StoreTextDocumentItem_watcher(t *testing.T) {
 		return nil
 	}
 
-	cancel := c.Watch(CfgTextDocumentUpdates, fn)
+	cancel := c.Watch(TextDocumentUpdates, fn)
 	c.StoreTextDocumentItem(tdi)
 
 	<-done
@@ -138,7 +138,7 @@ func TestConfig_StoreTextDocumentItem(t *testing.T) {
 				Text: "text",
 			}
 
-			c := NewConfig()
+			c := New()
 			require.Len(t, c.textDocuments, 0)
 
 			err := c.StoreTextDocumentItem(file)
@@ -158,10 +158,10 @@ func TestConfig_StoreTextDocumentItem(t *testing.T) {
 }
 
 func TestConfig_String(t *testing.T) {
-	c := NewConfig()
+	c := New()
 
 	update := map[string]interface{}{
-		CfgJsonnetLibPaths: []string{"/path"},
+		JsonnetLibPaths: []string{"/path"},
 	}
 
 	err := c.UpdateClientConfiguration(update)
