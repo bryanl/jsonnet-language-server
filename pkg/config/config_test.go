@@ -3,7 +3,6 @@ package config
 import (
 	"testing"
 
-	"github.com/bryanl/jsonnet-language-server/pkg/lsp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -95,7 +94,7 @@ func TestConfig_UpdateClientConfiguration_watcher(t *testing.T) {
 func TestConfig_StoreTextDocumentItem_watcher(t *testing.T) {
 	c := New()
 
-	tdi := lsp.TextDocumentItem{
+	tdi := TextDocument{
 		URI:  "file:///new",
 		Text: "text",
 	}
@@ -133,7 +132,7 @@ func TestConfig_StoreTextDocumentItem(t *testing.T) {
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			file := lsp.TextDocumentItem{
+			file := TextDocument{
 				URI:  tc.uri,
 				Text: "text",
 			}

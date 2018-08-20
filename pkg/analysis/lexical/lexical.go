@@ -73,22 +73,11 @@ func HoverAtLocation(filename string, r io.Reader, l, c int, cfg *config.Config)
 		Column: c,
 	}
 
-	// TODO get the locatable cache
 	lc := cfg.LocatableCache()
 	locatable, err := lc.GetAtPosition(filename, loc)
 	if err != nil {
 		return nil, err
 	}
-
-	// v, err := newHoverVisitor(filename, r, loc)
-	// if err != nil {
-	// 	return nil, err
-	// }
-
-	// locatable, err := v.TokenAtLocation()
-	// if err != nil {
-	// 	return nil, err
-	// }
 
 	if locatable == nil {
 		return emptyHover, nil
@@ -127,6 +116,7 @@ func HoverAtLocation(filename string, r io.Reader, l, c int, cfg *config.Config)
 	return response, nil
 }
 
+// TODO locatable should own this code
 func hasResolvedLocation(r ast.LocationRange) bool {
 	locs := []int{r.Begin.Line, r.Begin.Column,
 		r.End.Line, r.End.Column}

@@ -269,7 +269,13 @@ func textDocumentDidOpen(r *request, c *config.Config) (interface{}, error) {
 
 	r.log().WithField("uri", dotdp.TextDocument.URI).Info("opened file")
 
-	if err := c.StoreTextDocumentItem(dotdp.TextDocument); err != nil {
+	td := config.TextDocument{
+		URI:        dotdp.TextDocument.URI,
+		LanguageID: dotdp.TextDocument.LanguageID,
+		Text:       dotdp.TextDocument.Text,
+		Version:    dotdp.TextDocument.Version,
+	}
+	if err := c.StoreTextDocumentItem(td); err != nil {
 		return nil, err
 	}
 
@@ -305,12 +311,12 @@ func textDocumentDidClose(r *request, c *config.Config) (interface{}, error) {
 }
 
 func textDocumentDidChange(r *request, c *config.Config) (interface{}, error) {
-	var dotdp lsp.DidOpenTextDocumentParams
-	if err := r.Decode(&dotdp); err != nil {
+	var dctdp lsp.DidChangeTextDocumentParams
+	if err := r.Decode(&dctdp); err != nil {
 		return nil, err
 	}
 
-	if err := c.StoreTextDocumentItem(dotdp.TextDocument); err != nil {
+	if err := c.UpdateTextDocumentItem(dctdp); err != nil {
 		return nil, err
 	}
 

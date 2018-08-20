@@ -1,14 +1,13 @@
 package server
 
 import (
-	"os"
+	"strings"
 
 	"github.com/bryanl/jsonnet-language-server/pkg/analysis/lexical"
 	"github.com/bryanl/jsonnet-language-server/pkg/config"
 	"github.com/bryanl/jsonnet-language-server/pkg/lsp"
 	"github.com/bryanl/jsonnet-language-server/pkg/util/uri"
 	"github.com/google/go-jsonnet/ast"
-	"github.com/pkg/errors"
 )
 
 type hover struct {
@@ -29,13 +28,14 @@ func (h *hover) handle() (interface{}, error) {
 		return nil, err
 	}
 
-	/* nosec */
-	f, err := os.Open(path)
+	text, err := h.config.Text(h.params.TextDocument.URI)
 	if err != nil {
-		return nil, errors.Wrap(err, "opening file")
+		return nil, err
 	}
 
-	return lexical.HoverAtLocation(path, f, h.params.Position.Line+1, h.params.Position.Character+1, h.config)
+	r := strings.NewReader(text)
+
+	return lexical.HoverAtLocation(path, r, h.params.Position.Line+1, h.params.Position.Character+1, h.config)
 }
 
 func posToLoc(pos lsp.Position) ast.Location {

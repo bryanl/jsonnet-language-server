@@ -3,20 +3,27 @@ package lexical
 import (
 	"strings"
 
+	"github.com/bryanl/jsonnet-language-server/pkg/analysis/lexical/locate"
+
 	"github.com/bryanl/jsonnet-language-server/pkg/config"
-	"github.com/bryanl/jsonnet-language-server/pkg/lsp"
 	"github.com/bryanl/jsonnet-language-server/pkg/util/uri"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 )
 
+// TextDocumentWatcherConfig is configuration for TextDocumentWatcher.
+type TextDocumentWatcherConfig interface {
+	LocatableCache() *locate.LocatableCache
+	Watch(string, config.DispatchFn) config.DispatchCancelFn
+}
+
 // TextDocumentWatcher watches text documents.
 type TextDocumentWatcher struct {
-	config *config.Config
+	config TextDocumentWatcherConfig
 }
 
 // NewTextDocumentWatcher creates an instance of NewTextDocumentWatcher.
-func NewTextDocumentWatcher(c *config.Config) *TextDocumentWatcher {
+func NewTextDocumentWatcher(c TextDocumentWatcherConfig) *TextDocumentWatcher {
 	tdw := &TextDocumentWatcher{
 		config: c,
 	}
@@ -27,7 +34,7 @@ func NewTextDocumentWatcher(c *config.Config) *TextDocumentWatcher {
 }
 
 func (tdw *TextDocumentWatcher) watch(item interface{}) error {
-	tdi, ok := item.(lsp.TextDocumentItem)
+	tdi, ok := item.(config.TextDocument)
 	if !ok {
 		return errors.Errorf("text document watcher can't handle %T", item)
 	}
@@ -41,12 +48,12 @@ func (tdw *TextDocumentWatcher) watch(item interface{}) error {
 
 	lv, err := newLocatableVisitor(filename, r)
 	if err != nil {
-		return err
+		return errors.Wrap(err, "creating visitor")
 	}
 
 	logrus.Info("running visitText")
 	if err := lv.Visit(); err != nil {
-		return err
+		return errors.Wrap(err, "visiting nodes")
 	}
 
 	locatableCache := tdw.config.LocatableCache()

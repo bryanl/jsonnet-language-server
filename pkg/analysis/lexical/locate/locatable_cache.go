@@ -41,18 +41,14 @@ func (lc *LocatableCache) GetAtPosition(filename string, pos ast.Location) (*Loc
 	for i := range list {
 		l := list[i]
 		if selected == nil && inRange(pos, l.Loc) {
-			logrus.Infof("setting %T as selected token because there was none (%s)",
+			logrus.Debugf("setting %T as selected token because there was none (%s)",
 				l.Token, l.Loc.String())
 			selected = &l
 		} else if selected != nil && inRange(pos, l.Loc) && isRangeSmaller(selected.Loc, l.Loc) {
-			logrus.Infof("setting %T as selected token because its range %s is smaller than %s from %T",
+			logrus.Debugf("setting %T as selected token because its range %s is smaller than %s from %T",
 				l.Token, l.Loc.String(), selected.Loc.String(), selected.Token)
 			selected = &l
 		}
-	}
-
-	if selected == nil {
-		return nil, errors.Errorf("no locatable is selected")
 	}
 
 	return selected, nil

@@ -20,9 +20,17 @@ const (
 	TextDocumentUpdates = "textDocument.update"
 )
 
+// TextDocument is a document's text and and metadata.
+type TextDocument struct {
+	URI        string
+	LanguageID string
+	Version    int
+	Text       string
+}
+
 // Config is configuration setting for the server.
 type Config struct {
-	textDocuments   map[string]lsp.TextDocumentItem
+	textDocuments   map[string]TextDocument
 	jsonnetLibPaths []string
 	nodeCache       *locate.NodeCache
 	locatableCache  *locate.LocatableCache
@@ -32,7 +40,7 @@ type Config struct {
 // New creates an instance of Config.
 func New() *Config {
 	return &Config{
-		textDocuments:   make(map[string]lsp.TextDocumentItem),
+		textDocuments:   make(map[string]TextDocument),
 		jsonnetLibPaths: make([]string, 0),
 		nodeCache:       locate.NewNodeCache(),
 		locatableCache:  locate.NewLocatableCache(),
@@ -55,11 +63,33 @@ func (c *Config) JsonnetLibPaths() []string {
 	return c.jsonnetLibPaths
 }
 
-// StoreTextDocumentItem updates the local file cache.
-func (c *Config) StoreTextDocumentItem(tdi lsp.TextDocumentItem) error {
-	c.textDocuments[tdi.URI] = tdi
-	c.dispatch(TextDocumentUpdates, tdi)
+// StoreTextDocumentItem stores a text document item.
+func (c *Config) StoreTextDocumentItem(td TextDocument) error {
+	oldDoc, ok := c.textDocuments[td.URI]
+	if !ok {
+		oldDoc = td
+	}
+
+	oldDoc.Text = td.Text
+	oldDoc.Version = td.Version
+
+	c.textDocuments[td.URI] = td
+	c.dispatch(TextDocumentUpdates, td)
 	return nil
+}
+
+// UpdateTextDocumentItem updates a text document item with a change event.
+func (c *Config) UpdateTextDocumentItem(dctdp lsp.DidChangeTextDocumentParams) error {
+	// The language server is configured to request for full content changes,
+	// so the text in the change event is a full document.
+
+	td := TextDocument{
+		Text:    dctdp.ContentChanges[0].Text,
+		URI:     dctdp.TextDocument.URI,
+		Version: dctdp.TextDocument.Version,
+	}
+
+	return c.StoreTextDocumentItem(td)
 }
 
 // Text retrieves text from our local cache or from the file system.
@@ -85,7 +115,7 @@ func (c *Config) Text(uriStr string) (string, error) {
 
 // Watch will call `fn`` when key `k` is updated. It returns a
 // cancel function.
-func (c *Config) Watch(k string, fn DispatchFn) func() {
+func (c *Config) Watch(k string, fn DispatchFn) DispatchCancelFn {
 	d := c.dispatcher(k)
 	return d.Watch(fn)
 }
@@ -146,10 +176,10 @@ func (c *Config) MarshalJSON() ([]byte, error) {
 }
 
 // getTextDocumentItem returns a text document item by URI.
-func (c *Config) getTextDocumentItem(uri string) (lsp.TextDocumentItem, error) {
+func (c *Config) getTextDocumentItem(uri string) (TextDocument, error) {
 	item, ok := c.textDocuments[uri]
 	if !ok {
-		return lsp.TextDocumentItem{}, errors.Errorf("uri %q does not exist", uri)
+		return TextDocument{}, errors.Errorf("uri %q does not exist", uri)
 	}
 
 	return item, nil

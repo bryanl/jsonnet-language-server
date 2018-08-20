@@ -10,6 +10,9 @@ import (
 // DispatchFn is a function that will be dispatched.
 type DispatchFn func(interface{}) error
 
+// DispatchCancelFn is a function that cancels a dispatched function.
+type DispatchCancelFn func()
+
 // Dispatcher implements a dispatcher pattern.
 type Dispatcher struct {
 	logger logrus.FieldLogger
@@ -34,16 +37,16 @@ func (d *Dispatcher) Dispatch(v interface{}) {
 	defer d.mu.Unlock()
 
 	for _, fn := range d.keys {
-		go func() {
+		go func(fn DispatchFn) {
 			if err := fn(v); err != nil {
 				d.logger.WithError(err).Error("dispatching to function")
 			}
-		}()
+		}(fn)
 	}
 }
 
 // Watch configures a watcher.
-func (d *Dispatcher) Watch(fn DispatchFn) func() {
+func (d *Dispatcher) Watch(fn DispatchFn) DispatchCancelFn {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 
