@@ -172,7 +172,7 @@ func initialize(r *request, c *Config) (interface{}, error) {
 		return nil, errors.New("initialization options are incorrect type")
 	}
 
-	if err := c.Update(update); err != nil {
+	if err := c.update(update); err != nil {
 		return nil, err
 	}
 
@@ -226,7 +226,7 @@ func updateClientConfiguration(r *request, c *Config) (interface{}, error) {
 		return nil, err
 	}
 
-	if err := c.Update(update); err != nil {
+	if err := c.update(update); err != nil {
 		if msgErr := showMessage(r, lsp.MTError, err.Error()); msgErr != nil {
 			r.log().WithError(msgErr).Error("sending message")
 		}
@@ -244,7 +244,7 @@ func updateNodeCache(r *request, c *Config, uri string) {
 		return
 	}
 
-	if err := locate.UpdateNodeCache(path, c.JsonnetLibPaths, c.NodeCache); err != nil {
+	if err := locate.UpdateNodeCache(path, c.JsonnetLibPaths(), c.NodeCache()); err != nil {
 		r.log().WithError(err).
 			WithField("uri", path).
 			Error("updating node cache")
@@ -296,7 +296,7 @@ func textDocumentDidChange(r *request, c *Config) (interface{}, error) {
 		return nil, err
 	}
 
-	if err := c.UpdateFile(dotdp.TextDocument); err != nil {
+	if err := c.updateFile(dotdp.TextDocument); err != nil {
 		return nil, err
 	}
 

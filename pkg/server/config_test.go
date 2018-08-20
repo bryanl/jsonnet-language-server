@@ -8,7 +8,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestConfig_Update(t *testing.T) {
+func TestConfig_update(t *testing.T) {
 	cases := []struct {
 		name     string
 		update   map[string]interface{}
@@ -22,7 +22,7 @@ func TestConfig_Update(t *testing.T) {
 				"jsonnet.libPaths": []string{"new"},
 			},
 			key: func(c *Config) interface{} {
-				return c.JsonnetLibPaths
+				return c.JsonnetLibPaths()
 			},
 			expected: []string{"new"},
 		},
@@ -32,7 +32,7 @@ func TestConfig_Update(t *testing.T) {
 				"jsonnet.libPaths": []interface{}{"new"},
 			},
 			key: func(c *Config) interface{} {
-				return c.JsonnetLibPaths
+				return c.JsonnetLibPaths()
 			},
 			expected: []string{"new"},
 		},
@@ -55,7 +55,7 @@ func TestConfig_Update(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			c := NewConfig()
-			err := c.Update(tc.update)
+			err := c.update(tc.update)
 			if tc.isErr {
 				require.Error(t, err)
 				return
@@ -66,7 +66,7 @@ func TestConfig_Update(t *testing.T) {
 	}
 }
 
-func TestConfig_Update_watcher(t *testing.T) {
+func TestConfig_update_watcher(t *testing.T) {
 	update := map[string]interface{}{
 		CfgJsonnetLibPaths: []string{"new"},
 	}
@@ -84,14 +84,14 @@ func TestConfig_Update_watcher(t *testing.T) {
 	}
 
 	cancel := c.Watch(CfgJsonnetLibPaths, fn)
-	c.Update(update)
+	c.update(update)
 
 	<-done
 	require.True(t, wasDispatched)
 	cancel()
 }
 
-func TestConfig_UpdateFile(t *testing.T) {
+func TestConfig_updateFile(t *testing.T) {
 	cases := []struct {
 		name  string
 		uri   string
@@ -106,22 +106,25 @@ func TestConfig_UpdateFile(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			file := lsp.TextDocumentItem{
-				URI: tc.uri,
+				URI:  tc.uri,
+				Text: "text",
 			}
 
 			c := NewConfig()
-			require.Len(t, c.Files, 0)
+			require.Len(t, c.textDocuments, 0)
 
-			err := c.UpdateFile(file)
+			err := c.updateFile(file)
 			if tc.isErr {
 				require.Error(t, err)
 				return
 			}
 			require.NoError(t, err)
 
-			assert.Len(t, c.Files, 1)
-			_, ok := c.Files[tc.uri]
-			assert.True(t, ok, "file created with incorrect key")
+			require.Len(t, c.textDocuments, 1)
+			text, err := c.Text(tc.uri)
+
+			require.NoError(t, err)
+			assert.Equal(t, "text", text)
 		})
 	}
 }

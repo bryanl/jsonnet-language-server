@@ -19,38 +19,42 @@ const (
 
 // Config is configuration setting for the server.
 type Config struct {
-	// Files holds the files as sent from the client.
-	Files map[string]lsp.TextDocumentItem
-
-	// JsonnetLibPaths are jsonnet lib paths.
-	JsonnetLibPaths []string
-
-	// NodeCache holds the node cache.
-	NodeCache *locate.NodeCache
-
-	dispatchers map[string]*Dispatcher
+	textDocuments   map[string]lsp.TextDocumentItem
+	jsonnetLibPaths []string
+	nodeCache       *locate.NodeCache
+	dispatchers     map[string]*Dispatcher
 }
 
 // NewConfig creates an instance of Config.
 func NewConfig() *Config {
 	return &Config{
-		Files:           make(map[string]lsp.TextDocumentItem),
-		JsonnetLibPaths: make([]string, 0),
-		NodeCache:       locate.NewNodeCache(),
+		textDocuments:   make(map[string]lsp.TextDocumentItem),
+		jsonnetLibPaths: make([]string, 0),
+		nodeCache:       locate.NewNodeCache(),
 
 		dispatchers: map[string]*Dispatcher{},
 	}
 }
 
-// UpdateFile updates the local file cache.
-func (c *Config) UpdateFile(tdi lsp.TextDocumentItem) error {
-	c.Files[tdi.URI] = tdi
+// NodeCache returns the node cache.
+func (c *Config) NodeCache() *locate.NodeCache {
+	return c.nodeCache
+}
+
+// JsonnetLibPaths returns Jsonnet lib paths.
+func (c *Config) JsonnetLibPaths() []string {
+	return c.jsonnetLibPaths
+}
+
+// updateFile updates the local file cache.
+func (c *Config) updateFile(tdi lsp.TextDocumentItem) error {
+	c.textDocuments[tdi.URI] = tdi
 	return nil
 }
 
 // Text retrieves text from our local cache or from the file system.
 func (c *Config) Text(uri string) (string, error) {
-	text, ok := c.Files[uri]
+	text, ok := c.textDocuments[uri]
 	if ok {
 		logrus.Info("returning text from cache")
 		return text.Text, nil
@@ -92,7 +96,7 @@ func (c *Config) dispatch(k string, msg interface{}) {
 }
 
 // Update updates the configuration.
-func (c *Config) Update(update map[string]interface{}) error {
+func (c *Config) update(update map[string]interface{}) error {
 	for k, v := range update {
 		switch k {
 		case CfgJsonnetLibPaths:
@@ -101,7 +105,7 @@ func (c *Config) Update(update map[string]interface{}) error {
 				return errors.Wrapf(err, "setting %q", CfgJsonnetLibPaths)
 			}
 
-			c.JsonnetLibPaths = paths
+			c.jsonnetLibPaths = paths
 			c.dispatch(CfgJsonnetLibPaths, paths)
 		default:
 			return errors.Errorf("setting %q is unknown to the jsonnet language server", k)
@@ -116,6 +120,16 @@ func (c *Config) String() string {
 		panic(fmt.Sprintf("marshaling config to JSON: %v", err))
 	}
 	return string(data)
+}
+
+// getTextDocumentItem returns a text document item by URI.
+func (c *Config) getTextDocumentItem(uri string) (lsp.TextDocumentItem, error) {
+	item, ok := c.textDocuments[uri]
+	if !ok {
+		return lsp.TextDocumentItem{}, errors.Errorf("uri %q does not exist", uri)
+	}
+
+	return item, nil
 }
 
 func interfaceToStrings(v interface{}) ([]string, error) {
