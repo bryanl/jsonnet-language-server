@@ -8,7 +8,6 @@ import (
 
 	"github.com/bryanl/jsonnet-language-server/pkg/analysis/lexical/astext"
 	"github.com/bryanl/jsonnet-language-server/pkg/analysis/lexical/locate"
-	"github.com/davecgh/go-spew/spew"
 	"github.com/google/go-jsonnet/ast"
 	"github.com/google/go-jsonnet/parser"
 	"github.com/pkg/errors"
@@ -106,11 +105,7 @@ func NewNodeVisitor(filename string, r io.Reader, partial bool, opts ...VisitOpt
 
 	node, err := convertToNode(filename, string(data))
 	if err != nil {
-		if !partial {
-			return nil, errors.Wrap(err, "parsing source")
-		}
-
-		logrus.WithField("node", spew.Sdump(node)).Info("parsing failed, but continuing")
+		return nil, err
 	}
 
 	scope := locate.Scope{}

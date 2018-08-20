@@ -69,10 +69,44 @@ func extractRange(source string, r ast.LocationRange) (string, error) {
 	return buf.String(), nil
 }
 
-func inRange(l ast.Location, r ast.LocationRange) bool {
-	if r.Begin.Line == l.Line {
-		return r.Begin.Column <= l.Column
-	} else if r.Begin.Line <= l.Line && r.End.Line >= l.Line {
+func inRange(l ast.Location, lr ast.LocationRange) bool {
+	if lr.Begin.Line == l.Line && l.Line == lr.End.Line &&
+		lr.Begin.Column <= l.Column && l.Column <= lr.End.Column {
+		return true
+	} else if lr.Begin.Line < l.Line && l.Line == lr.End.Line &&
+		l.Column <= lr.End.Column {
+		return true
+	} else if lr.Begin.Line == l.Line && l.Line < lr.End.Line &&
+		l.Column >= lr.Begin.Column {
+		return true
+	} else if lr.Begin.Line < l.Line && l.Line < lr.End.Line {
+		return true
+	}
+
+	return false
+}
+
+func isRangeSmaller(r1, r2 ast.LocationRange) bool {
+	return beforeRangeOrEqual(r1.Begin, r2) &&
+		afterRangeOrEqual(r1.End, r2)
+}
+
+func beforeRangeOrEqual(l ast.Location, r ast.LocationRange) bool {
+	begin := r.Begin
+	if l.Line < begin.Line {
+		return true
+	} else if l.Line == begin.Line && l.Column <= begin.Column {
+		return true
+	}
+
+	return false
+}
+
+func afterRangeOrEqual(l ast.Location, lr ast.LocationRange) bool {
+	end := lr.End
+	if l.Line > end.Line {
+		return true
+	} else if l.Line == end.Line && l.Column >= end.Column {
 		return true
 	}
 

@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/bryanl/jsonnet-language-server/pkg/analysis/lexical/locate"
+	"github.com/bryanl/jsonnet-language-server/pkg/config"
 	"github.com/bryanl/jsonnet-language-server/pkg/lsp"
 	"github.com/google/go-jsonnet/ast"
 	"github.com/pkg/errors"
@@ -66,27 +67,34 @@ func CompletionAtLocation(filename string, r io.Reader, loc ast.Location, jpaths
 	return list, nil
 }
 
-func HoverAtLocation(filename string, r io.Reader, l, c int, jPaths []string, cache *locate.NodeCache) (*lsp.Hover, error) {
+func HoverAtLocation(filename string, r io.Reader, l, c int, cfg *config.Config) (*lsp.Hover, error) {
 	loc := ast.Location{
 		Line:   l,
 		Column: c,
 	}
 
-	v, err := newHoverVisitor(filename, r, loc)
+	// TODO get the locatable cache
+	lc := cfg.LocatableCache()
+	locatable, err := lc.GetAtPosition(filename, loc)
 	if err != nil {
 		return nil, err
 	}
 
-	locatable, err := v.TokenAtLocation()
-	if err != nil {
-		return nil, err
-	}
+	// v, err := newHoverVisitor(filename, r, loc)
+	// if err != nil {
+	// 	return nil, err
+	// }
+
+	// locatable, err := v.TokenAtLocation()
+	// if err != nil {
+	// 	return nil, err
+	// }
 
 	if locatable == nil {
 		return emptyHover, nil
 	}
 
-	resolved, err := locatable.Resolve(jPaths, cache)
+	resolved, err := locatable.Resolve(cfg.JsonnetLibPaths(), cfg.NodeCache())
 	if err != nil {
 		if err == locate.ErrUnresolvable {
 			return emptyHover, nil

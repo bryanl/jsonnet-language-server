@@ -35,7 +35,7 @@ func (h *hover) handle() (interface{}, error) {
 		return nil, errors.Wrap(err, "opening file")
 	}
 
-	return lexical.HoverAtLocation(path, f, h.params.Position.Line+1, h.params.Position.Character+1, h.config.JsonnetLibPaths(), h.config.NodeCache())
+	return lexical.HoverAtLocation(path, f, h.params.Position.Line+1, h.params.Position.Character+1, h.config)
 }
 
 func posToLoc(pos lsp.Position) ast.Location {
