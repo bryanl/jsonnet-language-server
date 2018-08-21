@@ -20,6 +20,16 @@ var (
 // Scope is a map of options.
 type Scope map[string]Locatable
 
+// Keys lists the keys in the scope.
+func (s Scope) Keys() []string {
+	var keys []string
+	for k := range s {
+		keys = append(keys, k)
+	}
+
+	return keys
+}
+
 type Resolved struct {
 	Location    ast.LocationRange
 	Token       interface{}

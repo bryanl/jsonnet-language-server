@@ -174,7 +174,6 @@ func (m *Match) Find(start ast.Location, kind TokenKind) (int, error) {
 
 // FindBeforeLocation finds the token before a location.
 func (m *Match) FindBeforeLocation(loc ast.Location) (int, error) {
-	printTokens(m.Tokens...)
 	for i, t := range m.Tokens {
 		if loc.Line == t.Loc.Begin.Line {
 			if t.Loc.End.Column == loc.Column {

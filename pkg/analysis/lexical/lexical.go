@@ -33,6 +33,12 @@ func CompletionAtLocation(filename string, r io.Reader, loc ast.Location, cfg *c
 		id = string(t.Id)
 	}
 
+	var ids []string
+	for k := range l.Scope {
+		ids = append(ids, k)
+	}
+	logrus.Infof("current scope: %s", strings.Join(ids, ","))
+
 	for k := range l.Scope {
 		if strings.HasPrefix(k, id) {
 			pos := lsp.Position{
