@@ -38,6 +38,10 @@
   source = "github.com/bryanl/go-jsonnet"
   branch = "manifest-to-node"
 
+[[constraint]]
+  name = "github.com/satori/go.uuid"
+  version = "v1.2.0"
+
 [[override]]
   name = "gopkg.in/fsnotify.v1"
   source = "https://github.com/fsnotify/fsnotify.git"
