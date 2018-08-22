@@ -9,13 +9,33 @@ import (
 )
 
 func TestScope(t *testing.T) {
-	ids, err := Scope("file.jsonnet", `local a="a";`, createLoc(2, 1))
+	sm, err := LocationScope("file.jsonnet", `local a="a";`, createLoc(2, 1))
 	require.NoError(t, err)
 
-	expected := ast.Identifiers{
-		ast.Identifier("a"),
-		ast.Identifier("std"),
+	expected := []string{"a", "std"}
+
+	assert.Equal(t, expected, sm.Keys())
+}
+
+func TestScopeMap(t *testing.T) {
+	sm := newScope()
+	sm.addIdentifier(ast.Identifier("foo"))
+
+	expectedKeys := []string{"foo"}
+	require.Equal(t, expectedKeys, sm.Keys())
+
+	expectedEntry := &ScopeEntry{
+		Detail: "foo",
 	}
 
-	assert.Equal(t, expected, ids)
+	e, err := sm.Get("foo")
+	require.NoError(t, err)
+
+	require.Equal(t, expectedEntry, e)
+}
+
+func TestScopeMap_Get_invalid(t *testing.T) {
+	sm := newScope()
+	_, err := sm.Get("invalid")
+	require.Error(t, err)
 }

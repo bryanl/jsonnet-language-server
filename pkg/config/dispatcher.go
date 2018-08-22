@@ -50,7 +50,7 @@ func (d *Dispatcher) Watch(fn DispatchFn) DispatchCancelFn {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 
-	u := uuid.Must(uuid.NewV4())
+	u := uuid.NewV4()
 	d.keys[u.String()] = fn
 
 	cancel := func() {

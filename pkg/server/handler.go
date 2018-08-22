@@ -73,7 +73,7 @@ func (r *request) Decode(v interface{}) error {
 }
 
 func (r *request) RegisterCapability(method string, options interface{}) (string, error) {
-	id := uuid.Must(uuid.NewV4())
+	id := uuid.NewV4()
 
 	registrations := &lsp.RegistrationParams{
 		Registrations: []lsp.Registration{

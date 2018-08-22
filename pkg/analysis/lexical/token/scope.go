@@ -2,10 +2,53 @@ package token
 
 import (
 	"github.com/google/go-jsonnet/ast"
+	"github.com/pkg/errors"
 )
 
-// Scope finds the free variables for a location.
-func Scope(filename, source string, loc ast.Location) (ast.Identifiers, error) {
+// ScopeEntry is a scope entry.
+type ScopeEntry struct {
+	Detail        string
+	Documentation string
+}
+
+// Scope is scope.
+type Scope struct {
+	store map[string]ScopeEntry
+}
+
+func newScope() *Scope {
+	return &Scope{
+		store: make(map[string]ScopeEntry),
+	}
+}
+
+// Keys lists keys in the scope.
+func (sm *Scope) Keys() []string {
+	var keys []string
+	for k := range sm.store {
+		keys = append(keys, k)
+	}
+
+	return keys
+}
+
+// Get retrieves an entry by name from the scope.
+func (sm *Scope) Get(key string) (*ScopeEntry, error) {
+	se, ok := sm.store[key]
+	if !ok {
+		return nil, errors.Errorf("scope does not contain %q", key)
+	}
+
+	return &se, nil
+}
+
+func (sm *Scope) addIdentifier(key ast.Identifier) {
+	id := string(key)
+	sm.store[id] = ScopeEntry{Detail: id}
+}
+
+// LocationScope finds the free variables for a location.
+func LocationScope(filename, source string, loc ast.Location) (*Scope, error) {
 	node, err := Parse(filename, source)
 	if err != nil {
 		partialNode, isPartial := isPartialNode(err)
@@ -26,5 +69,11 @@ func Scope(filename, source string, loc ast.Location) (ast.Identifiers, error) {
 		return nil, err
 	}
 
-	return found.FreeVariables(), nil
+	sm := newScope()
+
+	for _, id := range found.FreeVariables() {
+		sm.addIdentifier(id)
+	}
+
+	return sm, nil
 }
