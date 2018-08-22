@@ -3,13 +3,16 @@ package token
 import (
 	"testing"
 
+	"github.com/google/go-jsonnet/ast"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 func TestParse(t *testing.T) {
-	err := Parse("file.jsonnet", "string")
-	require.NoError(t, err)
+	_, err := Parse("file.jsonnet", `local a="a";`)
+	require.Error(t, err)
 
-	assert.True(t, false)
+	node, isPartial := isPartialNode(err)
+	assert.IsType(t, &ast.Local{}, node)
+	assert.True(t, isPartial)
 }
