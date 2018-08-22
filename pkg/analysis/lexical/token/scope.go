@@ -1,27 +1,30 @@
 package token
 
 import (
-	"github.com/davecgh/go-spew/spew"
 	"github.com/google/go-jsonnet/ast"
 )
 
-func Scope(filename, source string, loc ast.Location) error {
+// Scope finds the free variables for a location.
+func Scope(filename, source string, loc ast.Location) (ast.Identifiers, error) {
 	node, err := Parse(filename, source)
 	if err != nil {
 		partialNode, isPartial := isPartialNode(err)
 
 		if !isPartial {
-			return err
+			return nil, err
 		}
 
 		node = partialNode
 	}
 
 	if err = analyze(node); err != nil {
-		return err
+		return nil, err
 	}
 
-	spew.Dump(node)
+	found, err := locate(node, loc)
+	if err != nil {
+		return nil, err
+	}
 
-	return nil
+	return found.FreeVariables(), nil
 }

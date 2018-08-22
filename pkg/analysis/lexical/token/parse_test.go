@@ -13,6 +13,6 @@ func TestParse(t *testing.T) {
 	require.Error(t, err)
 
 	node, isPartial := isPartialNode(err)
-	assert.IsType(t, &ast.Local{}, node)
+	assert.IsTypef(t, &ast.Local{}, node, "actual %T", node)
 	assert.True(t, isPartial)
 }

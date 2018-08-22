@@ -19,7 +19,6 @@ package token
 import (
 	"fmt"
 
-	"github.com/davecgh/go-spew/spew"
 	"github.com/google/go-jsonnet/ast"
 	"github.com/pkg/errors"
 )
@@ -38,7 +37,7 @@ func visitNext(a ast.Node, inObject bool, vars ast.IdentifierSet, state *analysi
 }
 
 func analyzeVisit(a ast.Node, inObject bool, vars ast.IdentifierSet) error {
-	s := &analysisState{freeVars: ast.NewIdentifierSet()}
+	s := &analysisState{freeVars: vars}
 
 	// TODO(sbarzowski) Test somehow that we're visiting all the nodes
 	switch a := a.(type) {
@@ -103,7 +102,6 @@ func analyzeVisit(a ast.Node, inObject bool, vars ast.IdentifierSet) error {
 		newVars := vars.Clone()
 		for _, bind := range a.Binds {
 			newVars.Add(bind.Variable)
-			spew.Dump(newVars)
 		}
 		// Binds in local can be mutually or even self recursive
 		for _, bind := range a.Binds {
@@ -133,6 +131,23 @@ func analyzeVisit(a ast.Node, inObject bool, vars ast.IdentifierSet) error {
 		for _, assert := range a.Asserts {
 			visitNext(assert, true, vars, s)
 		}
+	case *ast.Object:
+		for _, field := range a.Fields {
+			switch field.Kind {
+			case ast.ObjectFieldID:
+				s.freeVars.Add(*field.Id)
+			case ast.ObjectFieldExpr, ast.ObjectFieldStr:
+				visitNext(field.Expr1, inObject, vars, s)
+			}
+
+			if field.Expr2 != nil {
+				visitNext(field.Expr2, true, vars, s)
+			}
+
+			if field.Expr3 != nil {
+				visitNext(field.Expr3, true, vars, s)
+			}
+		}
 	case *ast.Self:
 		if !inObject {
 			return locError(errors.New("can't use self outside of an object"), *a.Loc())
@@ -149,7 +164,7 @@ func analyzeVisit(a ast.Node, inObject bool, vars ast.IdentifierSet) error {
 	default:
 		panic(fmt.Sprintf("Unexpected node %#v", a))
 	}
-	fmt.Printf("visited a %T\n", a)
+
 	a.SetFreeVariables(s.freeVars.ToOrderedSlice())
 	return s.err
 }

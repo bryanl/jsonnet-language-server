@@ -55,7 +55,11 @@ var bopPrecedence = map[ast.BinaryOp]precedence{
 
 // locFromTokenAST creates a location range from a token to a node.
 func locFromTokenAST(begin *Token, end ast.Node) ast.LocationRange {
-	return ast.LocationRangeBetween(&begin.Loc, end.Loc())
+	return ast.LocationRange{
+		FileName: begin.Loc.FileName,
+		Begin:    begin.Loc.Begin,
+		End:      end.Loc().End,
+	}
 }
 
 // locFromTokens creates a location range from a begin and end token.
@@ -217,9 +221,17 @@ func (p *mParser) parse(prec precedence) (ast.Node, error) {
 
 		body, err := p.parse(maxPrecedence)
 		if err != nil {
-			local.NodeBase = ast.NewNodeBaseLoc(locFromPartial(begin))
-			local.Body = &partial{}
-			return nil, p.partialNodeError(err, local)
+			node, isPartial := isPartialNode(err)
+			if !isPartial {
+				local.NodeBase = ast.NewNodeBaseLoc(locFromPartial(begin))
+
+				local.Body = &partial{
+					NodeBase: ast.NewNodeBaseLoc(locFromPartial(p.peekPrev())),
+				}
+				return nil, p.partialNodeError(err, local)
+			}
+
+			body = node
 		}
 
 		local.Body = body
@@ -1078,7 +1090,7 @@ func (p *mParser) peek() *Token {
 	return &p.tokens[p.cur]
 }
 
-func (p *mParser) peekBack() *Token {
+func (p *mParser) peekPrev() *Token {
 	return &p.tokens[p.cur-1]
 }
 
@@ -1151,8 +1163,6 @@ func isPartialNode(err error) (ast.Node, bool) {
 	if ok {
 		return pne.PartialNode(), true
 	}
-
-	fmt.Printf("it is not a partial node error")
 
 	return nil, false
 }
