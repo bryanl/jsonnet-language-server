@@ -4,7 +4,10 @@ import (
 	"context"
 	"encoding/json"
 	"flag"
+	"fmt"
 	"os"
+	"path/filepath"
+	"runtime"
 	"sync"
 
 	"github.com/bryanl/jsonnet-language-server/pkg/server"
@@ -61,9 +64,30 @@ func initLogger(debug bool) logrus.FieldLogger {
 		logrus.SetLevel(logrus.DebugLevel)
 	}
 
+	ctxHook := &logContextHook{}
+	logger.AddHook(ctxHook)
+	logrus.AddHook(ctxHook)
+
 	return logger.WithFields(logrus.Fields{
 		"app": "jsonnet-language-server",
 	})
+}
+
+type logContextHook struct{}
+
+func (hook logContextHook) Levels() []logrus.Level {
+	return logrus.AllLevels
+}
+
+func (hook logContextHook) Fire(entry *logrus.Entry) error {
+	if pc, file, line, ok := runtime.Caller(9); ok {
+		funcName := runtime.FuncForPC(pc).Name()
+
+		entry.Data["source"] = fmt.Sprintf("%s:%v:%s",
+			filepath.Base(file), line, filepath.Base(funcName))
+	}
+
+	return nil
 }
 
 type stdrwc struct{}
