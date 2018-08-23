@@ -9,6 +9,7 @@ import (
 	"github.com/bryanl/jsonnet-language-server/pkg/analysis/lexical/locate"
 	"github.com/bryanl/jsonnet-language-server/pkg/analysis/lexical/token"
 	"github.com/davecgh/go-spew/spew"
+	jsonnet "github.com/google/go-jsonnet"
 	"github.com/google/go-jsonnet/ast"
 	"github.com/google/go-jsonnet/parser"
 )
@@ -49,7 +50,13 @@ func main() {
 		}
 
 		fmt.Println(m.Tokens[0 : n+1])
+	case 3:
+		n, err := jsonnet.SnippetToAST(*filename, string(data))
+		if err != nil {
+			log.Fatal(err)
+		}
 
+		spew.Dump(n)
 	default:
 		log.Fatalf("unsupport option %d", *level)
 	}
