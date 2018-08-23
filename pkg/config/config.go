@@ -20,14 +20,6 @@ const (
 	TextDocumentUpdates = "textDocument.update"
 )
 
-// TextDocument is a document's text and and metadata.
-type TextDocument struct {
-	URI        string
-	LanguageID string
-	Version    int
-	Text       string
-}
-
 // Config is configuration setting for the server.
 type Config struct {
 	textDocuments   map[string]TextDocument
@@ -65,15 +57,15 @@ func (c *Config) JsonnetLibPaths() []string {
 
 // StoreTextDocumentItem stores a text document item.
 func (c *Config) StoreTextDocumentItem(td TextDocument) error {
-	oldDoc, ok := c.textDocuments[td.URI]
+	oldDoc, ok := c.textDocuments[td.uri]
 	if !ok {
 		oldDoc = td
 	}
 
-	oldDoc.Text = td.Text
-	oldDoc.Version = td.Version
+	oldDoc.text = td.text
+	oldDoc.version = td.version
 
-	c.textDocuments[td.URI] = td
+	c.textDocuments[td.uri] = td
 	c.dispatch(TextDocumentUpdates, td)
 	return nil
 }
@@ -84,33 +76,37 @@ func (c *Config) UpdateTextDocumentItem(dctdp lsp.DidChangeTextDocumentParams) e
 	// so the text in the change event is a full document.
 
 	td := TextDocument{
-		Text:    dctdp.ContentChanges[0].Text,
-		URI:     dctdp.TextDocument.URI,
-		Version: dctdp.TextDocument.Version,
+		text:    dctdp.ContentChanges[0].Text,
+		uri:     dctdp.TextDocument.URI,
+		version: dctdp.TextDocument.Version,
 	}
 
 	return c.StoreTextDocumentItem(td)
 }
 
 // Text retrieves text from our local cache or from the file system.
-func (c *Config) Text(uriStr string) (string, error) {
+func (c *Config) Text(uriStr string) (*TextDocument, error) {
 	text, ok := c.textDocuments[uriStr]
 	if ok {
 		logrus.Info("returning text from cache")
-		return text.Text, nil
+		return &text, nil
 	}
 	logrus.Info("returning text from disk")
 	path, err := uri.ToPath(uriStr)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 
 	data, err := ioutil.ReadFile(path)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 
-	return string(data), nil
+	td := &TextDocument{
+		text: string(data),
+	}
+
+	return td, nil
 }
 
 // Watch will call `fn`` when key `k` is updated. It returns a

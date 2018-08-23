@@ -95,8 +95,8 @@ func TestConfig_StoreTextDocumentItem_watcher(t *testing.T) {
 	c := New()
 
 	tdi := TextDocument{
-		URI:  "file:///new",
-		Text: "text",
+		uri:  "file:///new",
+		text: "text",
 	}
 
 	done := make(chan bool)
@@ -133,8 +133,8 @@ func TestConfig_StoreTextDocumentItem(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			file := TextDocument{
-				URI:  tc.uri,
-				Text: "text",
+				uri:  tc.uri,
+				text: "text",
 			}
 
 			c := New()
@@ -151,7 +151,7 @@ func TestConfig_StoreTextDocumentItem(t *testing.T) {
 			text, err := c.Text(tc.uri)
 
 			require.NoError(t, err)
-			assert.Equal(t, "text", text)
+			assert.Equal(t, "text", text.String())
 		})
 	}
 }

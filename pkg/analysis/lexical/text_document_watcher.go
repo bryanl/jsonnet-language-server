@@ -39,12 +39,12 @@ func (tdw *TextDocumentWatcher) watch(item interface{}) error {
 		return errors.Errorf("text document watcher can't handle %T", item)
 	}
 
-	filename, err := uri.ToPath(tdi.URI)
+	filename, err := uri.ToPath(tdi.URI())
 	if err != nil {
 		return err
 	}
 
-	r := strings.NewReader(tdi.Text)
+	r := strings.NewReader(tdi.String())
 
 	lv, err := newLocatableVisitor(filename, r)
 	if err != nil {

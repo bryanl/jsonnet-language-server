@@ -32,7 +32,8 @@ func (c *complete) handle() (interface{}, error) {
 		return nil, errors.Wrap(err, "loading current text")
 	}
 
-	spew.Fdump(os.Stderr, c.referenceParams)
+	spew.Fdump(os.Stderr, "completion reference params",
+		c.referenceParams, "===")
 
 	path, err := uri.ToPath(uriStr)
 	if err != nil {
@@ -47,7 +48,7 @@ func (c *complete) handle() (interface{}, error) {
 
 	pos := c.referenceParams.Position
 
-	m, err := token.LocationScope(path, text, loc)
+	m, err := token.LocationScope(path, text.String(), loc)
 	if err != nil {
 		logrus.WithError(err).WithField("loc", loc.String()).Debug("load scope")
 	} else {

@@ -281,12 +281,7 @@ func textDocumentDidOpen(r *request, c *config.Config) (interface{}, error) {
 
 	r.log().WithField("uri", dotdp.TextDocument.URI).Info("opened file")
 
-	td := config.TextDocument{
-		URI:        dotdp.TextDocument.URI,
-		LanguageID: dotdp.TextDocument.LanguageID,
-		Text:       dotdp.TextDocument.Text,
-		Version:    dotdp.TextDocument.Version,
-	}
+	td := config.NewTextDocumentFromItem(dotdp.TextDocument)
 	if err := c.StoreTextDocumentItem(td); err != nil {
 		return nil, err
 	}

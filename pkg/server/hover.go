@@ -33,7 +33,7 @@ func (h *hover) handle() (interface{}, error) {
 		return nil, err
 	}
 
-	r := strings.NewReader(text)
+	r := strings.NewReader(text.String())
 
 	return lexical.HoverAtLocation(path, r, h.params.Position.Line+1, h.params.Position.Character+1, h.config)
 }
