@@ -23,12 +23,12 @@ func (l *locator) visitNext(a ast.Node) {
 		return
 	}
 
-	if l.enclosingNode == nil && inRange(l.loc, *a.Loc()) {
-		l.enclosingNode = a
-	} else if l.enclosingNode != nil &&
-		inRange(l.loc, *a.Loc()) &&
-		isRangeSmaller(*l.enclosingNode.Loc(), *a.Loc()) {
-		l.enclosingNode = a
+	if inRange(l.loc, *a.Loc()) {
+		if l.enclosingNode == nil {
+			l.enclosingNode = a
+		} else if isRangeSmaller(*l.enclosingNode.Loc(), *a.Loc()) {
+			l.enclosingNode = a
+		}
 	}
 
 	l.err = l.analyzeVisit(a)

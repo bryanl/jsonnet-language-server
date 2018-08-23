@@ -23,45 +23,42 @@ import (
 	"github.com/pkg/errors"
 )
 
+type staticAnalyzer struct {
+	err error
+}
+
 type analysisState struct {
 	err      error
 	freeVars ast.IdentifierSet
 }
 
-func visitNext(a ast.Node, inObject bool, vars ast.IdentifierSet, state *analysisState) {
-	if state.err != nil {
+func (sa *staticAnalyzer) visit(a ast.Node, inObject bool, vars ast.IdentifierSet) {
+	if sa.err != nil {
 		return
 	}
-	state.err = analyzeVisit(a, inObject, vars)
-	state.freeVars.AddIdentifiers(a.FreeVariables())
-}
 
-func analyzeVisit(a ast.Node, inObject bool, vars ast.IdentifierSet) error {
-	s := &analysisState{freeVars: vars}
-
-	// TODO(sbarzowski) Test somehow that we're visiting all the nodes
 	switch a := a.(type) {
 	case *ast.Apply:
-		visitNext(a.Target, inObject, vars, s)
+		sa.visit(a.Target, inObject, vars)
 		for _, arg := range a.Arguments.Positional {
-			visitNext(arg, inObject, vars, s)
+			sa.visit(arg, inObject, vars)
 		}
 		for _, arg := range a.Arguments.Named {
-			visitNext(arg.Arg, inObject, vars, s)
+			sa.visit(arg.Arg, inObject, vars)
 		}
 	case *ast.Array:
 		for _, elem := range a.Elements {
-			visitNext(elem, inObject, vars, s)
+			sa.visit(elem, inObject, vars)
 		}
 	case *ast.Binary:
-		visitNext(a.Left, inObject, vars, s)
-		visitNext(a.Right, inObject, vars, s)
+		sa.visit(a.Left, inObject, vars)
+		sa.visit(a.Right, inObject, vars)
 	case *ast.Conditional:
-		visitNext(a.Cond, inObject, vars, s)
-		visitNext(a.BranchTrue, inObject, vars, s)
-		visitNext(a.BranchFalse, inObject, vars, s)
+		sa.visit(a.Cond, inObject, vars)
+		sa.visit(a.BranchTrue, inObject, vars)
+		sa.visit(a.BranchFalse, inObject, vars)
 	case *ast.Error:
-		visitNext(a.Expr, inObject, vars, s)
+		sa.visit(a.Expr, inObject, vars)
 	case *ast.Function:
 		newVars := vars.Clone()
 		for _, param := range a.Parameters.Required {
@@ -71,33 +68,28 @@ func analyzeVisit(a ast.Node, inObject bool, vars ast.IdentifierSet) error {
 			newVars.Add(param.Name)
 		}
 		for _, param := range a.Parameters.Optional {
-			visitNext(param.DefaultArg, inObject, newVars, s)
+			sa.visit(param.DefaultArg, inObject, newVars)
 		}
-		visitNext(a.Body, inObject, newVars, s)
-		// Parameters are free inside the body, but not visible here or outside
-		for _, param := range a.Parameters.Required {
-			s.freeVars.Remove(param)
-		}
-		for _, param := range a.Parameters.Optional {
-			s.freeVars.Remove(param.Name)
-		}
+		sa.visit(a.Body, inObject, newVars)
 	case *ast.Import:
 		//nothing to do here
 	case *ast.ImportStr:
 		//nothing to do here
 	case *ast.InSuper:
 		if !inObject {
-			return locError(errors.Errorf("can't use super outside of an object"), *a.Loc())
+			sa.err = locError(errors.Errorf("can't use super outside of an object"), *a.Loc())
+			return
 		}
-		visitNext(a.Index, inObject, vars, s)
+		sa.visit(a.Index, inObject, vars)
 	case *ast.SuperIndex:
 		if !inObject {
-			return locError(errors.Errorf("Can't use super outside of an object"), *a.Loc())
+			sa.err = locError(errors.Errorf("Can't use super outside of an object"), *a.Loc())
+			return
 		}
-		visitNext(a.Index, inObject, vars, s)
+		sa.visit(a.Index, inObject, vars)
 	case *ast.Index:
-		visitNext(a.Target, inObject, vars, s)
-		visitNext(a.Index, inObject, vars, s)
+		sa.visit(a.Target, inObject, vars)
+		sa.visit(a.Index, inObject, vars)
 	case *ast.Local:
 		newVars := vars.Clone()
 		for _, bind := range a.Binds {
@@ -105,15 +97,24 @@ func analyzeVisit(a ast.Node, inObject bool, vars ast.IdentifierSet) error {
 		}
 		// Binds in local can be mutually or even self recursive
 		for _, bind := range a.Binds {
-			visitNext(bind.Body, inObject, newVars, s)
+			bindVars := newVars.Clone()
+			if bind.Fun != nil {
+				fun := bind.Fun
+				for _, param := range fun.Parameters.Required {
+					bindVars.Add(param)
+				}
+				for _, param := range fun.Parameters.Optional {
+					bindVars.Add(param.Name)
+				}
+				for _, param := range fun.Parameters.Optional {
+					sa.visit(param.DefaultArg, inObject, bindVars)
+				}
+				sa.visit(a.Body, inObject, bindVars)
+			}
+			sa.visit(bind.Body, inObject, bindVars)
 		}
-		visitNext(a.Body, inObject, newVars, s)
 
-		// Any usage of newly created variables inside are considered free
-		// but they are not here or outside
-		for _, bind := range a.Binds {
-			s.freeVars.Remove(bind.Variable)
-		}
+		sa.visit(a.Body, inObject, newVars)
 	case *ast.LiteralBoolean:
 		//nothing to do here
 	case *ast.LiteralNull:
@@ -125,50 +126,72 @@ func analyzeVisit(a ast.Node, inObject bool, vars ast.IdentifierSet) error {
 	case *ast.DesugaredObject:
 		for _, field := range a.Fields {
 			// Field names are calculated *outside* of the object
-			visitNext(field.Name, inObject, vars, s)
-			visitNext(field.Body, true, vars, s)
+			sa.visit(field.Name, inObject, vars)
+			sa.visit(field.Body, true, vars)
 		}
 		for _, assert := range a.Asserts {
-			visitNext(assert, true, vars, s)
+			sa.visit(assert, true, vars)
 		}
 	case *ast.Object:
+		newVars := vars.Clone()
+
 		for _, field := range a.Fields {
+			fieldVars := newVars.Clone()
 			switch field.Kind {
 			case ast.ObjectFieldID:
-				s.freeVars.Add(*field.Id)
+				newVars.Add(*field.Id)
 			case ast.ObjectFieldExpr, ast.ObjectFieldStr:
-				visitNext(field.Expr1, inObject, vars, s)
+				sa.visit(field.Expr1, inObject, newVars)
+			}
+
+			if field.Method != nil {
+				method := field.Method
+				for _, param := range method.Parameters.Required {
+					fieldVars.Add(param)
+				}
+				for _, param := range method.Parameters.Optional {
+					fieldVars.Add(param.Name)
+				}
+				for _, param := range method.Parameters.Optional {
+					sa.visit(param.DefaultArg, inObject, fieldVars)
+				}
 			}
 
 			if field.Expr2 != nil {
-				visitNext(field.Expr2, true, vars, s)
+				sa.visit(field.Expr2, true, fieldVars)
 			}
 
 			if field.Expr3 != nil {
-				visitNext(field.Expr3, true, vars, s)
+				sa.visit(field.Expr3, true, fieldVars)
 			}
 		}
 	case *ast.Self:
 		if !inObject {
-			return locError(errors.New("can't use self outside of an object"), *a.Loc())
+			sa.err = locError(errors.New("can't use self outside of an object"), *a.Loc())
+			return
 		}
 	case *ast.Unary:
-		visitNext(a.Expr, inObject, vars, s)
+		sa.visit(a.Expr, inObject, vars)
 	case *ast.Var:
 		if !vars.Contains(a.Id) {
-			return locError(errors.Errorf("unknown variable: %v", a.Id), *a.Loc())
+			sa.err = locError(errors.Errorf("unknown variable: %v", a.Id), *a.Loc())
+			return
 		}
-		s.freeVars.Add(a.Id)
+
+		vars.Add(a.Id)
 	case *partial:
 		//nothing to do here
+	case nil:
+		return
 	default:
-		panic(fmt.Sprintf("Unexpected node %#v", a))
+		panic(fmt.Sprintf("Unexpected node %T", a))
 	}
 
-	a.SetFreeVariables(s.freeVars.ToOrderedSlice())
-	return s.err
+	a.SetFreeVariables(vars.ToOrderedSlice())
 }
 
 func analyze(node ast.Node) error {
-	return analyzeVisit(node, false, ast.NewIdentifierSet("std"))
+	sa := &staticAnalyzer{}
+	sa.visit(node, false, ast.NewIdentifierSet("std"))
+	return sa.err
 }

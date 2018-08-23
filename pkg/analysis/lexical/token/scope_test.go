@@ -9,12 +9,44 @@ import (
 )
 
 func TestScope(t *testing.T) {
-	sm, err := LocationScope("file.jsonnet", `local a="a";`, createLoc(2, 1))
-	require.NoError(t, err)
+	cases := []struct {
+		name     string
+		src      string
+		loc      ast.Location
+		expected []string
+		isErr    bool
+	}{
+		{
+			name:     "valid local",
+			src:      `local a="a";a`,
+			loc:      createLoc(1, 13),
+			expected: []string{"a", "std"},
+		},
+		{
+			name:     "local with no body",
+			src:      `local a="a";`,
+			loc:      createLoc(2, 1),
+			expected: []string{"a", "std"},
+		},
+		{
+			name:     "object keys",
+			src:      `local o={a:"a"};`,
+			loc:      createLoc(2, 1),
+			expected: []string{"o", "std"},
+		},
+	}
 
-	expected := []string{"a", "std"}
-
-	assert.Equal(t, expected, sm.Keys())
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			sm, err := LocationScope("file.jsonnet", tc.src, tc.loc)
+			if tc.isErr {
+				require.Error(t, err)
+				return
+			}
+			require.NoError(t, err)
+			assert.Equal(t, tc.expected, sm.Keys())
+		})
+	}
 }
 
 func TestScopeMap(t *testing.T) {
