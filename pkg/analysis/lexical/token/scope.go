@@ -36,6 +36,12 @@ func (sm *Scope) Keys() []string {
 	return keys
 }
 
+func (sm *Scope) Keywords() []string {
+	return []string{"assert", "else", "error", "false", "for",
+		"function", "if", "import", "importstr", "in", "local",
+		"null", "tailstrict", "then", "self", "super", "true"}
+}
+
 // Get retrieves an entry by name from the scope.
 func (sm *Scope) Get(key string) (*ScopeEntry, error) {
 	se, ok := sm.store[key]

@@ -48,7 +48,9 @@ func (tdw *TextDocumentWatcher) watch(item interface{}) error {
 
 	lv, err := newLocatableVisitor(filename, r)
 	if err != nil {
-		return errors.Wrap(err, "creating visitor")
+		// The document might not be parseable, but that's not a
+		// error.
+		return nil
 	}
 
 	logrus.Info("running visitText")

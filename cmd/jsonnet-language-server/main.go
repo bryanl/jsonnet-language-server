@@ -24,7 +24,7 @@ func main() {
 
 	logger := initLogger(debug)
 
-	if err := run(logger); err != nil {
+	if err := run(logger, debug); err != nil {
 		logger.Error(err.Error())
 		os.Exit(1)
 	}
@@ -32,13 +32,17 @@ func main() {
 	logger.Info("exiting")
 }
 
-func run(logger logrus.FieldLogger) error {
+func run(logger logrus.FieldLogger, debug bool) error {
 	logger.Info("scanning stdin")
 
 	handler := server.NewHandler(logger)
 
-	logOpt := LogMessages(logger)
-	<-jsonrpc2.NewConn(context.Background(), jsonrpc2.NewBufferedStream(stdrwc{}, jsonrpc2.VSCodeObjectCodec{}), handler, logOpt).DisconnectNotify()
+	var opts []jsonrpc2.ConnOpt
+	if debug {
+		opts = append(opts, LogMessages(logger))
+	}
+
+	<-jsonrpc2.NewConn(context.Background(), jsonrpc2.NewBufferedStream(stdrwc{}, jsonrpc2.VSCodeObjectCodec{}), handler, opts...).DisconnectNotify()
 
 	return nil
 }

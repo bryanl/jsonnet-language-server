@@ -27,6 +27,10 @@ func Test_locator(t *testing.T) {
 			loc:      createLoc(1, 13),
 			expected: createRange("file.jsonnet", 1, 13, 1, 14),
 		},
+		{
+			name:   "empty",
+			source: ``,
+		},
 	}
 
 	for _, tc := range cases {

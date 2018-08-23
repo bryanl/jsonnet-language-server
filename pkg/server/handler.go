@@ -21,6 +21,7 @@ import (
 type operation func(*request, *config.Config) (interface{}, error)
 
 var operations = map[string]operation{
+	"completionItem/resolve":    completionItemResolve,
 	"initialize":                initialize,
 	"textDocument/completion":   textDocumentCompletion,
 	"textDocument/didChange":    textDocumentDidChange,
@@ -202,6 +203,17 @@ func initialize(r *request, c *config.Config) (interface{}, error) {
 	}
 
 	return response, nil
+}
+
+func completionItemResolve(r *request, c *config.Config) (interface{}, error) {
+	var ci lsp.CompletionItem
+	if err := r.Decode(&ci); err != nil {
+		return nil, err
+	}
+
+	// TODO figure out what do do here. This might not be needed and
+	// it can drop.
+	return nil, nil
 }
 
 func textDocumentCompletion(r *request, c *config.Config) (interface{}, error) {

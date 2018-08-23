@@ -73,7 +73,9 @@ func (l *locator) analyzeVisit(a ast.Node) error {
 		l.visitNext(a.Index)
 	case *ast.Index:
 		l.visitNext(a.Target)
-		l.visitNext(a.Index)
+		if a.Index != nil {
+			l.visitNext(a.Index)
+		}
 	case *ast.Local:
 		for _, bind := range a.Binds {
 			l.visitNext(bind.Body)
@@ -118,6 +120,7 @@ func (l *locator) analyzeVisit(a ast.Node) error {
 		//nothing to do here
 	case *partial:
 		//nothing to do here
+	case nil:
 	default:
 		panic(fmt.Sprintf("Unexpected node %#v", a))
 	}
@@ -126,6 +129,9 @@ func (l *locator) analyzeVisit(a ast.Node) error {
 }
 
 func locate(node ast.Node, loc ast.Location) (ast.Node, error) {
+	if node == nil {
+		return &partial{}, nil
+	}
 	// if afterRange(node.Loc().End, loc) {
 	// 	return node, nil
 	// }
