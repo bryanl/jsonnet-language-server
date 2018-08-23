@@ -1,6 +1,8 @@
 package token
 
 import (
+	"sort"
+
 	"github.com/google/go-jsonnet/ast"
 	"github.com/pkg/errors"
 )
@@ -28,6 +30,8 @@ func (sm *Scope) Keys() []string {
 	for k := range sm.store {
 		keys = append(keys, k)
 	}
+
+	sort.Strings(keys)
 
 	return keys
 }
