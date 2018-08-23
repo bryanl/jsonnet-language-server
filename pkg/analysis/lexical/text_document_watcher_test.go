@@ -5,6 +5,7 @@ import (
 
 	"github.com/bryanl/jsonnet-language-server/pkg/analysis/lexical/locate"
 	"github.com/bryanl/jsonnet-language-server/pkg/config"
+	"github.com/bryanl/jsonnet-language-server/pkg/lsp"
 	"github.com/davecgh/go-spew/spew"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -17,10 +18,11 @@ func TestTextDocumentWatcher_watch(t *testing.T) {
 	}
 	_ = NewTextDocumentWatcher(c)
 
-	td := config.TextDocument{
+	td := config.NewTextDocumentFromItem(lsp.TextDocumentItem{
 		Text: "{}",
 		URI:  "file:///file.jsonnet",
-	}
+	})
+
 	c.watchFn(td)
 
 	spew.Dump(lc)

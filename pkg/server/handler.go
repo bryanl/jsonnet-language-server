@@ -222,7 +222,11 @@ func textDocumentCompletion(r *request, c *config.Config) (interface{}, error) {
 		return nil, err
 	}
 
-	cmpl := newComplete(rp, c)
+	cmpl, err := newComplete(rp, c)
+	if err != nil {
+		return nil, err
+	}
+
 	response, err := cmpl.handle()
 	if err != nil {
 		logrus.WithError(err).Error("completion erred")
