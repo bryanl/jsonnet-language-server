@@ -210,6 +210,11 @@ func (p *mParser) parse(prec precedence) (ast.Node, error) {
 			if err != nil {
 				return nil, err
 			}
+
+			if p.atEnd() {
+				break
+			}
+
 			delim := p.pop()
 			if delim.Kind != TokenSemicolon && delim.Kind != TokenComma {
 				return nil, locError(errors.Errorf("expected , or ; but got %v", delim), delim.Loc)
@@ -219,19 +224,19 @@ func (p *mParser) parse(prec precedence) (ast.Node, error) {
 			}
 		}
 
-		body, err := p.parse(maxPrecedence)
-		if err != nil {
-			node, isPartial := isPartialNode(err)
-			if !isPartial {
-				local.NodeBase = ast.NewNodeBaseLoc(locFromPartial(begin))
-
-				local.Body = &partial{
+		var body ast.Node
+		var err error
+		if p.atEnd() {
+			body = &partial{
+				NodeBase: ast.NewNodeBaseLoc(locFromPartial(p.peekPrev())),
+			}
+		} else {
+			body, err = p.parse(maxPrecedence)
+			if err != nil {
+				body = &partial{
 					NodeBase: ast.NewNodeBaseLoc(locFromPartial(p.peekPrev())),
 				}
-				return nil, p.partialNodeError(err, local)
 			}
-
-			body = node
 		}
 
 		local.Body = body
@@ -465,7 +470,10 @@ func (p *mParser) parseBind(binds *ast.LocalBinds) error {
 	}
 	body, err := p.parse(maxPrecedence)
 	if err != nil {
-		return err
+		// body could be invalid in a completion event
+		body = &partial{
+			NodeBase: ast.NewNodeBaseLoc(locFromPartial(p.peekPrev())),
+		}
 	}
 
 	if fun != nil {
@@ -1084,6 +1092,10 @@ func (p *mParser) parseTerminal() (ast.Node, error) {
 
 func (p *mParser) parsingFailure(msg string, tok *Token) (ast.Node, error) {
 	return nil, locError(errors.New(msg), tok.Loc)
+}
+
+func (p *mParser) atEnd() bool {
+	return p.cur == len(p.tokens)
 }
 
 func (p *mParser) peek() *Token {
