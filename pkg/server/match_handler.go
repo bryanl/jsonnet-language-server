@@ -124,6 +124,32 @@ func (mh *matchHandler) handleIndex(editRange position.Range, source, matched st
 			ci := createCompletionItem(name, name, lsp.CIKVariable, editRange, fieldSe)
 			items = append(items, ci)
 		}
+	case *ast.Object:
+		for _, field := range n.Fields {
+			var name string
+			switch field.Kind {
+			case ast.ObjectFieldID:
+				if field.Id == nil {
+					return nil, errors.New("field id shouldn't be nil")
+				}
+				name = string(*field.Id)
+			case ast.ObjectFieldStr:
+				if field.Expr1 == nil {
+					return nil, errors.New("field id should be a string")
+				}
+				name = astext.TokenValue(field.Expr1)
+			}
+			if name != "" {
+				fieldSe := &token.ScopeEntry{
+					Detail: astext.TokenName(field.Expr2),
+				}
+
+				ci := createCompletionItem(name, name, lsp.CIKVariable, editRange, fieldSe)
+				items = append(items, ci)
+			}
+		}
+	default:
+		logrus.Infof("unable to handle index for %T", n)
 	}
 
 	return items, nil

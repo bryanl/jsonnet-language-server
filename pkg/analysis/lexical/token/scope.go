@@ -61,7 +61,7 @@ func (sm *Scope) GetInPath(path []string) (*ScopeEntry, error) {
 		return e, nil
 	}
 
-	node, err := findInObject(e.Node, path)
+	node, err := findInPath(e.Node, path)
 	if err != nil {
 		return nil, err
 	}
@@ -75,9 +75,49 @@ func (sm *Scope) GetInPath(path []string) (*ScopeEntry, error) {
 }
 
 func findInObject(node ast.Node, path []string) (ast.Node, error) {
+	o, ok := node.(*ast.Object)
+	if !ok {
+		return nil, errors.Errorf("not an object: %T", node)
+	}
+
+	id, path := path[0], path[1:]
+
+	for i := range o.Fields {
+		field := o.Fields[i]
+
+		var name string
+		switch field.Kind {
+		case ast.ObjectFieldID:
+			if field.Id == nil {
+				return nil, errors.New("field id shouldn't be nil")
+			}
+			name = string(*field.Id)
+		case ast.ObjectFieldStr:
+			if field.Expr1 == nil {
+				return nil, errors.New("field id should be a string")
+			}
+			name = astext.TokenValue(field.Expr1)
+		}
+
+		if name != id {
+			continue
+		}
+
+		if len(path) == 0 {
+			return field.Expr2, nil
+		}
+
+		return findInObject(field.Expr2, path)
+	}
+
+	return nil, errors.Errorf("unable to find field %q", id)
+
+}
+
+func findInDesugaredObject(node ast.Node, path []string) (ast.Node, error) {
 	o, ok := node.(*ast.DesugaredObject)
 	if !ok {
-		return nil, errors.Errorf("node was not an object")
+		return nil, errors.Errorf("not an object: %T", node)
 	}
 
 	id, path := path[0], path[1:]
@@ -102,10 +142,21 @@ func findInObject(node ast.Node, path []string) (ast.Node, error) {
 			return local.Body, nil
 		}
 
-		return findInObject(field.Body, path)
+		return findInDesugaredObject(field.Body, path)
 	}
 
 	return nil, errors.Errorf("unable to find field %q", id)
+}
+
+func findInPath(node ast.Node, path []string) (ast.Node, error) {
+	switch node := node.(type) {
+	case *ast.DesugaredObject:
+		return findInDesugaredObject(node, path)
+	case *ast.Object:
+		return findInObject(node, path)
+	default:
+		return nil, errors.Errorf("not an object %T", node)
+	}
 }
 
 // Get retrieves an entry by name from the scope.
