@@ -7,7 +7,6 @@ import (
 	"sort"
 
 	"github.com/bryanl/jsonnet-language-server/pkg/analysis/static"
-	"github.com/davecgh/go-spew/spew"
 	"github.com/google/go-jsonnet/ast"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
@@ -170,7 +169,6 @@ func (sc *scopeCatalog) Add(i ast.Identifier, node ast.Node) bool {
 			}
 		}
 	case *ast.Var:
-		spew.Dump(node)
 		fmt.Printf("found var and it points to %s\n", string(v.Id))
 	default:
 		fmt.Printf("Not sure how to add id of type %T\n", node)

@@ -64,6 +64,7 @@ func (mh *matchHandler) register(cm *langserver.CompletionMatcher) error {
 }
 
 func (mh *matchHandler) handleImport(editRange lsp.Range, matched string) ([]lsp.CompletionItem, error) {
+	logrus.Printf("handling import")
 	var items []lsp.CompletionItem
 
 	files, err := mh.jsonnetPathManager.Files()
@@ -72,15 +73,8 @@ func (mh *matchHandler) handleImport(editRange lsp.Range, matched string) ([]lsp
 	}
 
 	for _, file := range files {
-		ci := lsp.CompletionItem{
-			Label: file,
-			Kind:  lsp.CIKFile,
-			TextEdit: lsp.TextEdit{
-				Range:   editRange,
-				NewText: fmt.Sprintf(`"%s"`, file),
-			},
-		}
-
+		text := fmt.Sprintf(`"%s"`, file)
+		ci := createCompletionItem(file, text, lsp.CIKFile, editRange, nil)
 		items = append(items, ci)
 
 	}
@@ -114,21 +108,29 @@ func (mh *matchHandler) handleIndex(editRange lsp.Range, matched string) ([]lsp.
 	case *ast.DesugaredObject:
 		for _, field := range n.Fields {
 			name := astext.TokenValue(field.Name)
-
-			ci := lsp.CompletionItem{
-				Label:         name,
-				Kind:          lsp.CIKVariable,
-				Detail:        se.Detail,
-				Documentation: se.Documentation,
-				TextEdit: lsp.TextEdit{
-					Range:   editRange,
-					NewText: name,
-				},
-			}
-
+			ci := createCompletionItem(name, name, lsp.CIKVariable, editRange, se)
 			items = append(items, ci)
 		}
 	}
 
 	return items, nil
+}
+
+func createCompletionItem(label, text string, kind int, r lsp.Range, se *token.ScopeEntry) lsp.CompletionItem {
+	var detail, documentation string
+	if se != nil {
+		detail = se.Detail
+		documentation = se.Documentation
+	}
+
+	return lsp.CompletionItem{
+		Label:         label,
+		Kind:          kind,
+		Detail:        detail,
+		Documentation: documentation,
+		TextEdit: lsp.TextEdit{
+			Range:   r,
+			NewText: text,
+		},
+	}
 }

@@ -20,7 +20,6 @@ import (
 	"fmt"
 
 	"github.com/bryanl/jsonnet-language-server/pkg/analysis/lexical/astext"
-	"github.com/davecgh/go-spew/spew"
 	"github.com/google/go-jsonnet/ast"
 	"github.com/google/go-jsonnet/parser"
 )
@@ -232,7 +231,6 @@ func analyzeVisit(a ast.Node, inObject bool, vars *analysisVars) error {
 		visitNext(a.Expr, inObject, vars, s)
 	case *ast.Var:
 		if !vars.Contains(a.Id) {
-			spew.Dump(vars)
 			return parser.MakeStaticError(fmt.Sprintf("Unknown variable: %v", a.Id), *a.Loc())
 		}
 		s.freeVars.Add(a.Id)
