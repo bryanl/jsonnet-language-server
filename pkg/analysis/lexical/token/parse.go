@@ -4,13 +4,10 @@ import (
 	"fmt"
 	"strconv"
 
+	"github.com/bryanl/jsonnet-language-server/pkg/analysis/lexical/astext"
 	"github.com/google/go-jsonnet/ast"
 	"github.com/pkg/errors"
 )
-
-type partial struct {
-	ast.NodeBase
-}
 
 type precedence int
 
@@ -227,13 +224,13 @@ func (p *mParser) parse(prec precedence) (ast.Node, error) {
 		var body ast.Node
 		var err error
 		if p.atEnd() {
-			body = &partial{
+			body = &astext.Partial{
 				NodeBase: ast.NewNodeBaseLoc(locFromPartial(p.peekPrev())),
 			}
 		} else {
 			body, err = p.parse(maxPrecedence)
 			if err != nil {
-				body = &partial{
+				body = &astext.Partial{
 					NodeBase: ast.NewNodeBaseLoc(locFromPartial(p.peekPrev())),
 				}
 			}
@@ -471,7 +468,7 @@ func (p *mParser) parseBind(binds *ast.LocalBinds) error {
 	body, err := p.parse(maxPrecedence)
 	if err != nil {
 		// body could be invalid in a completion event
-		body = &partial{
+		body = &astext.Partial{
 			NodeBase: ast.NewNodeBaseLoc(locFromPartial(p.peekPrev())),
 		}
 	}

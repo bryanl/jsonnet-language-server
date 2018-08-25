@@ -3,6 +3,7 @@ package token
 import (
 	"testing"
 
+	"github.com/bryanl/jsonnet-language-server/pkg/analysis/lexical/astext"
 	"github.com/google/go-jsonnet/ast"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -20,7 +21,7 @@ func TestParse(t *testing.T) {
 			check: func(t *testing.T, node ast.Node) {
 				local, ok := node.(*ast.Local)
 				require.True(t, ok)
-				body, ok := local.Body.(*partial)
+				body, ok := local.Body.(*astext.Partial)
 				require.True(t, ok)
 				expected := createLoc(1, 13)
 				require.Equal(t, expected, body.Loc().Begin)
@@ -35,7 +36,7 @@ func TestParse(t *testing.T) {
 					if assert.Len(t, local.Binds, 1) {
 						bind := local.Binds[0]
 						require.Equal(t, createIdentifier("y"), bind.Variable)
-						body, ok := bind.Body.(*partial)
+						body, ok := bind.Body.(*astext.Partial)
 						if assert.True(t, ok) {
 							expected := createLoc(1, 11)
 							require.Equal(t, expected, body.Loc().Begin)
@@ -43,7 +44,7 @@ func TestParse(t *testing.T) {
 
 					}
 
-					body, ok := local.Body.(*partial)
+					body, ok := local.Body.(*astext.Partial)
 					if assert.True(t, ok) {
 						expected := createLoc(1, 11)
 						require.Equal(t, expected, body.Loc().Begin)
@@ -67,8 +68,8 @@ func createFakeNodeBase(l1, c1, l2, c2 int) ast.NodeBase {
 	return ast.NewNodeBaseLoc(createRange("file.jsonnet", l1, c1, l2, c2))
 }
 
-func createPartial(l1, c1 int) *partial {
-	return &partial{
+func createPartial(l1, c1 int) *astext.Partial {
+	return &astext.Partial{
 		NodeBase: createFakeNodeBase(l1, c1, 0, 0),
 	}
 }

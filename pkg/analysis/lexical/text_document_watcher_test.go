@@ -6,7 +6,6 @@ import (
 	"github.com/bryanl/jsonnet-language-server/pkg/analysis/lexical/locate"
 	"github.com/bryanl/jsonnet-language-server/pkg/config"
 	"github.com/bryanl/jsonnet-language-server/pkg/lsp"
-	"github.com/davecgh/go-spew/spew"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -24,8 +23,6 @@ func TestTextDocumentWatcher_watch(t *testing.T) {
 	})
 
 	c.watchFn(td)
-
-	spew.Dump(lc)
 
 	l, err := lc.GetAtPosition("/file.jsonnet", createLoc(1, 1))
 	require.NoError(t, err)

@@ -6,6 +6,7 @@ import (
 	"sync"
 
 	"github.com/bryanl/jsonnet-language-server/pkg/lsp"
+	"github.com/sirupsen/logrus"
 )
 
 // CompletionAction is an action performed on a completion match.
@@ -29,7 +30,7 @@ func (cm *CompletionMatcher) Register(term string, fn CompletionAction) error {
 	cm.mu.Lock()
 	defer cm.mu.Unlock()
 
-	expr := fmt.Sprintf(`%s\s+$`, term)
+	expr := fmt.Sprintf(`(%s)$`, term)
 	re, err := regexp.Compile(expr)
 	if err != nil {
 		return err
@@ -46,6 +47,7 @@ func (cm *CompletionMatcher) Match(editRange lsp.Range, source string) ([]lsp.Co
 	defer cm.mu.Unlock()
 
 	for re, m := range cm.store {
+		logrus.Infof("trying to match %q to %s", source, re.String())
 		match := re.FindStringSubmatch(source)
 		if match != nil {
 			return m(editRange, match[0])

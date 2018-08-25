@@ -31,7 +31,7 @@ func TestCompletionMatchers(t *testing.T) {
 		return resp, nil
 	}
 
-	err := cm.Register("item", fn)
+	err := cm.Register(`item\s?`, fn)
 	require.NoError(t, err)
 
 	list, err := cm.Match(editRange, "local item ")

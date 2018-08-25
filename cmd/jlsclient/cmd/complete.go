@@ -15,10 +15,11 @@
 package cmd
 
 import (
+	"io/ioutil"
 	"os"
 
 	"github.com/bryanl/jsonnet-language-server/pkg/analysis/lexical"
-	"github.com/bryanl/jsonnet-language-server/pkg/analysis/lexical/locate"
+	"github.com/bryanl/jsonnet-language-server/pkg/config"
 	"github.com/davecgh/go-spew/spew"
 	"github.com/google/go-jsonnet/ast"
 
@@ -36,20 +37,39 @@ Cobra is a CLI library for Go that empowers applications.
 This application is a tool to generate the needed files
 to quickly create a Cobra application.`,
 	RunE: func(cmd *cobra.Command, args []string) error {
+		/* #nosec */
 		f, err := os.Open(completeFilename)
 		if err != nil {
 			return err
 		}
 
-		nodeCache := locate.NewNodeCache()
+		cfg := config.New()
+		update := map[string]interface{}{
+			config.JsonnetLibPaths: completeJLibPaths,
+		}
+
+		if err = cfg.UpdateClientConfiguration(update); err != nil {
+			return err
+		}
+
+		data, err := ioutil.ReadFile(completeFilename)
+		if err != nil {
+			return err
+		}
+
+		uriStr := "file://" + completeFilename
+
+		td := config.NewTextDocument(uriStr, string(data))
+		if err = cfg.StoreTextDocumentItem(td); err != nil {
+			return err
+		}
 
 		response, err := lexical.CompletionAtLocation(
-			completeFilename,
+			uriStr,
 			f,
 			ast.Location{Line: completeLine, Column: completeCol},
-			completeJLibPaths,
-			nodeCache)
-
+			cfg,
+		)
 		if err != nil {
 			return err
 		}
@@ -74,14 +94,4 @@ func init() {
 	completeCmd.Flags().IntVarP(&completeLine, "line", "l", 0, "line")
 	completeCmd.Flags().IntVarP(&completeCol, "column", "c", 0, "column")
 	completeCmd.Flags().StringSliceVarP(&completeJLibPaths, "jpath", "j", []string{}, "jsonnet lib paths")
-
-	// Here you will define your flags and configuration settings.
-
-	// Cobra supports Persistent Flags which will work for this command
-	// and all subcommands, e.g.:
-	// completeCmd.PersistentFlags().String("foo", "", "A help for foo")
-
-	// Cobra supports local flags which will only run when this command
-	// is called directly, e.g.:
-	// completeCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
 }

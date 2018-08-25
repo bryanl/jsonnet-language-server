@@ -8,6 +8,7 @@ import (
 
 	"github.com/bryanl/jsonnet-language-server/pkg/analysis/lexical/locate"
 	"github.com/bryanl/jsonnet-language-server/pkg/analysis/lexical/token"
+	"github.com/bryanl/jsonnet-language-server/pkg/analysis/static"
 	"github.com/davecgh/go-spew/spew"
 	jsonnet "github.com/google/go-jsonnet"
 	"github.com/google/go-jsonnet/ast"
@@ -53,6 +54,21 @@ func main() {
 	case 3:
 		n, err := jsonnet.SnippetToAST(*filename, string(data))
 		if err != nil {
+			log.Fatal(err)
+		}
+
+		spew.Dump(n)
+	case 4:
+		n, err := token.Parse(*filename, string(data))
+		if err != nil {
+			log.Fatal(err)
+		}
+
+		if err = token.DesugarFile(&n); err != nil {
+			log.Fatal(err)
+		}
+
+		if err = static.Analyze(n); err != nil {
 			log.Fatal(err)
 		}
 

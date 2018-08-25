@@ -43,6 +43,8 @@ type Node interface {
 	FreeVariables() Identifiers
 	SetFreeVariables(Identifiers)
 	SetContext(Context)
+	SetScope(Scope)
+	Scope() Scope
 }
 
 // Nodes represents a Node slice.
@@ -55,6 +57,7 @@ type NodeBase struct {
 	loc           LocationRange
 	context       Context
 	freeVariables Identifiers
+	scope         Scope
 }
 
 // NewNodeBase creates a new NodeBase from initial LocationRange and

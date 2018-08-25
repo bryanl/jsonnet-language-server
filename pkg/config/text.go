@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/bryanl/jsonnet-language-server/pkg/lsp"
+	"github.com/bryanl/jsonnet-language-server/pkg/util/uri"
 )
 
 // TextDocument is a document's text and and metadata.
@@ -14,6 +15,13 @@ type TextDocument struct {
 	languageID string
 	version    int
 	text       string
+}
+
+func NewTextDocument(uri, text string) TextDocument {
+	return TextDocument{
+		uri:  uri,
+		text: text,
+	}
 }
 
 // NewTextDocumentFromItem creates a TextDocument from a lsp TextDocumentItem.
@@ -35,10 +43,14 @@ func (td *TextDocument) String() string {
 	return td.text
 }
 
+func (td *TextDocument) Filename() (string, error) {
+	return uri.ToPath(td.uri)
+}
+
 // Truncate returns text truncated at a position.
 func (td *TextDocument) Truncate(line, col int) (string, error) {
 	scanner := bufio.NewScanner(strings.NewReader(td.text))
-	scanner.Split(bufio.ScanRunes)
+	scanner.Split(bufio.ScanBytes)
 
 	var buf bytes.Buffer
 
@@ -50,11 +62,6 @@ func (td *TextDocument) Truncate(line, col int) (string, error) {
 
 		t := scanner.Text()
 
-		if t == "\n" {
-			l++
-			c = 0
-		}
-
 		_, err := buf.WriteString(t)
 		if err != nil {
 			return "", err
@@ -63,11 +70,16 @@ func (td *TextDocument) Truncate(line, col int) (string, error) {
 		if l == line && c == col {
 			break
 		}
+
+		if t == "\n" {
+			l++
+			c = 0
+		}
 	}
 
 	if err := scanner.Err(); err != nil {
 		return "", err
 	}
 
-	return buf.String(), nil
+	return strings.TrimRight(buf.String(), "\n"), nil
 }

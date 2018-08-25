@@ -3,6 +3,7 @@ package token
 import (
 	"fmt"
 
+	"github.com/bryanl/jsonnet-language-server/pkg/analysis/lexical/astext"
 	"github.com/google/go-jsonnet/ast"
 )
 
@@ -18,7 +19,7 @@ func (l *locator) visitNext(a ast.Node) {
 	}
 
 	switch a.(type) {
-	case *partial:
+	case *astext.Partial:
 		l.enclosingNode = a
 		return
 	}
@@ -118,7 +119,7 @@ func (l *locator) analyzeVisit(a ast.Node) error {
 		l.visitNext(a.Expr)
 	case *ast.Var:
 		//nothing to do here
-	case *partial:
+	case *astext.Partial:
 		//nothing to do here
 	case nil:
 	default:
@@ -130,11 +131,8 @@ func (l *locator) analyzeVisit(a ast.Node) error {
 
 func locate(node ast.Node, loc ast.Location) (ast.Node, error) {
 	if node == nil {
-		return &partial{}, nil
+		return &astext.Partial{}, nil
 	}
-	// if afterRange(node.Loc().End, loc) {
-	// 	return node, nil
-	// }
 
 	l := &locator{loc: loc}
 	if err := l.analyzeVisit(node); err != nil {

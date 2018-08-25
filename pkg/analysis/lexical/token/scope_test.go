@@ -8,7 +8,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestScope(t *testing.T) {
+func OffTestScope(t *testing.T) {
 	cases := []struct {
 		name     string
 		src      string
@@ -27,6 +27,12 @@ func TestScope(t *testing.T) {
 			src:      `local a="a";`,
 			loc:      createLoc(2, 1),
 			expected: []string{"a", "std"},
+		},
+		{
+			name:     "local with an incomplete body",
+			src:      "local o={a:'b'};\nlocal y=o.\n",
+			loc:      createLoc(2, 11),
+			expected: []string{"o", "std", "y"},
 		},
 		{
 			name:     "object keys",

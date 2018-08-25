@@ -43,6 +43,11 @@ func matchImport(c *config.Config) langserver.CompletionAction {
 	}
 }
 
+func matchIndex(editRange lsp.Range, matched string) ([]lsp.CompletionItem, error) {
+	logrus.Infof("matchIndex got: %s", matched)
+	return nil, errors.New("didn't work")
+}
+
 type complete struct {
 	referenceParams   lsp.ReferenceParams
 	config            *config.Config
@@ -51,8 +56,9 @@ type complete struct {
 
 func defaultMatchers(c *config.Config) map[string]langserver.CompletionAction {
 	return map[string]langserver.CompletionAction{
-		"import":    matchImport(c),
-		"importstr": matchImport(c),
+		`import\s`:    matchImport(c),
+		`importstr\s`: matchImport(c),
+		`\w+\.`:       matchIndex,
 	}
 }
 
@@ -63,10 +69,15 @@ func newComplete(rp lsp.ReferenceParams, cfg *config.Config) (*complete, error) 
 		completionMatcher: langserver.NewCompletionMatcher(),
 	}
 
-	for term, fn := range defaultMatchers(cfg) {
-		if err := c.completionMatcher.Register(term, fn); err != nil {
-			return nil, errors.Wrapf(err, "registering completion match %q", term)
-		}
+	td, err := cfg.Text(rp.TextDocument.URI)
+	if err != nil {
+		return nil, err
+	}
+
+	jpm := newJsonnetPathManager(cfg)
+	mh := newMatchHandler(jpm, *td)
+	if err := mh.register(c.completionMatcher); err != nil {
+		return nil, err
 	}
 
 	return c, nil
@@ -101,6 +112,7 @@ func (c *complete) handle() (interface{}, error) {
 	if err != nil {
 		return nil, err
 	}
+	logrus.Info(matchText)
 
 	matchItems, err := c.completionMatcher.Match(editRange, matchText)
 	if err != nil {

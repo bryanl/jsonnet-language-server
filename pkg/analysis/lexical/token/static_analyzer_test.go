@@ -11,72 +11,83 @@ import (
 
 func Test_staticAnalyzer(t *testing.T) {
 	cases := []struct {
-		name     string
-		source   string
-		expected []string
-		node     func(t *testing.T, node ast.Node) ast.Node
+		name          string
+		source        string
+		expected      []string
+		scopeExpected map[string]interface{}
+		loc           ast.Location
+		node          func(t *testing.T, node ast.Node) ast.Node
 	}{
-		{
-			name:     "normal case",
-			source:   `local o={a:"a"}; o`,
-			expected: []string{"o", "std"},
-			node: func(t *testing.T, node ast.Node) ast.Node {
-				local, ok := node.(*ast.Local)
-				require.True(t, ok)
-				return local.Body
-			},
-		},
-		{
-			name:     "local missing body",
-			source:   `local o={a:"a"};`,
-			expected: []string{"o", "std"},
-			node: func(t *testing.T, node ast.Node) ast.Node {
-				local, ok := node.(*ast.Local)
-				require.True(t, ok)
-				return local.Body
-			},
-		},
-		{
-			name:     "inside a function body",
-			source:   `local fn(x) = x; fn("1")`,
-			expected: []string{"fn", "std"},
-			node: func(t *testing.T, node ast.Node) ast.Node {
-				local, ok := node.(*ast.Local)
-				require.True(t, ok)
+		// {
+		// 	name:     "local missing body",
+		// 	source:   `local o={a:"a"};`,
+		// 	expected: []string{"o", "std"},
+		// 	scopeExpected: map[string]interface{}{
+		// 		"o": &ast.Object{},
+		// 	},
+		// 	loc: createLoc(1, 17),
+		// 	node: func(t *testing.T, node ast.Node) ast.Node {
+		// 		local, ok := node.(*ast.Local)
+		// 		require.True(t, ok)
+		// 		return local.Body
+		// 	},
+		// },
+		// {
+		// 	name:     "inside a function body",
+		// 	source:   `local fn(x) = x; fn("1")`,
+		// 	expected: []string{"fn", "std"},
+		// 	scopeExpected: map[string]interface{}{
+		// 		"fn": &ast.Apply{},
+		// 	},
+		// 	loc: createLoc(1, 17),
+		// 	node: func(t *testing.T, node ast.Node) ast.Node {
+		// 		local, ok := node.(*ast.Local)
+		// 		require.True(t, ok)
 
-				return local.Body
-			},
-		},
-		{
-			name:     "inside apply function body",
-			source:   `local fn(x) = x; fn("1")`,
-			expected: []string{"fn", "std", "x"},
-			node: func(t *testing.T, node ast.Node) ast.Node {
-				local, ok := node.(*ast.Local)
-				require.True(t, ok)
-				require.Len(t, local.Binds, 1)
-				bind := local.Binds[0]
-				require.NotNil(t, bind.Fun)
-				require.NotNil(t, bind.Fun.Body)
-				return bind.Fun.Body
-			},
-		},
-		{
-			name:     "function field member in object",
-			source:   `local o = {fn(x):x}; o.fn(1)`,
-			expected: []string{"o", "std", "x"},
-			node: func(t *testing.T, node ast.Node) ast.Node {
-				local, ok := node.(*ast.Local)
-				require.True(t, ok)
-				require.Len(t, local.Binds, 1)
-				bind := local.Binds[0]
-				o, ok := bind.Body.(*ast.Object)
-				require.True(t, ok)
-				require.Len(t, o.Fields, 1)
-				field := o.Fields[0]
-				return field.Expr2
-			},
-		},
+		// 		return local.Body
+		// 	},
+		// },
+		// {
+		// 	name:     "inside apply function body",
+		// 	source:   `local fn(x) = x+1; fn(1)`,
+		// 	expected: []string{"fn", "std", "x"},
+		// 	loc:      createLoc(1, 15),
+		// 	scopeExpected: map[string]interface{}{
+		// 		"fn": &ast.Binary{},
+		// 		"x":  &ast.Binary{},
+		// 	},
+		// 	node: func(t *testing.T, node ast.Node) ast.Node {
+		// 		local, ok := node.(*ast.Local)
+		// 		require.True(t, ok)
+		// 		require.Len(t, local.Binds, 1)
+		// 		bind := local.Binds[0]
+		// 		require.NotNil(t, bind.Fun)
+		// 		require.NotNil(t, bind.Fun.Body)
+		// 		return bind.Fun.Body
+		// 	},
+		// },
+		// {
+		// 	name:     "function field member in object",
+		// 	source:   `local o = {fn(x):x}; o.fn(1)`,
+		// 	expected: []string{"fn", "o", "std", "x"},
+		// 	loc:      createLoc(1, 18),
+		// 	scopeExpected: map[string]interface{}{
+		// 		"fn": &ast.Var{},
+		// 		"o":  &ast.Object{},
+		// 	},
+		// 	node: func(t *testing.T, node ast.Node) ast.Node {
+		// 		local, ok := node.(*ast.Local)
+		// 		require.True(t, ok)
+		// 		require.Len(t, local.Binds, 1)
+		// 		bind := local.Binds[0]
+		// 		o, ok := bind.Body.(*ast.Object)
+		// 		require.True(t, ok)
+		// 		require.Len(t, o.Fields, 1)
+		// 		field := o.Fields[0]
+		// 		spew.Dump(field.Expr2)
+		// 		return field.Expr2
+		// 	},
+		// },
 	}
 
 	for _, tc := range cases {
@@ -88,16 +99,29 @@ func Test_staticAnalyzer(t *testing.T) {
 			}()
 
 			node, err := Parse("file.jsonnet", tc.source)
-			if err != nil {
-				node, _ = isPartialNode(err)
-			}
+			require.NoError(t, err)
 
-			err = analyze(node)
+			sc, err := analyze(node, tc.loc)
 			require.NoError(t, err)
 
 			expected := createFreeVariables(tc.expected...)
 
-			assert.Equal(t, expected, tc.node(t, node).FreeVariables())
+			freeVars := tc.node(t, node).FreeVariables()
+			if assert.Equal(t, expected, freeVars) {
+				for _, v := range freeVars {
+					id := string(v)
+					if id == "std" {
+						// not handling std yet
+						continue
+					}
+
+					node, ok := sc.store[id]
+					if assert.True(t, ok, "unable to find free variable %s", id) {
+						require.IsType(t, tc.scopeExpected[id], node,
+							"expected scope item %q to be a %T; it was a %T", id, tc.scopeExpected[id], node)
+					}
+				}
+			}
 		})
 	}
 }

@@ -32,7 +32,7 @@ func (lc *LocatableCache) GetAtPosition(filename string, pos ast.Location) (*Loc
 
 	list, ok := lc.store[filename]
 	if !ok {
-		return nil, errors.Errorf("filename %q is unknown to the locatable cache")
+		return nil, errors.Errorf("filename %q is unknown to the locatable cache", filename)
 	}
 
 	logrus.Infof("finding token at position %s", pos.String())
