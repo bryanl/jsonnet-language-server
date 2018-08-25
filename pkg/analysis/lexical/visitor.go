@@ -175,10 +175,7 @@ func (v *NodeVisitor) visitToken(token interface{}, parent *locate.Locatable, sc
 	case ast.ForSpec:
 		return v.handleForSpec(t, parent, scope)
 	case *ast.Identifier:
-		if t == nil {
-			return nil
-		}
-		return v.handleIdentifier(*t, parent, scope)
+		return nil
 	case ast.Identifier:
 		return v.handleIdentifier(t, parent, scope)
 	case ast.LocalBind:

@@ -1,8 +1,11 @@
 package config
 
 import (
+	"fmt"
+	"os"
 	"sync"
 
+	"github.com/pkg/errors"
 	uuid "github.com/satori/go.uuid"
 	"github.com/sirupsen/logrus"
 )
@@ -31,6 +34,10 @@ func NewDispatcher() *Dispatcher {
 	}
 }
 
+type stackTracer interface {
+	StackTrace() errors.StackTrace
+}
+
 // Dispatch dispatches a value to all the watchers.
 func (d *Dispatcher) Dispatch(v interface{}) {
 	d.mu.Lock()
@@ -40,6 +47,13 @@ func (d *Dispatcher) Dispatch(v interface{}) {
 		go func(fn DispatchFn) {
 			if err := fn(v); err != nil {
 				d.logger.WithError(err).Error("dispatching to function")
+
+				st, ok := err.(stackTracer)
+				if ok {
+					for _, f := range st.StackTrace() {
+						fmt.Fprintf(os.Stderr, "%v\n", f)
+					}
+				}
 			}
 		}(fn)
 	}

@@ -62,6 +62,8 @@ func (c *Config) StoreTextDocumentItem(td TextDocument) error {
 		oldDoc = td
 	}
 
+	logrus.Infof("storing %q", td.uri)
+
 	oldDoc.text = td.text
 	oldDoc.version = td.version
 

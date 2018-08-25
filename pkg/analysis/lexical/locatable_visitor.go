@@ -41,10 +41,7 @@ func (lv *locatableVisitor) Locatables() []locate.Locatable {
 func (lv *locatableVisitor) previsit(token interface{}, parent *locate.Locatable, scope locate.Scope) error {
 	r, err := locate.Locate(token, parent, string(lv.visitor.Source))
 	if err != nil {
-		if err == locate.ErrNotLocatable {
-			return nil
-		}
-		return err
+		return nil
 	}
 
 	if isInvalidRange(r) {

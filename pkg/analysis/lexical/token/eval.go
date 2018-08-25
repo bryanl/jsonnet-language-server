@@ -25,12 +25,16 @@ func (es evalScope) Clone() evalScope {
 
 func (e *evaluator) eval(n ast.Node, parentScope evalScope) {
 	switch n := n.(type) {
+	case *ast.Apply:
+		e.eval(n.Target, parentScope)
 	case *ast.DesugaredObject:
 		s := parentScope.Clone()
 		for _, field := range n.Fields {
 			e.eval(field.Name, s)
 			e.eval(field.Body, s)
 		}
+	case *ast.Import:
+	case *ast.ImportStr:
 	case *ast.Index:
 		e.eval(n.Target, parentScope)
 		e.eval(n.Index, parentScope)

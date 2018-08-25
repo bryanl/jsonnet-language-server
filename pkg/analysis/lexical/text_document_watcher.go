@@ -4,7 +4,6 @@ import (
 	"strings"
 
 	"github.com/bryanl/jsonnet-language-server/pkg/analysis/lexical/locate"
-
 	"github.com/bryanl/jsonnet-language-server/pkg/config"
 	"github.com/bryanl/jsonnet-language-server/pkg/util/uri"
 	"github.com/pkg/errors"
@@ -34,6 +33,7 @@ func NewTextDocumentWatcher(c TextDocumentWatcherConfig) *TextDocumentWatcher {
 }
 
 func (tdw *TextDocumentWatcher) watch(item interface{}) error {
+	logger := logrus.WithField("component", "tdw")
 	tdi, ok := item.(config.TextDocument)
 	if !ok {
 		return errors.Errorf("text document watcher can't handle %T", item)
@@ -48,16 +48,23 @@ func (tdw *TextDocumentWatcher) watch(item interface{}) error {
 
 	lv, err := newLocatableVisitor(filename, r)
 	if err != nil {
+		logger.WithError(err).Info("creating visitor")
 		// The document might not be parseable, but that's not a
 		// error.
 		return nil
 	}
 
-	logrus.Info("running visitText")
+	logger.Info("running visitText")
 	if err := lv.Visit(); err != nil {
-		return errors.Wrap(err, "visiting nodes")
+		return errors.Wrapf(err, "text document watcher visit nodes in %s",
+			tdi.URI())
 	}
 
 	locatableCache := tdw.config.LocatableCache()
-	return locatableCache.Store(filename, lv.Locatables())
+
+	if err := locatableCache.Store(filename, lv.Locatables()); err != nil {
+		return errors.Wrap(err, "storing document in cache")
+	}
+
+	return nil
 }

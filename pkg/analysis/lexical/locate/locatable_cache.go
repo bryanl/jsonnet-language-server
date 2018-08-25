@@ -2,8 +2,10 @@ package locate
 
 import (
 	"fmt"
+	"strings"
 	"sync"
 
+	"github.com/bryanl/jsonnet-language-server/pkg/util/uri"
 	"github.com/google/go-jsonnet/ast"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
@@ -30,8 +32,22 @@ func (lc *LocatableCache) GetAtPosition(filename string, pos ast.Location) (*Loc
 	lc.mu.Lock()
 	defer lc.mu.Unlock()
 
+	if strings.HasPrefix(filename, "file://") {
+		var err error
+		filename, err = uri.ToPath(filename)
+		if err != nil {
+			return nil, err
+		}
+	}
+
 	list, ok := lc.store[filename]
 	if !ok {
+		var files []string
+		for k := range lc.store {
+			files = append(files, k)
+
+		}
+		logrus.WithField("entries", strings.Join(files, ", ")).Info("existing entries")
 		return nil, errors.Errorf("filename %q is unknown to the locatable cache", filename)
 	}
 
@@ -56,6 +72,7 @@ func (lc *LocatableCache) GetAtPosition(filename string, pos ast.Location) (*Loc
 
 // Store stores a locatable in the cache.
 func (lc *LocatableCache) Store(filename string, l []Locatable) error {
+	logrus.Infof("storing %s", filename)
 	lc.mu.Lock()
 	defer lc.mu.Unlock()
 
