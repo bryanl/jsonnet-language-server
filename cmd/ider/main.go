@@ -2,13 +2,14 @@ package main
 
 import (
 	"flag"
+	"io/ioutil"
 	"log"
 	"os"
 	"strings"
 
-	"github.com/bryanl/jsonnet-language-server/pkg/analysis/lexical/locate"
-
 	"github.com/bryanl/jsonnet-language-server/pkg/analysis/lexical"
+	"github.com/bryanl/jsonnet-language-server/pkg/config"
+	"github.com/bryanl/jsonnet-language-server/pkg/lsp"
 	"github.com/davecgh/go-spew/spew"
 	"github.com/pkg/profile"
 	"github.com/sirupsen/logrus"
@@ -66,9 +67,31 @@ func run(req request) error {
 		return err
 	}
 
-	nodeCache := locate.NewNodeCache()
+	cfg := config.New()
 
-	response, err := lexical.HoverAtLocation(req.Filename, f, req.Line, req.Char, req.jlibPaths, nodeCache)
+	data, err := ioutil.ReadFile(req.Filename)
+	if err != nil {
+		return err
+	}
+
+	dctdp := lsp.DidChangeTextDocumentParams{
+		ContentChanges: []lsp.TextDocumentContentChangeEvent{
+			{Text: string(data)},
+		},
+	}
+
+	if err = cfg.UpdateTextDocumentItem(dctdp); err != nil {
+		return err
+	}
+
+	update := map[string]interface{}{
+		config.JsonnetLibPaths: req.jlibPaths,
+	}
+	if err = cfg.UpdateClientConfiguration(update); err != nil {
+		return err
+	}
+
+	response, err := lexical.HoverAtLocation(req.Filename, f, req.Line, req.Char, cfg)
 	if err != nil {
 		return err
 	}
