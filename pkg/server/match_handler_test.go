@@ -36,37 +36,50 @@ func Test_matchHandler_handleImport(t *testing.T) {
 
 func Test_matchHandler_handleIndex(t *testing.T) {
 	cases := []struct {
-		name         string
-		textDocument config.TextDocument
-		at           position.Position
+		name     string
+		text     string
+		at       position.Position
+		expected func(position.Range) []lsp.CompletionItem
 	}{
 		{
 			name: "handle index",
-			textDocument: config.NewTextDocument("file:///file.jsonnet",
-				"local o = {\n    a: \"b\"\n};\n\nlocal y = o."),
-			at: position.New(5, 13),
+			text: "local o = {\n    a: \"b\"\n};\n\nlocal y = o.",
+			at:   position.New(5, 13),
+			expected: func(r position.Range) []lsp.CompletionItem {
+				return []lsp.CompletionItem{
+					createCompletionItem("a", `a`, lsp.CIKVariable, r,
+						&token.ScopeEntry{Detail: "o"}),
+				}
+			},
+		},
+		{
+			name: "nested index",
+			text: `local o={data:{a:"a"}};o.data.`,
+			at:   position.New(1, 31),
+			expected: func(r position.Range) []lsp.CompletionItem {
+				return []lsp.CompletionItem{
+					createCompletionItem("a", `a`, lsp.CIKVariable, r,
+						&token.ScopeEntry{Detail: "(object)"}),
+				}
+			},
 		},
 	}
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
+			td := config.NewTextDocument("file:///file.jsonnet", tc.text)
 			cm := langserver.NewCompletionMatcher()
 
 			jpm := &fakeJsonnetPathManager{files: []string{"1.jsonnet", "2.libsonnet"}}
-			mh := newMatchHandler(jpm, tc.textDocument)
+			mh := newMatchHandler(jpm, td)
 			mh.register(cm)
 
 			editRange := position.NewRange(tc.at, tc.at)
 
-			// editRange := lsp.Range{Start: lsp.Position{Line: 4, Character: 12}}
-			got, err := cm.Match(editRange, "local o = {\n    a: \"b\"\n};\n\nlocal y = o.")
+			got, err := cm.Match(editRange, tc.text)
 			require.NoError(t, err)
 
-			expected := []lsp.CompletionItem{
-				createCompletionItem("a", `a`, lsp.CIKVariable, editRange,
-					&token.ScopeEntry{Detail: "o"}),
-			}
-			assert.Equal(t, expected, got)
+			assert.Equal(t, tc.expected(editRange), got)
 		})
 	}
 }

@@ -26,7 +26,7 @@ func TestCompletionMatchers(t *testing.T) {
 		},
 	}
 
-	fn := func(r position.Range, matched string) ([]lsp.CompletionItem, error) {
+	fn := func(r position.Range, source, matched string) ([]lsp.CompletionItem, error) {
 		return resp, nil
 	}
 
@@ -56,7 +56,7 @@ func TestCompletionMatchers_no_match(t *testing.T) {
 		},
 	}
 
-	fn := func(r position.Range, matched string) ([]lsp.CompletionItem, error) {
+	fn := func(r position.Range, source, matched string) ([]lsp.CompletionItem, error) {
 		return resp, nil
 	}
 
@@ -73,7 +73,7 @@ func TestCompletionMatchers_no_match(t *testing.T) {
 func TestCompletionMatchers_invalid_term(t *testing.T) {
 	cm := NewCompletionMatcher()
 
-	fn := func(r position.Range, matched string) ([]lsp.CompletionItem, error) {
+	fn := func(r position.Range, source, atched string) ([]lsp.CompletionItem, error) {
 		panic("shouldn't be able to get here")
 	}
 

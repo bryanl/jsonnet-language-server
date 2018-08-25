@@ -6,6 +6,7 @@ import (
 	"runtime"
 	"sort"
 
+	"github.com/bryanl/jsonnet-language-server/pkg/analysis/lexical/astext"
 	"github.com/bryanl/jsonnet-language-server/pkg/analysis/static"
 	jlspos "github.com/bryanl/jsonnet-language-server/pkg/util/position"
 	"github.com/google/go-jsonnet/ast"
@@ -49,6 +50,65 @@ func (sm *Scope) Keywords() []string {
 		"null", "tailstrict", "then", "self", "super", "true"}
 }
 
+func (sm *Scope) GetInPath(path []string) (*ScopeEntry, error) {
+	id, path := path[0], path[1:]
+
+	e, err := sm.Get(id)
+	if err != nil {
+		return nil, err
+	}
+
+	if len(path) == 0 {
+		return e, nil
+	}
+
+	node, err := findInObject(e.Node, path)
+	if err != nil {
+		return nil, err
+	}
+
+	text := astext.TokenName(node)
+
+	return &ScopeEntry{
+		Node:   node,
+		Detail: text,
+	}, nil
+}
+
+func findInObject(node ast.Node, path []string) (ast.Node, error) {
+	o, ok := node.(*ast.DesugaredObject)
+	if !ok {
+		return nil, errors.New("node was not an object")
+	}
+
+	id, path := path[0], path[1:]
+
+	for i := range o.Fields {
+		field := o.Fields[i]
+
+		name, ok := field.Name.(*ast.LiteralString)
+		if !ok {
+			return nil, errors.New("field name was not a string")
+		} else if name.Value != id {
+			continue
+		}
+
+		if len(path) == 0 {
+			local, ok := field.Body.(*ast.Local)
+			if !ok {
+				return nil, errors.New("field body wasn't a local")
+			}
+
+			logrus.Info("found body")
+			return local.Body, nil
+		}
+
+		return findInObject(field.Body, path)
+	}
+
+	return nil, errors.Errorf("unable to find field %q", id)
+}
+
 // Get retrieves an entry by name from the scope.
 func (sm *Scope) Get(key string) (*ScopeEntry, error) {
 	se, ok := sm.store[key]
@@ -67,9 +127,12 @@ func (sm *Scope) add(id ast.Identifier, node ast.Node) {
 	}
 }
 
-func (sm *Scope) addIdentifier(key ast.Identifier) {
+func (sm *Scope) addIdentifier(key ast.Identifier, node ast.Node) {
 	id := string(key)
-	sm.store[id] = ScopeEntry{Detail: id}
+	sm.store[id] = ScopeEntry{
+		Detail: id,
+		Node:   node,
+	}
 }
 
 // LocationScope finds the free variables for a location.

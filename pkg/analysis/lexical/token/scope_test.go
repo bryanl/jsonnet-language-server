@@ -9,7 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func OffTestScope(t *testing.T) {
+func TestScope(t *testing.T) {
 	cases := []struct {
 		name     string
 		src      string
@@ -21,25 +21,25 @@ func OffTestScope(t *testing.T) {
 			name:     "valid local",
 			src:      `local a="a";a`,
 			loc:      jlspos.New(1, 13),
-			expected: []string{"a", "std"},
+			expected: []string{"a"},
 		},
 		{
 			name:     "local with no body",
 			src:      `local a="a";`,
 			loc:      jlspos.New(2, 1),
-			expected: []string{"a", "std"},
+			expected: []string{"a"},
 		},
 		{
 			name:     "local with an incomplete body",
 			src:      "local o={a:'b'};\nlocal y=o.\n",
 			loc:      jlspos.New(2, 11),
-			expected: []string{"o", "std", "y"},
+			expected: []string{"o", "y"},
 		},
 		{
 			name:     "object keys",
 			src:      `local o={a:"a"};`,
 			loc:      jlspos.New(2, 1),
-			expected: []string{"o", "std"},
+			expected: []string{"o"},
 		},
 	}
 
@@ -58,13 +58,15 @@ func OffTestScope(t *testing.T) {
 
 func TestScopeMap(t *testing.T) {
 	sm := newScope()
-	sm.addIdentifier(ast.Identifier("foo"))
+	o := &ast.Object{}
+	sm.addIdentifier(ast.Identifier("foo"), o)
 
 	expectedKeys := []string{"foo"}
 	require.Equal(t, expectedKeys, sm.Keys())
 
 	expectedEntry := &ScopeEntry{
 		Detail: "foo",
+		Node:   o,
 	}
 
 	e, err := sm.Get("foo")
@@ -77,4 +79,68 @@ func TestScopeMap_Get_invalid(t *testing.T) {
 	sm := newScope()
 	_, err := sm.Get("invalid")
 	require.Error(t, err)
+}
+
+func TestScope_GetPath(t *testing.T) {
+	data := &ast.DesugaredObject{
+		Fields: ast.DesugaredObjectFields{
+			{
+				Name: createLiteralString("a"),
+				Body: createLiteralString("a"),
+			},
+		},
+	}
+
+	o := &ast.DesugaredObject{
+		Fields: ast.DesugaredObjectFields{
+			{
+				Name: createLiteralString("data"),
+				Body: &ast.Local{
+					Body: data,
+				},
+			},
+		},
+	}
+
+	s := newScope()
+	s.addIdentifier(createIdentifier("o"), o)
+
+	cases := []struct {
+		name     string
+		path     []string
+		expected *ScopeEntry
+	}{
+		{
+			name: "at root",
+			path: []string{"o"},
+			expected: &ScopeEntry{
+				Detail: "o",
+				Node:   o,
+			},
+		},
+		{
+			name: "nested",
+			path: []string{"o", "data"},
+			expected: &ScopeEntry{
+				Detail: "(object)",
+				Node:   data,
+			},
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got, err := s.GetInPath(tc.path)
+			require.NoError(t, err)
+
+			assert.Equal(t, tc.expected, got)
+		})
+	}
+}
+
+func createLiteralString(v string) *ast.LiteralString {
+	return &ast.LiteralString{
+		Value: v,
+		Kind:  ast.StringSingle,
+	}
 }

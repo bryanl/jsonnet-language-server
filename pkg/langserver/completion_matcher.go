@@ -11,7 +11,7 @@ import (
 )
 
 // CompletionAction is an action performed on a completion match.
-type CompletionAction func(editRange position.Range, matched string) ([]lsp.CompletionItem, error)
+type CompletionAction func(editRange position.Range, source, matched string) ([]lsp.CompletionItem, error)
 
 // CompletionMatcher can register multiple terms to complete against.
 type CompletionMatcher struct {
@@ -51,7 +51,7 @@ func (cm *CompletionMatcher) Match(editRange position.Range, source string) ([]l
 		logrus.Infof("trying to match %q to %s", source, re.String())
 		match := re.FindStringSubmatch(source)
 		if match != nil {
-			return m(editRange, match[0])
+			return m(editRange, source, match[0])
 		}
 	}
 

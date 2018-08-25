@@ -2,6 +2,7 @@ package server
 
 import (
 	"fmt"
+	"regexp"
 	"strings"
 
 	"github.com/bryanl/jsonnet-language-server/pkg/analysis/lexical/astext"
@@ -64,7 +65,7 @@ func (mh *matchHandler) register(cm *langserver.CompletionMatcher) error {
 	return nil
 }
 
-func (mh *matchHandler) handleImport(editRange position.Range, matched string) ([]lsp.CompletionItem, error) {
+func (mh *matchHandler) handleImport(editRange position.Range, source, matched string) ([]lsp.CompletionItem, error) {
 	logrus.Printf("handling import")
 	var items []lsp.CompletionItem
 
@@ -83,7 +84,7 @@ func (mh *matchHandler) handleImport(editRange position.Range, matched string) (
 	return items, nil
 }
 
-func (mh *matchHandler) handleIndex(editRange position.Range, matched string) ([]lsp.CompletionItem, error) {
+func (mh *matchHandler) handleIndex(editRange position.Range, source, matched string) ([]lsp.CompletionItem, error) {
 	logrus.Printf("handling index")
 	loc := editRange.Start
 
@@ -99,8 +100,12 @@ func (mh *matchHandler) handleIndex(editRange position.Range, matched string) ([
 		return nil, err
 	}
 
-	varName := strings.TrimSuffix(matched, ".")
-	se, err := scope.Get(varName)
+	path, err := resolveIndex(source)
+	if err != nil {
+		return nil, err
+	}
+
+	se, err := scope.GetInPath(path)
 	if err != nil {
 		return nil, err
 	}
@@ -134,4 +139,32 @@ func createCompletionItem(label, text string, kind int, r position.Range, se *to
 			NewText: text,
 		},
 	}
+}
+
+var (
+	reIndex = regexp.MustCompile(`((\w+\.)*\w+)\.$`)
+)
+
+func resolveIndex(source string) ([]string, error) {
+	match := reIndex.FindAllString(source, 1)
+	if match == nil {
+		return nil, errors.Errorf("%q is not part of an index")
+	}
+
+	if len(match) != 1 {
+		return nil, errors.Errorf("expected only one match when looking for index")
+	}
+
+	return removeEmpty(strings.Split(match[0], ".")), nil
+}
+
+func removeEmpty(sl []string) []string {
+	var out []string
+	for _, s := range sl {
+		if s != "" {
+			out = append(out, s)
+		}
+	}
+
+	return out
 }
