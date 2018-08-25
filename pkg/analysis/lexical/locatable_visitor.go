@@ -44,12 +44,16 @@ func (lv *locatableVisitor) previsit(token interface{}, parent *locate.Locatable
 		return nil
 	}
 
-	if isInvalidRange(r) {
-		r = parent.Loc
-	}
-
 	name := astext.TokenName(token)
 	logrus.Debugf("previsiting %s: %s", name, r.String())
+
+	// if isInvalidRange(r) {
+	// 	if parent == nil {
+	// 		spew.Fdump(os.Stderr, token)
+	// 		return errors.Errorf("parent for %T shouldn't be nil nil: %s", token, r.String())
+	// 	}
+	// 	r = parent.Loc
+	// }
 
 	if r.FileName == "" {
 		r.FileName = parent.Loc.FileName

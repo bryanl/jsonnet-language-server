@@ -77,7 +77,7 @@ func (sm *Scope) GetInPath(path []string) (*ScopeEntry, error) {
 func findInObject(node ast.Node, path []string) (ast.Node, error) {
 	o, ok := node.(*ast.DesugaredObject)
 	if !ok {
-		return nil, errors.New("node was not an object")
+		return nil, errors.Errorf("node was not an object")
 	}
 
 	id, path := path[0], path[1:]

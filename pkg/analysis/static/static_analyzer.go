@@ -109,6 +109,9 @@ func visitNext(a ast.Node, inObject bool, vars *analysisVars, state *analysisSta
 }
 
 func analyzeVisit(a ast.Node, inObject bool, vars *analysisVars) error {
+	if a == nil {
+		return nil
+	}
 	s := newAnalysisState()
 
 	// TODO(sbarzowski) Test somehow that we're visiting all the nodes
@@ -235,6 +238,8 @@ func analyzeVisit(a ast.Node, inObject bool, vars *analysisVars) error {
 		}
 		s.freeVars.Add(a.Id)
 		s.nodeScope.Add(a.Id, a)
+	case nil:
+		return nil
 	default:
 		panic(fmt.Sprintf("Unexpected node %T", a))
 	}

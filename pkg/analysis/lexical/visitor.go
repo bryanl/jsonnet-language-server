@@ -8,8 +8,8 @@ import (
 
 	"github.com/bryanl/jsonnet-language-server/pkg/analysis/lexical/astext"
 	"github.com/bryanl/jsonnet-language-server/pkg/analysis/lexical/locate"
+	"github.com/bryanl/jsonnet-language-server/pkg/analysis/lexical/token"
 	"github.com/google/go-jsonnet/ast"
-	"github.com/google/go-jsonnet/parser"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 )
@@ -84,13 +84,13 @@ func PostVisit(fn VisitFn) VisitOpt {
 }
 
 func convertToNode(filename, snippet string) (ast.Node, error) {
-	tokens, err := parser.Lex(filename, snippet)
-	if err != nil {
-		return nil, errors.Wrap(err, "lexing source")
-	}
-	node, err := parser.Parse(tokens)
+	node, err := token.Parse(filename, snippet)
 	if err != nil {
 		return nil, errors.Wrap(err, "parsing source")
+	}
+
+	if err := token.DesugarFile(&node); err != nil {
+		return nil, err
 	}
 
 	return node, nil
@@ -244,6 +244,8 @@ func (v *NodeVisitor) handleNode(node ast.Node, parent *locate.Locatable, scope 
 		return v.handleSuperIndex(t, parent, scope)
 	case *ast.Var:
 		return v.handleVar(t, parent, scope)
+	case *astext.Partial:
+		return nil
 	default:
 		return errors.Errorf("unable to handle node type %T", t)
 	}
