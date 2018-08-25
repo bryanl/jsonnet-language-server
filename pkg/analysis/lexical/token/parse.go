@@ -1152,39 +1152,6 @@ func locError(err error, loc ast.LocationRange) error {
 	return errors.Wrapf(err, "at %s", loc.String())
 }
 
-func (p *mParser) partialNodeError(err error, node ast.Node) error {
-	return &partialNodeError{
-		err:  err,
-		node: node,
-	}
-}
-
-type partialNode interface {
-	PartialNode() ast.Node
-}
-
-type partialNodeError struct {
-	node ast.Node
-	err  error
-}
-
-func (e *partialNodeError) PartialNode() ast.Node {
-	return e.node
-}
-
-func (e *partialNodeError) Error() string {
-	return e.err.Error()
-}
-
-func isPartialNode(err error) (ast.Node, bool) {
-	pne, ok := err.(partialNode)
-	if ok {
-		return pne.PartialNode(), true
-	}
-
-	return nil, false
-}
-
 // astVarToIdentifier converts a Var to an Identifier.
 //
 // in some cases it's convenient to parse something as an expression, and later

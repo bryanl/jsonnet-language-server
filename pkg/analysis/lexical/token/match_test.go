@@ -232,19 +232,8 @@ func TestMatch_Objlocal(t *testing.T) {
 	assert.Equal(t, expected, got)
 }
 
-func TestMatch_ifspec(t *testing.T) {
-	m := initmatch(t, "ifspec1.jsonnet")
-
-	err := m.ifspec()
-	require.NoError(t, err)
-
-	expected := 1
-	assert.Equal(t, expected, m.pos)
-}
-
 func TestMatch_forspec(t *testing.T) {
 	m := initmatch(t, "forspec1.jsonnet")
-
 	err := m.Forspec()
 	require.NoError(t, err)
 

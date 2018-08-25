@@ -129,3 +129,21 @@ func findField(t *testing.T, o *ast.Object, name string) ast.ObjectField {
 	t.Fatalf("unable to find field %s", name)
 	return ast.ObjectField{}
 }
+
+func createFreeVariables(sl ...string) ast.Identifiers {
+	ids := ast.Identifiers{}
+
+	for _, s := range sl {
+		ids = append(ids, createIdentifier(s))
+	}
+
+	return ids
+}
+
+func createIdentifier(s string) ast.Identifier {
+	return ast.Identifier(s)
+}
+
+func idPtr(id ast.Identifier) *ast.Identifier {
+	return &id
+}

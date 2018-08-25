@@ -27,18 +27,12 @@ func Test_locator(t *testing.T) {
 			loc:      createLoc(1, 13),
 			expected: createRange("file.jsonnet", 1, 13, 1, 14),
 		},
-		{
-			name:   "empty",
-			source: ``,
-		},
 	}
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			node, err := Parse("file.jsonnet", tc.source)
-			if err != nil {
-				node, _ = isPartialNode(err)
-			}
+			require.NoError(t, err)
 
 			n, err := locate(node, tc.loc)
 			require.NoError(t, err)

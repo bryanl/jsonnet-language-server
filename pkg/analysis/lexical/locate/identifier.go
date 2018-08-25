@@ -98,11 +98,6 @@ func idInObjectField(id ast.Identifier, parent *Locatable, source string) (ast.L
 	return r, nil
 }
 
-func isZeroRange(r ast.LocationRange) bool {
-	return r.Begin.Line == 0 || r.Begin.Column == 0 &&
-		r.End.Line == 0 || r.End.Column == 0
-}
-
 func idInLocalBind(id ast.Identifier, parentRange ast.LocationRange, source string) (ast.LocationRange, error) {
 	if string(id) == outMostObjectID {
 		return createRange(parentRange.FileName, 0, 0, 0, 0), nil

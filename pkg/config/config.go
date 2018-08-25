@@ -171,16 +171,6 @@ func (c *Config) MarshalJSON() ([]byte, error) {
 	return json.Marshal(&cm)
 }
 
-// getTextDocumentItem returns a text document item by URI.
-func (c *Config) getTextDocumentItem(uri string) (TextDocument, error) {
-	item, ok := c.textDocuments[uri]
-	if !ok {
-		return TextDocument{}, errors.Errorf("uri %q does not exist", uri)
-	}
-
-	return item, nil
-}
-
 func interfaceToStrings(v interface{}) ([]string, error) {
 	switch v := v.(type) {
 	case []interface{}:

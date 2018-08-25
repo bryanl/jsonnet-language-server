@@ -1,9 +1,6 @@
 package token
 
 import (
-	"fmt"
-	"path/filepath"
-	"runtime"
 	"sort"
 
 	"github.com/bryanl/jsonnet-language-server/pkg/analysis/lexical/astext"
@@ -156,92 +153,4 @@ func LocationScope(filename, source string, loc jlspos.Position) (*Scope, error)
 	}
 
 	return sm, nil
-}
-
-type scopeCatalog struct {
-	ids      ast.IdentifierSet
-	store    map[string]ast.Node
-	parent   *scopeCatalog
-	children map[ast.Node]*scopeCatalog
-}
-
-func newScopeCatalog(ids ...ast.Identifier) *scopeCatalog {
-	return &scopeCatalog{
-		ids:      ast.NewIdentifierSet(ids...),
-		store:    make(map[string]ast.Node),
-		children: make(map[ast.Node]*scopeCatalog),
-	}
-}
-
-func (sc *scopeCatalog) Clone(node ast.Node) *scopeCatalog {
-	child := &scopeCatalog{
-		ids:      sc.ids.Clone(),
-		store:    make(map[string]ast.Node),
-		children: make(map[ast.Node]*scopeCatalog),
-		parent:   sc,
-	}
-
-	sc.children[node] = child
-
-	for k, v := range sc.store {
-		child.store[k] = v
-	}
-
-	return child
-}
-
-func resolveIndex(i *ast.Index, path []string) (ast.Identifier, []string) {
-	if i.Target != nil {
-		switch v := i.Target.(type) {
-		case *ast.Index:
-			path = append(path, string(*i.Id))
-			resolveIndex(v, path)
-		case *ast.Var:
-			return v.Id, path
-		}
-	} else if i.Id != nil {
-		// not sure what do here, so panic
-		panic("unable to handle index with index")
-	}
-
-	panic("index target and index were nil")
-}
-
-func (sc *scopeCatalog) Add(i ast.Identifier, node ast.Node) bool {
-	switch v := node.(type) {
-	case *ast.Index:
-		fmt.Println("started with", i)
-		path := []string{}
-		i, _ = resolveIndex(v, path)
-		fmt.Println("got", i)
-	case *ast.Local:
-		for _, bind := range v.Binds {
-			if bind.Variable == i {
-				node = bind.Body
-			}
-		}
-	case *ast.Var:
-		fmt.Printf("found var and it points to %s\n", string(v.Id))
-	default:
-		fmt.Printf("Not sure how to add id of type %T\n", node)
-	}
-
-	id := string(i)
-	if pc, file, line, ok := runtime.Caller(1); ok {
-		funcName := runtime.FuncForPC(pc).Name()
-		fmt.Printf("adding [%s] -> %T at %s:%v:%s\n",
-			string(i), node, filepath.Base(file), line, filepath.Base(funcName))
-	}
-
-	sc.store[id] = node
-	isAdded := sc.ids.Add(i)
-	return isAdded
-}
-
-func (sc *scopeCatalog) Contains(i ast.Identifier) bool {
-	return sc.ids.Contains(i)
-}
-
-func (sc *scopeCatalog) FreeVariables() ast.Identifiers {
-	return sc.ids.ToOrderedSlice()
 }

@@ -7,7 +7,6 @@ import (
 	"github.com/bryanl/jsonnet-language-server/pkg/config"
 	"github.com/bryanl/jsonnet-language-server/pkg/lsp"
 	"github.com/bryanl/jsonnet-language-server/pkg/util/uri"
-	"github.com/google/go-jsonnet/ast"
 )
 
 type hover struct {
@@ -36,11 +35,4 @@ func (h *hover) handle() (interface{}, error) {
 	r := strings.NewReader(text.String())
 
 	return lexical.HoverAtLocation(path, r, h.params.Position.Line+1, h.params.Position.Character+1, h.config)
-}
-
-func posToLoc(pos lsp.Position) ast.Location {
-	return ast.Location{
-		Line:   pos.Line + 1,
-		Column: pos.Character + 1,
-	}
 }

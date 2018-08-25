@@ -12,7 +12,6 @@ import (
 type locatableVisitor struct {
 	filename   string
 	visitor    *NodeVisitor
-	cache      *locate.LocatableCache
 	locatables []locate.Locatable
 }
 

@@ -711,20 +711,6 @@ func (m *Match) Params(pos int) (int, error) {
 	return 0, errors.New("did not match parameters")
 }
 
-func (m *Match) ifspec() error {
-	if m.kind2(0) == TokenIf {
-		end, err := m.Expr(m.pos + 1)
-		if err != nil {
-			return err
-		}
-
-		m.pos = end
-		return nil
-	}
-
-	return errors.New("did not match ifspec")
-}
-
 func (m *Match) Forspec2(pos int) (int, error) {
 	m.pos = pos
 	if err := m.Forspec(); err != nil {
@@ -817,10 +803,6 @@ func (m *Match) data(pos int) string {
 	return m.Tokens[pos].Data
 }
 
-func (m *Match) data2(pos int) string {
-	return m.Tokens[m.pos+pos].Data
-}
-
 func (m *Match) isOperator(pos int, name string) bool {
 	return m.kind(pos) == TokenOperator &&
 		m.data(pos) == name
@@ -846,10 +828,6 @@ func (m *Match) isFieldVisibility(pos int) bool {
 
 func (m *Match) len() int {
 	return len(m.Tokens)
-}
-
-func (m *Match) incr(i int) {
-	m.pos += i
 }
 
 func (m *Match) hasTrailingComma(pos int) bool {
