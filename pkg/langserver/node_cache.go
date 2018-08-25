@@ -1,4 +1,4 @@
-package locate
+package langserver
 
 import (
 	"fmt"

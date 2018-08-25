@@ -34,7 +34,7 @@ func Test_locator(t *testing.T) {
 			node, err := Parse("file.jsonnet", tc.source)
 			require.NoError(t, err)
 
-			n, err := locate(node, tc.loc)
+			n, err := locateNode(node, tc.loc)
 			require.NoError(t, err)
 
 			require.NotNil(t, n.Loc())

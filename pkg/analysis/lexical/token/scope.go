@@ -141,7 +141,7 @@ func LocationScope(filename, source string, loc jlspos.Position) (*Scope, error)
 	}
 
 	logrus.Infof("locating scope at %s", loc.String())
-	found, err := locate(node, loc.ToJsonnet())
+	found, err := locateNode(node, loc.ToJsonnet())
 	if err != nil {
 		return nil, err
 	}

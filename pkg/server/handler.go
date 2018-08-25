@@ -7,8 +7,8 @@ import (
 	"runtime/debug"
 
 	"github.com/bryanl/jsonnet-language-server/pkg/analysis/lexical"
+	"github.com/bryanl/jsonnet-language-server/pkg/langserver"
 
-	"github.com/bryanl/jsonnet-language-server/pkg/analysis/lexical/locate"
 	"github.com/bryanl/jsonnet-language-server/pkg/config"
 	"github.com/bryanl/jsonnet-language-server/pkg/lsp"
 	"github.com/bryanl/jsonnet-language-server/pkg/util/uri"
@@ -36,14 +36,14 @@ type lspHandler struct {
 	logger              logrus.FieldLogger
 	config              *config.Config
 	decoder             *requestDecoder
-	nodeCache           *locate.NodeCache
+	nodeCache           *langserver.NodeCache
 	textDocumentWatcher *lexical.TextDocumentWatcher
 }
 
 // NewHandler creates a handler to handle rpc commands.
 func NewHandler(logger logrus.FieldLogger) jsonrpc2.Handler {
 	c := config.New()
-	nodeCache := locate.NewNodeCache()
+	nodeCache := langserver.NewNodeCache()
 	tdw := lexical.NewTextDocumentWatcher(c)
 
 	return &lspHandler{
@@ -270,7 +270,7 @@ func updateNodeCache(r *request, c *config.Config, uriStr string) {
 		return
 	}
 
-	if err := locate.UpdateNodeCache(path, c.JsonnetLibPaths(), c.NodeCache()); err != nil {
+	if err := langserver.UpdateNodeCache(path, c.JsonnetLibPaths(), c.NodeCache()); err != nil {
 		r.log().WithError(err).
 			WithField("uri", path).
 			Error("updating node cache")

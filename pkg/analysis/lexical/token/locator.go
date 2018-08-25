@@ -129,7 +129,7 @@ func (l *locator) analyzeVisit(a ast.Node) error {
 	return l.err
 }
 
-func locate(node ast.Node, loc ast.Location) (ast.Node, error) {
+func locateNode(node ast.Node, loc ast.Location) (ast.Node, error) {
 	if node == nil {
 		return &astext.Partial{}, nil
 	}
