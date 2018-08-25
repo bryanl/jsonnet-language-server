@@ -732,6 +732,7 @@ func (p *mParser) parseObjectRemainder(tok *Token) (ast.Node, *Token, error) {
 		}
 
 		if next.Kind == TokenBraceR {
+			// empty object {}
 			return &ast.Object{
 				NodeBase:      ast.NewNodeBaseLoc(locFromTokens(tok, next)),
 				Fields:        fields,
@@ -844,7 +845,13 @@ func (p *mParser) parseObjectRemainder(tok *Token) (ast.Node, *Token, error) {
 
 			body, err := p.parse(maxPrecedence)
 			if err != nil {
-				return nil, nil, err
+				next := p.peek()
+				if next.Kind != TokenComma && next.Kind != TokenSemicolon {
+					return nil, nil, err
+
+				}
+				p.cur = p.cur - 1
+				body = &astext.Partial{}
 			}
 
 			var method *ast.Function

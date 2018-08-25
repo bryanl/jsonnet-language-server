@@ -52,6 +52,24 @@ func TestParse(t *testing.T) {
 				}
 			},
 		},
+		{
+			name:   "incomplete object field",
+			source: "local o={a: }; o",
+			check: func(t *testing.T, node ast.Node) {
+				withLocal(t, node, func(local *ast.Local) {
+					if assert.Len(t, local.Binds, 1) {
+						bind := local.Binds[0]
+						requireIdentifier(t, "o", bind.Variable)
+						o, ok := bind.Body.(*ast.Object)
+						if assert.True(t, ok) {
+							field := findField(t, o, "a")
+							_, ok := field.Expr2.(*astext.Partial)
+							assert.True(t, ok)
+						}
+					}
+				})
+			},
+		},
 	}
 
 	for _, tc := range cases {
@@ -74,4 +92,37 @@ func createPartial(l1, c1 int) *astext.Partial {
 	}
 }
 
-// local y=o.
+type handleLocalFn func(l *ast.Local)
+
+func withLocal(t *testing.T, node ast.Node, fn handleLocalFn) {
+	local, ok := node.(*ast.Local)
+	if assert.True(t, ok) {
+		fn(local)
+	}
+}
+
+func requireIdentifier(t *testing.T, s string, id ast.Identifier) {
+	expected := createIdentifier(s)
+	require.Equal(t, expected, id)
+}
+
+func findField(t *testing.T, o *ast.Object, name string) ast.ObjectField {
+	for i := range o.Fields {
+		field := o.Fields[i]
+
+		if id := field.Id; id != nil {
+			if string(*id) == name {
+				return field
+			}
+		} else if field.Expr1 != nil {
+			ls, ok := field.Expr1.(*ast.LiteralString)
+			if ok && ls.Value == name {
+				return field
+			}
+		}
+
+	}
+
+	t.Fatalf("unable to find field %s", name)
+	return ast.ObjectField{}
+}
