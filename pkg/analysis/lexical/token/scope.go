@@ -20,12 +20,14 @@ type ScopeEntry struct {
 
 // Scope is scope.
 type Scope struct {
-	store map[string]ScopeEntry
+	nodeCache *NodeCache
+	store     map[string]ScopeEntry
 }
 
-func newScope() *Scope {
+func newScope(nc *NodeCache) *Scope {
 	return &Scope{
-		store: make(map[string]ScopeEntry),
+		store:     make(map[string]ScopeEntry),
+		nodeCache: nc,
 	}
 }
 
@@ -146,9 +148,13 @@ func LocationScope(filename, source string, loc jlspos.Position, nodeCache *Node
 		return nil, err
 	}
 
-	sm := newScope()
-	es := eval(node, found)
-	for k, v := range es {
+	sm := newScope(nodeCache)
+	es, err := eval(node, found, nodeCache)
+	if err != nil {
+		return nil, err
+	}
+
+	for k, v := range es.store {
 		sm.add(k, v)
 	}
 

@@ -58,7 +58,8 @@ func TestScope(t *testing.T) {
 }
 
 func TestScopeMap(t *testing.T) {
-	sm := newScope()
+	nc := NewNodeCache()
+	sm := newScope(nc)
 	o := &ast.Object{}
 	sm.add(ast.Identifier("foo"), o)
 
@@ -77,7 +78,9 @@ func TestScopeMap(t *testing.T) {
 }
 
 func TestScopeMap_Get_invalid(t *testing.T) {
-	sm := newScope()
+	nc := NewNodeCache()
+
+	sm := newScope(nc)
 	_, err := sm.Get("invalid")
 	require.Error(t, err)
 }
@@ -109,7 +112,9 @@ func TestScope_GetPath(t *testing.T) {
 		},
 	}
 
-	s := newScope()
+	nc := NewNodeCache()
+
+	s := newScope(nc)
 	s.add(createIdentifier("o"), o)
 
 	cases := []struct {

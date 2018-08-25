@@ -117,10 +117,9 @@ func (c *NodeCache) Set(key string, e *NodeEntry) error {
 	if isUpdate {
 		logrus.WithField("key", key).Info("updating existing cache entry")
 		return c.set(key, e)
-	} else {
-		logrus.WithField("key", key).Info("cache entry is up to date")
 	}
 
+	logrus.WithField("key", key).Info("cache entry is up to date")
 	return nil
 }
 

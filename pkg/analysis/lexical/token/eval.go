@@ -8,22 +8,55 @@ import (
 )
 
 type evaluator struct {
-	until ast.Node
-	scope evalScope
+	nodeCache *NodeCache
+	until     ast.Node
+	scope     *evalScope
+	err       error
 }
 
-type evalScope map[ast.Identifier]ast.Node
+type evalScope struct {
+	nodeCache *NodeCache
+	store     map[ast.Identifier]ast.Node
+}
 
-func (es evalScope) Clone() evalScope {
-	clone := evalScope{}
-	for k, v := range es {
-		clone[k] = v
+func newEvalScope(nc *NodeCache) *evalScope {
+	return &evalScope{
+		store:     make(map[ast.Identifier]ast.Node),
+		nodeCache: nc,
+	}
+}
+
+func (e *evalScope) set(id ast.Identifier, node ast.Node) error {
+	switch node := node.(type) {
+	case *ast.Import:
+		ne, err := e.nodeCache.Get(string(node.File.Value))
+		if err != nil {
+			return err
+		}
+
+		e.store[id] = ne.Node
+	default:
+		e.store[id] = node
+	}
+
+	return nil
+}
+
+func (e *evalScope) Clone() *evalScope {
+	clone := newEvalScope(e.nodeCache)
+	for k, v := range e.store {
+		clone.store[k] = v
 	}
 
 	return clone
 }
 
-func (e *evaluator) eval(n ast.Node, parentScope evalScope) {
+// nolint: gocyclo
+func (e *evaluator) eval(n ast.Node, parentScope *evalScope) {
+	if e.err != nil {
+		return
+	}
+
 	switch n := n.(type) {
 	case *ast.Apply:
 		e.eval(n.Target, parentScope)
@@ -46,7 +79,7 @@ func (e *evaluator) eval(n ast.Node, parentScope evalScope) {
 		s := parentScope.Clone()
 
 		for _, bind := range n.Binds {
-			s[bind.Variable] = bind.Body
+			e.err = s.set(bind.Variable, bind.Body)
 			e.eval(bind.Body, s)
 		}
 
@@ -54,6 +87,7 @@ func (e *evaluator) eval(n ast.Node, parentScope evalScope) {
 	case *astext.Partial:
 		// nothing to do
 	case *ast.Self:
+	case *ast.SuperIndex:
 	case *ast.Var:
 		// nothing to do
 	default:
@@ -65,11 +99,18 @@ func (e *evaluator) eval(n ast.Node, parentScope evalScope) {
 	}
 }
 
-func eval(node, until ast.Node) evalScope {
-	e := evaluator{until: until}
+func eval(node, until ast.Node, nc *NodeCache) (*evalScope, error) {
+	e := evaluator{
+		nodeCache: nc,
+		until:     until,
+	}
 
-	s := evalScope{}
+	s := newEvalScope(nc)
 	e.eval(node, s)
 
-	return e.scope
+	if e.err != nil {
+		return nil, e.err
+	}
+
+	return e.scope, nil
 }

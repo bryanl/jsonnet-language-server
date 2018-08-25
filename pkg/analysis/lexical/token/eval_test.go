@@ -41,11 +41,12 @@ func Test_eval(t *testing.T) {
 		Body: localBody,
 	}
 
-	got := eval(n, localBody)
+	nc := NewNodeCache()
+	got, err := eval(n, localBody, nc)
+	require.NoError(t, err)
 
-	expected := evalScope{
-		"o": n.Binds[0].Body,
-	}
+	expected := newEvalScope(nc)
+	expected.set("o", n.Binds[0].Body)
 
 	require.Equal(t, expected, got)
 }
@@ -92,12 +93,13 @@ func Test_eval_nested_local(t *testing.T) {
 		Body: localB,
 	}
 
-	got := eval(n, localBody)
+	nc := NewNodeCache()
+	got, err := eval(n, localBody, nc)
+	require.NoError(t, err)
 
-	expected := evalScope{
-		"o": n.Binds[0].Body,
-		"b": localB.Binds[0].Body,
-	}
+	expected := newEvalScope(nc)
+	expected.set("o", n.Binds[0].Body)
+	expected.set("b", localB.Binds[0].Body)
 
 	require.Equal(t, expected, got)
 }
@@ -132,12 +134,41 @@ func Test_eval_in_object(t *testing.T) {
 		Body: localBody,
 	}
 
-	got := eval(n, fieldBody)
+	nc := NewNodeCache()
+	got, err := eval(n, fieldBody, nc)
+	require.NoError(t, err)
 
-	expected := evalScope{
-		"o": n.Binds[0].Body,
-		"$": &ast.Self{},
+	expected := newEvalScope(nc)
+	expected.set("o", n.Binds[0].Body)
+	expected.set("$", &ast.Self{})
+
+	require.Equal(t, expected, got)
+}
+
+func Test_eval_import(t *testing.T) {
+	localBody := &ast.Var{}
+
+	n := &ast.Local{
+		Binds: ast.LocalBinds{
+			{
+				Variable: createIdentifier("params"),
+				Body:     &ast.Import{File: createLiteralString("import.jsonnet")},
+			},
+		},
+		Body: localBody,
 	}
+
+	importedNode := &ast.Var{}
+
+	ne := NodeEntry{Node: importedNode}
+	nc := NewNodeCache()
+	nc.store["import.jsonnet"] = ne
+
+	got, err := eval(n, localBody, nc)
+	require.NoError(t, err)
+
+	expected := newEvalScope(nc)
+	expected.set("params", importedNode)
 
 	require.Equal(t, expected, got)
 }
