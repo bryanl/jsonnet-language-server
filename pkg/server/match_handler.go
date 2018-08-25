@@ -38,12 +38,14 @@ func (jpm *defaultJsonnetPathManager) Files() ([]string, error) {
 type matchHandler struct {
 	jsonnetPathManager jsonnetPathManager
 	textDocument       config.TextDocument
+	nodeCache          *token.NodeCache
 }
 
-func newMatchHandler(jpm jsonnetPathManager, td config.TextDocument) *matchHandler {
+func newMatchHandler(jpm jsonnetPathManager, td config.TextDocument, nc *token.NodeCache) *matchHandler {
 	mh := &matchHandler{
 		jsonnetPathManager: jpm,
 		textDocument:       td,
+		nodeCache:          nc,
 	}
 
 	return mh
@@ -95,7 +97,7 @@ func (mh *matchHandler) handleIndex(editRange position.Range, source, matched st
 
 	var items []lsp.CompletionItem
 
-	scope, err := token.LocationScope(filename, mh.textDocument.String(), loc)
+	scope, err := token.LocationScope(filename, mh.textDocument.String(), loc, mh.nodeCache)
 	if err != nil {
 		return nil, err
 	}

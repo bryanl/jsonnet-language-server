@@ -13,13 +13,14 @@ import (
 )
 
 func Test_matchHandler_handleImport(t *testing.T) {
+	nc := token.NewNodeCache()
 	cm := langserver.NewCompletionMatcher()
 
 	td := config.NewTextDocument("file:///file.jsonnet",
 		"local foo = {\n    a: \"b\"\n};\n\nlocal y = import ")
 
 	jpm := &fakeJsonnetPathManager{files: []string{"1.jsonnet", "2.libsonnet"}}
-	mh := newMatchHandler(jpm, td)
+	mh := newMatchHandler(jpm, td, nc)
 	mh.register(cm)
 
 	pos := position.New(5, 18)
@@ -67,11 +68,12 @@ func Test_matchHandler_handleIndex(t *testing.T) {
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
+			nc := token.NewNodeCache()
 			td := config.NewTextDocument("file:///file.jsonnet", tc.text)
 			cm := langserver.NewCompletionMatcher()
 
 			jpm := &fakeJsonnetPathManager{files: []string{"1.jsonnet", "2.libsonnet"}}
-			mh := newMatchHandler(jpm, td)
+			mh := newMatchHandler(jpm, td, nc)
 			mh.register(cm)
 
 			editRange := position.NewRange(tc.at, tc.at)

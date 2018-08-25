@@ -45,7 +45,8 @@ func TestScope(t *testing.T) {
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			sm, err := LocationScope("file.jsonnet", tc.src, tc.loc)
+			nc := NewNodeCache()
+			sm, err := LocationScope("file.jsonnet", tc.src, tc.loc, nc)
 			if tc.isErr {
 				require.Error(t, err)
 				return

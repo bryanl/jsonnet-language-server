@@ -1,4 +1,4 @@
-package langserver
+package token
 
 import (
 	"fmt"
@@ -9,7 +9,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/bryanl/jsonnet-language-server/pkg/analysis/lexical/token"
 	jsonnet "github.com/google/go-jsonnet"
 	"github.com/google/go-jsonnet/ast"
 	"github.com/pkg/errors"
@@ -144,7 +143,7 @@ func (c *NodeCache) set(key string, e *NodeEntry) error {
 // UpdateNodeCache updates the node cache using a file.
 func UpdateNodeCache(path string, libPaths []string, cache *NodeCache) error {
 
-	ic := token.NewImportCollector(libPaths)
+	ic := NewImportCollector(libPaths)
 	imports, err := ic.Collect(path, true)
 	if err != nil {
 		return err
@@ -153,7 +152,7 @@ func UpdateNodeCache(path string, libPaths []string, cache *NodeCache) error {
 	logrus.Infof("(before) cache keys %s", strings.Join(cache.Keys(), ","))
 
 	for _, jsonnetImport := range imports {
-		path, err := token.ImportPath(jsonnetImport, libPaths)
+		path, err := ImportPath(jsonnetImport, libPaths)
 		if err != nil {
 			return err
 		}
@@ -165,7 +164,7 @@ func UpdateNodeCache(path string, libPaths []string, cache *NodeCache) error {
 
 		ncds := []NodeCacheDependency{}
 		for _, importImport := range importImports {
-			importPath, err := token.ImportPath(importImport, libPaths)
+			importPath, err := ImportPath(importImport, libPaths)
 			if err != nil {
 				return errors.Wrap(err, "finding path for import in import")
 			}

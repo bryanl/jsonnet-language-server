@@ -6,7 +6,7 @@ import (
 	"io/ioutil"
 
 	"github.com/bryanl/jsonnet-language-server/pkg/analysis/lexical/locate"
-	"github.com/bryanl/jsonnet-language-server/pkg/langserver"
+	"github.com/bryanl/jsonnet-language-server/pkg/analysis/lexical/token"
 	"github.com/bryanl/jsonnet-language-server/pkg/lsp"
 	"github.com/bryanl/jsonnet-language-server/pkg/util/uri"
 	"github.com/pkg/errors"
@@ -25,7 +25,7 @@ const (
 type Config struct {
 	textDocuments   map[string]TextDocument
 	jsonnetLibPaths []string
-	nodeCache       *langserver.NodeCache
+	nodeCache       *token.NodeCache
 	locatableCache  *locate.LocatableCache
 	dispatchers     map[string]*Dispatcher
 }
@@ -35,7 +35,7 @@ func New() *Config {
 	return &Config{
 		textDocuments:   make(map[string]TextDocument),
 		jsonnetLibPaths: make([]string, 0),
-		nodeCache:       langserver.NewNodeCache(),
+		nodeCache:       token.NewNodeCache(),
 		locatableCache:  locate.NewLocatableCache(),
 		dispatchers:     map[string]*Dispatcher{},
 	}
@@ -47,7 +47,7 @@ func (c *Config) LocatableCache() *locate.LocatableCache {
 }
 
 // NodeCache returns the node cache.
-func (c *Config) NodeCache() *langserver.NodeCache {
+func (c *Config) NodeCache() *token.NodeCache {
 	return c.nodeCache
 }
 

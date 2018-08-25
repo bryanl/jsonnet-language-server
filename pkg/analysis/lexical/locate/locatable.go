@@ -6,7 +6,7 @@ import (
 	"os"
 
 	"github.com/bryanl/jsonnet-language-server/pkg/analysis/lexical/astext"
-	"github.com/bryanl/jsonnet-language-server/pkg/langserver"
+	"github.com/bryanl/jsonnet-language-server/pkg/analysis/lexical/token"
 	"github.com/davecgh/go-spew/spew"
 	"github.com/google/go-jsonnet/ast"
 	"github.com/pkg/errors"
@@ -44,7 +44,7 @@ type Locatable struct {
 	Scope  Scope
 }
 
-func (l *Locatable) Resolve(jPaths []string, cache *langserver.NodeCache) (*Resolved, error) {
+func (l *Locatable) Resolve(jPaths []string, cache *token.NodeCache) (*Resolved, error) {
 	if l == nil {
 		return nil, errors.Errorf("locatable is nil")
 	}
@@ -88,7 +88,7 @@ func (l *Locatable) handleImport(i *ast.Import) (*Resolved, error) {
 	return resolved, nil
 }
 
-func (l *Locatable) handleIndex(i *ast.Index, cache *langserver.NodeCache) (*Resolved, error) {
+func (l *Locatable) handleIndex(i *ast.Index, cache *token.NodeCache) (*Resolved, error) {
 	description, err := resolvedIndex(i, cache, l.Scope)
 	if err != nil {
 		return nil, err
@@ -126,7 +126,7 @@ func (l *Locatable) handleRequiredParameter(p astext.RequiredParameter) (*Resolv
 	return result, nil
 }
 
-func (l *Locatable) handleDefault(cache *langserver.NodeCache, jPaths []string) (*Resolved, error) {
+func (l *Locatable) handleDefault(cache *token.NodeCache, jPaths []string) (*Resolved, error) {
 	var name string
 	var err error
 
@@ -153,7 +153,7 @@ func (l *Locatable) handleDefault(cache *langserver.NodeCache, jPaths []string) 
 	return resolved, nil
 }
 
-func bindOutput(bind ast.LocalBind, cache *langserver.NodeCache, scope Scope, jPaths []string) (string, error) {
+func bindOutput(bind ast.LocalBind, cache *token.NodeCache, scope Scope, jPaths []string) (string, error) {
 	var name string
 
 	switch t := bind.Body.(type) {
@@ -227,7 +227,7 @@ func (l *Locatable) handleFunction(f *ast.Function) (*Resolved, error) {
 
 }
 
-func (l *Locatable) handleVar(t *ast.Var, jPaths []string, cache *langserver.NodeCache) (*Resolved, error) {
+func (l *Locatable) handleVar(t *ast.Var, jPaths []string, cache *token.NodeCache) (*Resolved, error) {
 	if ref, ok := l.Scope[string(t.Id)]; ok {
 		logrus.Debugf("%s points to a %T", t.Id, ref.Token)
 		s, err := resolvedIdentifier(ref.Token, jPaths, cache, l.Scope)
@@ -246,7 +246,7 @@ func (l *Locatable) handleVar(t *ast.Var, jPaths []string, cache *langserver.Nod
 	return nil, ErrUnresolvable
 }
 
-func resolvedVar(t *ast.Var, jPaths []string, cache *langserver.NodeCache, scope Scope) (string, error) {
+func resolvedVar(t *ast.Var, jPaths []string, cache *token.NodeCache, scope Scope) (string, error) {
 	if ref, ok := scope[string(t.Id)]; ok {
 		logrus.Debugf("%s points to a %T", t.Id, ref.Token)
 		return resolvedIdentifier(ref.Token, jPaths, cache, scope)
@@ -255,7 +255,7 @@ func resolvedVar(t *ast.Var, jPaths []string, cache *langserver.NodeCache, scope
 	return "", ErrUnresolvable
 }
 
-func resolvedIdentifier(item interface{}, jPaths []string, cache *langserver.NodeCache, scope Scope) (string, error) {
+func resolvedIdentifier(item interface{}, jPaths []string, cache *token.NodeCache, scope Scope) (string, error) {
 	switch t := item.(type) {
 	case *ast.Import:
 		return importDescription(t, jPaths, cache, scope)
@@ -269,7 +269,7 @@ func resolvedIdentifier(item interface{}, jPaths []string, cache *langserver.Nod
 	}
 }
 
-func resolvedIndex(i *ast.Index, cache *langserver.NodeCache, scope Scope) (string, error) {
+func resolvedIndex(i *ast.Index, cache *token.NodeCache, scope Scope) (string, error) {
 	var indices []string
 	var cur ast.Node = i
 	for {
@@ -296,11 +296,11 @@ func resolvedIndex(i *ast.Index, cache *langserver.NodeCache, scope Scope) (stri
 	}
 }
 
-func importDescription(i *ast.Import, jPaths []string, cache *langserver.NodeCache, scope Scope) (string, error) {
+func importDescription(i *ast.Import, jPaths []string, cache *token.NodeCache, scope Scope) (string, error) {
 	ne, err := cache.Get(i.File.Value)
 	if err != nil {
 		switch err.(type) {
-		case *langserver.NodeCacheMissErr:
+		case *token.NodeCacheMissErr:
 			return "node cache miss", nil
 		default:
 			return "", err
@@ -310,7 +310,7 @@ func importDescription(i *ast.Import, jPaths []string, cache *langserver.NodeCac
 	return resolvedIdentifier(ne.Node, jPaths, cache, scope)
 }
 
-func describe(item interface{}, indicies []string, cache *langserver.NodeCache, scope Scope) (string, error) {
+func describe(item interface{}, indicies []string, cache *token.NodeCache, scope Scope) (string, error) {
 	switch t := item.(type) {
 	case *ast.Object:
 		return describeInObject(t, indicies, cache, scope)
@@ -318,7 +318,7 @@ func describe(item interface{}, indicies []string, cache *langserver.NodeCache, 
 		ne, err := cache.Get(t.File.Value)
 		if err != nil {
 			switch err.(type) {
-			case *langserver.NodeCacheMissErr:
+			case *token.NodeCacheMissErr:
 				return "node cache miss", nil
 			default:
 				return "", err
@@ -335,7 +335,7 @@ func describe(item interface{}, indicies []string, cache *langserver.NodeCache, 
 	}
 }
 
-func describeInObject(o *ast.Object, indicies []string, cache *langserver.NodeCache, scope Scope) (string, error) {
+func describeInObject(o *ast.Object, indicies []string, cache *token.NodeCache, scope Scope) (string, error) {
 	if len(indicies) == 0 {
 		return astext.ObjectDescription(o)
 	}

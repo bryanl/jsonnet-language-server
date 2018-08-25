@@ -36,7 +36,7 @@ func newComplete(rp lsp.ReferenceParams, cfg *config.Config) (*complete, error) 
 	}
 
 	jpm := newJsonnetPathManager(cfg)
-	mh := newMatchHandler(jpm, *td)
+	mh := newMatchHandler(jpm, *td, cfg.NodeCache())
 	if err := mh.register(c.completionMatcher); err != nil {
 		return nil, err
 	}
@@ -83,7 +83,7 @@ func (c *complete) handle() (interface{}, error) {
 		return matchItems, nil
 	}
 
-	m, err := token.LocationScope(path, text.String(), pos)
+	m, err := token.LocationScope(path, text.String(), pos, c.config.NodeCache())
 	if err != nil {
 		logrus.WithError(err).WithField("loc", pos.String()).Debug("load scope")
 	} else {
