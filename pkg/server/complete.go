@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/bryanl/jsonnet-language-server/pkg/util/position"
+
 	"github.com/bryanl/jsonnet-language-server/pkg/analysis/lexical/token"
 	"github.com/bryanl/jsonnet-language-server/pkg/config"
 	"github.com/bryanl/jsonnet-language-server/pkg/langserver"
@@ -14,52 +16,10 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-func matchImport(c *config.Config) langserver.CompletionAction {
-	return func(editRange lsp.Range, matched string) ([]lsp.CompletionItem, error) {
-		lp := langserver.NewLibPaths(c.JsonnetLibPaths())
-
-		var items []lsp.CompletionItem
-
-		files, err := lp.Files()
-		if err != nil {
-			return nil, err
-		}
-
-		for _, file := range files {
-			ci := lsp.CompletionItem{
-				Label: file,
-				Kind:  lsp.CIKFile,
-				TextEdit: lsp.TextEdit{
-					Range:   editRange,
-					NewText: fmt.Sprintf(`"%s"`, file),
-				},
-			}
-
-			items = append(items, ci)
-
-		}
-
-		return items, nil
-	}
-}
-
-func matchIndex(editRange lsp.Range, matched string) ([]lsp.CompletionItem, error) {
-	logrus.Infof("matchIndex got: %s", matched)
-	return nil, errors.New("didn't work")
-}
-
 type complete struct {
 	referenceParams   lsp.ReferenceParams
 	config            *config.Config
 	completionMatcher *langserver.CompletionMatcher
-}
-
-func defaultMatchers(c *config.Config) map[string]langserver.CompletionAction {
-	return map[string]langserver.CompletionAction{
-		`import\s`:    matchImport(c),
-		`importstr\s`: matchImport(c),
-		`\w+\.`:       matchIndex,
-	}
 }
 
 func newComplete(rp lsp.ReferenceParams, cfg *config.Config) (*complete, error) {
@@ -98,17 +58,15 @@ func (c *complete) handle() (interface{}, error) {
 		return nil, err
 	}
 
-	loc := posToLoc(c.referenceParams.Position)
-
 	list := &lsp.CompletionList{
 		Items: []lsp.CompletionItem{},
 	}
 
-	pos := c.referenceParams.Position
-	editRange := lsp.Range{Start: pos, End: pos}
+	pos := position.FromLSPPosition(c.referenceParams.Position)
+	editRange := position.NewRange(pos, pos)
 
-	logrus.Infof("truncating to %s", loc.String())
-	matchText, err := text.Truncate(loc.Line, loc.Column)
+	logrus.Infof("truncating to %s", pos.String())
+	matchText, err := text.Truncate(pos)
 	if err != nil {
 		return nil, err
 	}
@@ -123,9 +81,9 @@ func (c *complete) handle() (interface{}, error) {
 		return matchItems, nil
 	}
 
-	m, err := token.LocationScope(path, text.String(), loc)
+	m, err := token.LocationScope(path, text.String(), pos)
 	if err != nil {
-		logrus.WithError(err).WithField("loc", loc.String()).Debug("load scope")
+		logrus.WithError(err).WithField("loc", pos.String()).Debug("load scope")
 	} else {
 		for _, k := range m.Keys() {
 			e, err := m.Get(k)
@@ -141,7 +99,7 @@ func (c *complete) handle() (interface{}, error) {
 				Documentation: e.Documentation,
 				SortText:      fmt.Sprintf("0_%s", k),
 				TextEdit: lsp.TextEdit{
-					Range:   lsp.Range{Start: pos, End: pos},
+					Range:   editRange.ToLSP(),
 					NewText: k,
 				},
 			}
@@ -156,7 +114,7 @@ func (c *complete) handle() (interface{}, error) {
 			Kind:     lsp.CIKKeyword,
 			SortText: fmt.Sprintf("1_%s", k),
 			TextEdit: lsp.TextEdit{
-				Range:   lsp.Range{Start: pos, End: pos},
+				Range:   editRange.ToLSP(),
 				NewText: k,
 			},
 		}

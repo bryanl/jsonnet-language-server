@@ -3,6 +3,7 @@ package config
 import (
 	"testing"
 
+	"github.com/bryanl/jsonnet-language-server/pkg/util/position"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -12,22 +13,19 @@ func TestTextDocument_Truncate(t *testing.T) {
 		name     string
 		source   string
 		expected string
-		line     int
-		col      int
+		pos      position.Position
 		isErr    bool
 	}{
 		{
 			name:     "case 1",
 			source:   "123456789\n123456789",
-			line:     2,
-			col:      3,
+			pos:      position.New(2, 3),
 			expected: "123456789\n123",
 		},
 		{
 			name:     "case 2",
 			source:   "local foo = {\n    a: \"b\"\n};\n\nlocal y = foo.\n\nfoo\n",
-			line:     5,
-			col:      15,
+			pos:      position.New(5, 15),
 			expected: "local foo = {\n    a: \"b\"\n};\n\nlocal y = foo.",
 		},
 	}
@@ -38,7 +36,7 @@ func TestTextDocument_Truncate(t *testing.T) {
 				text: tc.source,
 			}
 
-			got, err := td.Truncate(tc.line, tc.col)
+			got, err := td.Truncate(tc.pos)
 			if tc.isErr {
 				require.Error(t, err)
 				return

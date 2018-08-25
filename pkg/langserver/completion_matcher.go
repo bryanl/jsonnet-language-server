@@ -6,11 +6,12 @@ import (
 	"sync"
 
 	"github.com/bryanl/jsonnet-language-server/pkg/lsp"
+	"github.com/bryanl/jsonnet-language-server/pkg/util/position"
 	"github.com/sirupsen/logrus"
 )
 
 // CompletionAction is an action performed on a completion match.
-type CompletionAction func(editRange lsp.Range, matched string) ([]lsp.CompletionItem, error)
+type CompletionAction func(editRange position.Range, matched string) ([]lsp.CompletionItem, error)
 
 // CompletionMatcher can register multiple terms to complete against.
 type CompletionMatcher struct {
@@ -42,7 +43,7 @@ func (cm *CompletionMatcher) Register(term string, fn CompletionAction) error {
 }
 
 // Match matches at a point definedi in the edit range.
-func (cm *CompletionMatcher) Match(editRange lsp.Range, source string) ([]lsp.CompletionItem, error) {
+func (cm *CompletionMatcher) Match(editRange position.Range, source string) ([]lsp.CompletionItem, error) {
 	cm.mu.Lock()
 	defer cm.mu.Unlock()
 

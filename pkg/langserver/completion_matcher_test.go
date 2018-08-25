@@ -4,15 +4,14 @@ import (
 	"testing"
 
 	"github.com/bryanl/jsonnet-language-server/pkg/lsp"
+	"github.com/bryanl/jsonnet-language-server/pkg/util/position"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 func TestCompletionMatchers(t *testing.T) {
-	editRange := lsp.Range{
-		Start: lsp.Position{Line: 1, Character: 5},
-		End:   lsp.Position{Line: 1, Character: 5},
-	}
+	pos := position.New(2, 6)
+	editRange := position.NewRange(pos, pos)
 
 	cm := NewCompletionMatcher()
 
@@ -21,13 +20,13 @@ func TestCompletionMatchers(t *testing.T) {
 			Label: "item2",
 			Kind:  lsp.CIKFile,
 			TextEdit: lsp.TextEdit{
-				Range:   editRange,
+				Range:   editRange.ToLSP(),
 				NewText: "item2",
 			},
 		},
 	}
 
-	fn := func(r lsp.Range, matched string) ([]lsp.CompletionItem, error) {
+	fn := func(r position.Range, matched string) ([]lsp.CompletionItem, error) {
 		return resp, nil
 	}
 
@@ -41,10 +40,8 @@ func TestCompletionMatchers(t *testing.T) {
 }
 
 func TestCompletionMatchers_no_match(t *testing.T) {
-	editRange := lsp.Range{
-		Start: lsp.Position{Line: 1, Character: 5},
-		End:   lsp.Position{Line: 1, Character: 5},
-	}
+	pos := position.New(2, 6)
+	editRange := position.NewRange(pos, pos)
 
 	cm := NewCompletionMatcher()
 
@@ -53,13 +50,13 @@ func TestCompletionMatchers_no_match(t *testing.T) {
 			Label: "item2",
 			Kind:  lsp.CIKFile,
 			TextEdit: lsp.TextEdit{
-				Range:   editRange,
+				Range:   editRange.ToLSP(),
 				NewText: "item2",
 			},
 		},
 	}
 
-	fn := func(r lsp.Range, matched string) ([]lsp.CompletionItem, error) {
+	fn := func(r position.Range, matched string) ([]lsp.CompletionItem, error) {
 		return resp, nil
 	}
 
@@ -76,7 +73,7 @@ func TestCompletionMatchers_no_match(t *testing.T) {
 func TestCompletionMatchers_invalid_term(t *testing.T) {
 	cm := NewCompletionMatcher()
 
-	fn := func(r lsp.Range, matched string) ([]lsp.CompletionItem, error) {
+	fn := func(r position.Range, matched string) ([]lsp.CompletionItem, error) {
 		panic("shouldn't be able to get here")
 	}
 

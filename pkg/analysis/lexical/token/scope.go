@@ -7,6 +7,7 @@ import (
 	"sort"
 
 	"github.com/bryanl/jsonnet-language-server/pkg/analysis/static"
+	jlspos "github.com/bryanl/jsonnet-language-server/pkg/util/position"
 	"github.com/google/go-jsonnet/ast"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
@@ -72,7 +73,7 @@ func (sm *Scope) addIdentifier(key ast.Identifier) {
 }
 
 // LocationScope finds the free variables for a location.
-func LocationScope(filename, source string, loc ast.Location) (*Scope, error) {
+func LocationScope(filename, source string, loc jlspos.Position) (*Scope, error) {
 	node, err := Parse(filename, source)
 	if err != nil {
 		return nil, err
@@ -88,7 +89,7 @@ func LocationScope(filename, source string, loc ast.Location) (*Scope, error) {
 	}
 
 	logrus.Infof("locating scope at %s", loc.String())
-	found, err := locate(node, loc)
+	found, err := locate(node, loc.ToJsonnet())
 	if err != nil {
 		return nil, err
 	}

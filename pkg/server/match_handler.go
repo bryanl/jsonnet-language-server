@@ -9,6 +9,7 @@ import (
 	"github.com/bryanl/jsonnet-language-server/pkg/config"
 	"github.com/bryanl/jsonnet-language-server/pkg/langserver"
 	"github.com/bryanl/jsonnet-language-server/pkg/lsp"
+	"github.com/bryanl/jsonnet-language-server/pkg/util/position"
 	"github.com/google/go-jsonnet/ast"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
@@ -63,7 +64,7 @@ func (mh *matchHandler) register(cm *langserver.CompletionMatcher) error {
 	return nil
 }
 
-func (mh *matchHandler) handleImport(editRange lsp.Range, matched string) ([]lsp.CompletionItem, error) {
+func (mh *matchHandler) handleImport(editRange position.Range, matched string) ([]lsp.CompletionItem, error) {
 	logrus.Printf("handling import")
 	var items []lsp.CompletionItem
 
@@ -82,9 +83,9 @@ func (mh *matchHandler) handleImport(editRange lsp.Range, matched string) ([]lsp
 	return items, nil
 }
 
-func (mh *matchHandler) handleIndex(editRange lsp.Range, matched string) ([]lsp.CompletionItem, error) {
+func (mh *matchHandler) handleIndex(editRange position.Range, matched string) ([]lsp.CompletionItem, error) {
 	logrus.Printf("handling index")
-	loc := posToLoc(editRange.Start)
+	loc := editRange.Start
 
 	filename, err := mh.textDocument.Filename()
 	if err != nil {
@@ -116,7 +117,7 @@ func (mh *matchHandler) handleIndex(editRange lsp.Range, matched string) ([]lsp.
 	return items, nil
 }
 
-func createCompletionItem(label, text string, kind int, r lsp.Range, se *token.ScopeEntry) lsp.CompletionItem {
+func createCompletionItem(label, text string, kind int, r position.Range, se *token.ScopeEntry) lsp.CompletionItem {
 	var detail, documentation string
 	if se != nil {
 		detail = se.Detail
@@ -129,7 +130,7 @@ func createCompletionItem(label, text string, kind int, r lsp.Range, se *token.S
 		Detail:        detail,
 		Documentation: documentation,
 		TextEdit: lsp.TextEdit{
-			Range:   r,
+			Range:   r.ToLSP(),
 			NewText: text,
 		},
 	}

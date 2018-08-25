@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/bryanl/jsonnet-language-server/pkg/lsp"
+	"github.com/bryanl/jsonnet-language-server/pkg/util/position"
 	"github.com/bryanl/jsonnet-language-server/pkg/util/uri"
 )
 
@@ -48,7 +49,7 @@ func (td *TextDocument) Filename() (string, error) {
 }
 
 // Truncate returns text truncated at a position.
-func (td *TextDocument) Truncate(line, col int) (string, error) {
+func (td *TextDocument) Truncate(p position.Position) (string, error) {
 	scanner := bufio.NewScanner(strings.NewReader(td.text))
 	scanner.Split(bufio.ScanBytes)
 
@@ -67,7 +68,7 @@ func (td *TextDocument) Truncate(line, col int) (string, error) {
 			return "", err
 		}
 
-		if l == line && c == col {
+		if l == p.Line() && c == p.Column() {
 			break
 		}
 
