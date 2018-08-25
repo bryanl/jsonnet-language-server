@@ -31,7 +31,7 @@ func (cm *CompletionMatcher) Register(term string, fn CompletionAction) error {
 	cm.mu.Lock()
 	defer cm.mu.Unlock()
 
-	expr := fmt.Sprintf(`(%s)$`, term)
+	expr := fmt.Sprintf(`(%s)[\]\)\}]*$`, term)
 	re, err := regexp.Compile(expr)
 	if err != nil {
 		return err

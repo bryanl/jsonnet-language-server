@@ -63,8 +63,11 @@ func TestParse(t *testing.T) {
 						o, ok := bind.Body.(*ast.Object)
 						if assert.True(t, ok) {
 							field := findField(t, o, "a")
-							_, ok := field.Expr2.(*astext.Partial)
-							assert.True(t, ok)
+							body, ok := field.Expr2.(*astext.Partial)
+							if assert.True(t, ok) {
+								expected := createLoc(1, 13)
+								assert.Equal(t, expected, body.Loc().Begin)
+							}
 						}
 					}
 				})

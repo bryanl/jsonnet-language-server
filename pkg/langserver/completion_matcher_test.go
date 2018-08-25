@@ -80,3 +80,33 @@ func TestCompletionMatchers_invalid_term(t *testing.T) {
 	err := cm.Register("(invalid", fn)
 	require.Error(t, err)
 }
+
+func TestCompletionMatchers_proceeding_ender(t *testing.T) {
+	pos := position.New(2, 6)
+	editRange := position.NewRange(pos, pos)
+
+	cm := NewCompletionMatcher()
+
+	resp := []lsp.CompletionItem{
+		{
+			Label: "item2",
+			Kind:  lsp.CIKFile,
+			TextEdit: lsp.TextEdit{
+				Range:   editRange.ToLSP(),
+				NewText: "item2",
+			},
+		},
+	}
+
+	fn := func(r position.Range, source, matched string) ([]lsp.CompletionItem, error) {
+		return resp, nil
+	}
+
+	err := cm.Register(`item\s?`, fn)
+	require.NoError(t, err)
+
+	list, err := cm.Match(editRange, "local item ]")
+	require.NoError(t, err)
+
+	assert.Equal(t, resp, list)
+}

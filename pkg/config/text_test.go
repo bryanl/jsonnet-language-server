@@ -28,6 +28,12 @@ func TestTextDocument_Truncate(t *testing.T) {
 			pos:      position.New(5, 15),
 			expected: "local foo = {\n    a: \"b\"\n};\n\nlocal y = foo.",
 		},
+		{
+			name:     "case 3",
+			source:   "123456",
+			pos:      position.New(1, 3),
+			expected: "123",
+		},
 	}
 
 	for _, tc := range cases {
@@ -46,5 +52,4 @@ func TestTextDocument_Truncate(t *testing.T) {
 			assert.Equal(t, tc.expected, got)
 		})
 	}
-
 }

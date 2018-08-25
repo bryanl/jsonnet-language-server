@@ -59,7 +59,7 @@ func TestScope(t *testing.T) {
 func TestScopeMap(t *testing.T) {
 	sm := newScope()
 	o := &ast.Object{}
-	sm.addIdentifier(ast.Identifier("foo"), o)
+	sm.add(ast.Identifier("foo"), o)
 
 	expectedKeys := []string{"foo"}
 	require.Equal(t, expectedKeys, sm.Keys())
@@ -99,16 +99,23 @@ func TestScope_GetPath(t *testing.T) {
 					Body: data,
 				},
 			},
+			{
+				Name: createLiteralString("str"),
+				Body: &ast.Local{
+					Body: createLiteralString("str"),
+				},
+			},
 		},
 	}
 
 	s := newScope()
-	s.addIdentifier(createIdentifier("o"), o)
+	s.add(createIdentifier("o"), o)
 
 	cases := []struct {
 		name     string
 		path     []string
 		expected *ScopeEntry
+		isErr    bool
 	}{
 		{
 			name: "at root",
@@ -126,14 +133,32 @@ func TestScope_GetPath(t *testing.T) {
 				Node:   data,
 			},
 		},
+		{
+			name:  "invalid path",
+			path:  []string{"x"},
+			isErr: true,
+		},
+		{
+			name:  "invalid nested path",
+			path:  []string{"o", "x"},
+			isErr: true,
+		},
+		{
+			name:  "item not an object",
+			path:  []string{"o", "str", "x"},
+			isErr: true,
+		},
 	}
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			got, err := s.GetInPath(tc.path)
-			require.NoError(t, err)
+			if !tc.isErr && assert.NoError(t, err) {
+				assert.Equal(t, tc.expected, got)
+				return
+			}
 
-			assert.Equal(t, tc.expected, got)
+			require.Error(t, err)
 		})
 	}
 }

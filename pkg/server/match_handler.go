@@ -114,7 +114,12 @@ func (mh *matchHandler) handleIndex(editRange position.Range, source, matched st
 	case *ast.DesugaredObject:
 		for _, field := range n.Fields {
 			name := astext.TokenValue(field.Name)
-			ci := createCompletionItem(name, name, lsp.CIKVariable, editRange, se)
+
+			fieldSe := &token.ScopeEntry{
+				Detail: astext.TokenName(field.Body),
+			}
+
+			ci := createCompletionItem(name, name, lsp.CIKVariable, editRange, fieldSe)
 			items = append(items, ci)
 		}
 	}
@@ -142,13 +147,13 @@ func createCompletionItem(label, text string, kind int, r position.Range, se *to
 }
 
 var (
-	reIndex = regexp.MustCompile(`((\w+\.)*\w+)\.$`)
+	reIndex = regexp.MustCompile(`((\w+\.)*\w+)\.[\]\)\}]*$`)
 )
 
 func resolveIndex(source string) ([]string, error) {
 	match := reIndex.FindAllString(source, 1)
 	if match == nil {
-		return nil, errors.Errorf("%q is not part of an index")
+		return nil, errors.Errorf("%q does not contain an index", source)
 	}
 
 	if len(match) != 1 {
@@ -158,13 +163,29 @@ func resolveIndex(source string) ([]string, error) {
 	return removeEmpty(strings.Split(match[0], ".")), nil
 }
 
+var (
+	ignoredIndexItems = []string{"}", "]", ")"}
+)
+
 func removeEmpty(sl []string) []string {
 	var out []string
 	for _, s := range sl {
 		if s != "" {
-			out = append(out, s)
+			if !stringInSlice(s, ignoredIndexItems) {
+				out = append(out, s)
+			}
 		}
 	}
 
 	return out
+}
+
+func stringInSlice(s string, sl []string) bool {
+	for i := range sl {
+		if sl[i] == s {
+			return true
+		}
+	}
+
+	return false
 }

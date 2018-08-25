@@ -119,15 +119,7 @@ func (sm *Scope) Get(key string) (*ScopeEntry, error) {
 	return &se, nil
 }
 
-func (sm *Scope) add(id ast.Identifier, node ast.Node) {
-	s := string(id)
-	sm.store[s] = ScopeEntry{
-		Detail: s,
-		Node:   node,
-	}
-}
-
-func (sm *Scope) addIdentifier(key ast.Identifier, node ast.Node) {
+func (sm *Scope) add(key ast.Identifier, node ast.Node) {
 	id := string(key)
 	sm.store[id] = ScopeEntry{
 		Detail: id,
@@ -162,10 +154,6 @@ func LocationScope(filename, source string, loc jlspos.Position) (*Scope, error)
 	for k, v := range es {
 		sm.add(k, v)
 	}
-
-	// for _, id := range found.FreeVariables() {
-	// 	sm.addIdentifier(id)
-	// }
 
 	return sm, nil
 }

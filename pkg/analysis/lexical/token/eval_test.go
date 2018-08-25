@@ -101,3 +101,43 @@ func Test_eval_nested_local(t *testing.T) {
 
 	require.Equal(t, expected, got)
 }
+
+func Test_eval_in_object(t *testing.T) {
+	localBody := &astext.Partial{}
+	fieldBody := &astext.Partial{}
+
+	n := &ast.Local{
+		Binds: ast.LocalBinds{
+			{
+				Variable: createIdentifier("o"),
+				Body: &ast.DesugaredObject{
+					Fields: ast.DesugaredObjectFields{
+						{
+							Hide: 1,
+							Name: &ast.LiteralString{Kind: 1, Value: "a"},
+							Body: &ast.Local{
+								Binds: ast.LocalBinds{
+									{
+										Variable: createIdentifier("$"),
+										Body:     &ast.Self{},
+									},
+								},
+								Body: fieldBody,
+							},
+						},
+					},
+				},
+			},
+		},
+		Body: localBody,
+	}
+
+	got := eval(n, fieldBody)
+
+	expected := evalScope{
+		"o": n.Binds[0].Body,
+		"$": &ast.Self{},
+	}
+
+	require.Equal(t, expected, got)
+}

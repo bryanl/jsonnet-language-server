@@ -3,6 +3,7 @@ package server
 import (
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/bryanl/jsonnet-language-server/pkg/util/position"
 
@@ -70,6 +71,7 @@ func (c *complete) handle() (interface{}, error) {
 	if err != nil {
 		return nil, err
 	}
+	matchText = strings.TrimSpace(matchText)
 	logrus.Info(matchText)
 
 	matchItems, err := c.completionMatcher.Match(editRange, matchText)
