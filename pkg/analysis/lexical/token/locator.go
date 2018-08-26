@@ -145,24 +145,6 @@ func locateNode(node ast.Node, pos jlspos.Position) (ast.Node, error) {
 	return l.enclosingNode, nil
 }
 
-// nolint: gocyclo
-func inRange(l ast.Location, lr ast.LocationRange) bool {
-	if lr.Begin.Line == l.Line && l.Line == lr.End.Line &&
-		lr.Begin.Column <= l.Column && l.Column <= lr.End.Column {
-		return true
-	} else if lr.Begin.Line < l.Line && l.Line == lr.End.Line &&
-		l.Column <= lr.End.Column {
-		return true
-	} else if lr.Begin.Line == l.Line && l.Line < lr.End.Line &&
-		l.Column >= lr.Begin.Column {
-		return true
-	} else if lr.Begin.Line < l.Line && l.Line < lr.End.Line {
-		return true
-	}
-
-	return false
-}
-
 func isRangeSmaller(r1, r2 ast.LocationRange) bool {
 	return beforeRangeOrEqual(r1.Begin, r2) &&
 		afterRangeOrEqual(r1.End, r2)
@@ -188,14 +170,4 @@ func afterRangeOrEqual(l ast.Location, lr ast.LocationRange) bool {
 	}
 
 	return false
-}
-
-func afterRange(l1, l2 ast.Location) bool {
-	if l2.Line > l1.Line {
-		return true
-	} else if l2.Line < l1.Line {
-		return false
-	}
-
-	return l2.Column > l1.Column
 }

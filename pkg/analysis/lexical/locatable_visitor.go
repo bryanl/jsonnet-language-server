@@ -5,7 +5,6 @@ import (
 
 	"github.com/bryanl/jsonnet-language-server/pkg/analysis/lexical/astext"
 	"github.com/bryanl/jsonnet-language-server/pkg/analysis/lexical/locate"
-	"github.com/google/go-jsonnet/ast"
 	"github.com/sirupsen/logrus"
 )
 
@@ -47,14 +46,6 @@ func (lv *locatableVisitor) previsit(token interface{}, parent *locate.Locatable
 	name := astext.TokenName(token)
 	logrus.Debugf("previsiting %s: %s", name, r.String())
 
-	// if isInvalidRange(r) {
-	// 	if parent == nil {
-	// 		spew.Fdump(os.Stderr, token)
-	// 		return errors.Errorf("parent for %T shouldn't be nil nil: %s", token, r.String())
-	// 	}
-	// 	r = parent.Loc
-	// }
-
 	if r.FileName == "" {
 		r.FileName = parent.Loc.FileName
 	}
@@ -68,9 +59,4 @@ func (lv *locatableVisitor) previsit(token interface{}, parent *locate.Locatable
 
 	lv.locatables = append(lv.locatables, nl)
 	return nil
-}
-
-func isInvalidRange(r ast.LocationRange) bool {
-	return r.Begin.Line == 0 || r.Begin.Column == 0 &&
-		r.End.Line == 0 || r.End.Column == 0
 }

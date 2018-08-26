@@ -51,10 +51,7 @@ func Identify(filename, source string, pos jlspos.Position, nodeCache *NodeCache
 	case *ast.Local:
 		return identifyLocal(n, pos, nodeCache)
 	case *ast.Var:
-		x, ok := es.store[n.Id]
-		if ok {
-			return astext.NewItem(x), nil
-		}
+		return identifyVar(n, es)
 	case nil, *ast.Array, *ast.DesugaredObject, *ast.Import,
 		*ast.LiteralBoolean, *ast.LiteralNumber, *ast.LiteralString,
 		*astext.Partial:
