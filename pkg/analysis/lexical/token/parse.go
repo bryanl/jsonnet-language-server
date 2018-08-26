@@ -233,7 +233,7 @@ func (p *mParser) parse(prec precedence) (ast.Node, error) {
 		} else {
 			body, err = p.parse(maxPrecedence)
 			if err != nil {
-				logrus.Infof("local body is invalid at %s", p.peek().Loc.String())
+				logrus.Infof("local body is invalid at %s: %v", p.loc(), err)
 				body = &astext.Partial{
 					NodeBase: ast.NewNodeBaseLoc(locFromPartial(p.peekPrev())),
 				}
@@ -473,7 +473,7 @@ func (p *mParser) parseBind(binds *ast.LocalBinds) error {
 	if err != nil {
 		// body could be invalid in a completion event
 		logrus.Infof("bind body is incomplete at %s: %v",
-			p.peek().Loc.String(), err)
+			p.loc(), err)
 		body = &astext.Partial{
 			NodeBase: ast.NewNodeBaseLoc(locFromPartial(p.peekPrev())),
 		}
@@ -558,6 +558,7 @@ func (p *mParser) parseArguments(elementKind string) (*Token, *ast.Arguments, bo
 //
 // Assumes that the leading '[' has already been consumed and passed as tok.
 // Should read up to and consume the trailing ']'
+// nolint: gocyclo
 func (p *mParser) parseArray(tok *Token) (ast.Node, error) {
 	next := p.peek()
 	if next.Kind == TokenBracketR {
@@ -720,6 +721,7 @@ func (p *mParser) parseObjectAssignmentOp() (plusSugar bool, hide ast.ObjectFiel
 type LiteralField string
 
 // parseObjectRemainder parses object or object comprehension without leading brace
+// nolint: gocyclo
 func (p *mParser) parseObjectRemainder(tok *Token) (ast.Node, *Token, error) {
 	var fields ast.ObjectFields
 	literalFields := make(LiteralFieldSet)
@@ -992,6 +994,7 @@ func (p *mParser) parseParameters(elementKind string) (*ast.Parameters, bool, er
 
 }
 
+// nolint: gocyclo
 func (p *mParser) parseTerminal() (ast.Node, error) {
 	tok := p.pop()
 	switch tok.Kind {
@@ -1109,6 +1112,14 @@ func (p *mParser) parsingFailure(msg string, tok *Token) (ast.Node, error) {
 
 func (p *mParser) atEnd() bool {
 	return p.cur == len(p.tokens)
+}
+
+func (p *mParser) loc() string {
+	if p.cur >= len(p.tokens)-1 {
+		return "eof"
+	}
+
+	return p.peek().Loc.String()
 }
 
 func (p *mParser) peek() *Token {

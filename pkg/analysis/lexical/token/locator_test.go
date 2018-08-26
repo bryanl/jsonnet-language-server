@@ -31,14 +31,16 @@ func Test_locator(t *testing.T) {
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			node, err := Parse("file.jsonnet", tc.source)
-			require.NoError(t, err)
+			assert.NotPanics(t, func() {
+				node, err := Parse("file.jsonnet", tc.source)
+				require.NoError(t, err)
 
-			n, err := locateNode(node, tc.loc)
-			require.NoError(t, err)
+				n, err := locateNode(node, tc.loc)
+				require.NoError(t, err)
 
-			require.NotNil(t, n.Loc())
-			assert.Equal(t, tc.expected.String(), n.Loc().String())
+				require.NotNil(t, n.Loc())
+				assert.Equal(t, tc.expected.String(), n.Loc().String())
+			})
 		})
 	}
 }
