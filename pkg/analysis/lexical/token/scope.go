@@ -1,11 +1,13 @@
 package token
 
 import (
+	"os"
 	"sort"
 
 	"github.com/bryanl/jsonnet-language-server/pkg/analysis/lexical/astext"
 	"github.com/bryanl/jsonnet-language-server/pkg/analysis/static"
 	jlspos "github.com/bryanl/jsonnet-language-server/pkg/util/position"
+	"github.com/davecgh/go-spew/spew"
 	"github.com/google/go-jsonnet/ast"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
@@ -28,6 +30,12 @@ func newScope(nc *NodeCache) *Scope {
 	return &Scope{
 		store:     make(map[string]ScopeEntry),
 		nodeCache: nc,
+	}
+}
+
+func (sm *Scope) addEvalScope(es *evalScope) {
+	for k, v := range es.store {
+		sm.add(k, v)
 	}
 }
 
@@ -199,15 +207,52 @@ func LocationScope(filename, source string, loc jlspos.Position, nodeCache *Node
 		return nil, err
 	}
 
-	sm := newScope(nodeCache)
 	es, err := eval(node, found, nodeCache)
 	if err != nil {
 		return nil, err
 	}
 
-	for k, v := range es.store {
-		sm.add(k, v)
-	}
+	sm := newScope(nodeCache)
+	sm.addEvalScope(es)
 
 	return sm, nil
+}
+
+func Identify(filename, source string, loc jlspos.Position, nodeCache *NodeCache) (ast.Node, error) {
+	node, err := Parse(filename, source)
+	if err != nil {
+		return nil, err
+	}
+
+	if err = DesugarFile(&node); err != nil {
+		return nil, err
+	}
+
+	err = static.Analyze(node)
+	if err != nil {
+		return nil, err
+	}
+
+	logrus.Infof("locating node at %s", loc.String())
+	found, err := locateNode(node, loc.ToJsonnet())
+	if err != nil {
+		return nil, err
+	}
+
+	spew.Fdump(os.Stderr, found)
+
+	es, err := eval(node, found, nodeCache)
+	if err != nil {
+		return nil, err
+	}
+
+	switch n := found.(type) {
+	case *ast.Var:
+		x, ok := es.store[n.Id]
+		if ok {
+			return x, nil
+		}
+	}
+
+	return found, nil
 }

@@ -1,9 +1,10 @@
 package server
 
 import (
-	"strings"
+	"github.com/bryanl/jsonnet-language-server/pkg/analysis/lexical/astext"
+	"github.com/bryanl/jsonnet-language-server/pkg/analysis/lexical/token"
+	"github.com/bryanl/jsonnet-language-server/pkg/util/position"
 
-	"github.com/bryanl/jsonnet-language-server/pkg/analysis/lexical"
 	"github.com/bryanl/jsonnet-language-server/pkg/config"
 	"github.com/bryanl/jsonnet-language-server/pkg/lsp"
 	"github.com/bryanl/jsonnet-language-server/pkg/util/uri"
@@ -32,7 +33,25 @@ func (h *hover) handle() (interface{}, error) {
 		return nil, err
 	}
 
-	r := strings.NewReader(text.String())
+	pos := position.FromLSPPosition(h.params.Position)
 
-	return lexical.HoverAtLocation(path, r, h.params.Position.Line+1, h.params.Position.Character+1, h.config)
+	node, err := token.Identify(path, text.String(), pos, h.config.NodeCache())
+	if err != nil {
+		return nil, err
+	}
+
+	response := &lsp.Hover{
+		Contents: []lsp.MarkedString{
+			{
+				Language: "jsonnet",
+				Value:    astext.TokenName(node),
+			},
+		},
+	}
+
+	return response, nil
+
+	// r := strings.NewReader(text.String())
+
+	// return lexical.HoverAtLocation(path, r, h.params.Position.Line+1, h.params.Position.Character+1, h.config)
 }

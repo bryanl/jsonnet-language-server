@@ -58,6 +58,10 @@ func (e *evaluator) eval(n ast.Node, parentScope *evalScope) {
 	}
 
 	switch n := n.(type) {
+	case *ast.Array:
+		for _, elem := range n.Elements {
+			e.eval(elem, parentScope)
+		}
 	case *ast.Apply:
 		e.eval(n.Target, parentScope)
 	case *ast.DesugaredObject:
