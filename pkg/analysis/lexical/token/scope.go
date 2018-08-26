@@ -1,7 +1,9 @@
 package token
 
 import (
+	"fmt"
 	"sort"
+	"strings"
 
 	"github.com/bryanl/jsonnet-language-server/pkg/analysis/lexical/astext"
 	"github.com/bryanl/jsonnet-language-server/pkg/analysis/static"
@@ -67,7 +69,7 @@ func (sm *Scope) GetInPath(path []string) (*ScopeEntry, error) {
 		return e, nil
 	}
 
-	node, err := findInPath(e.Node, path)
+	node, err := sm.findInPath(e.Node, path)
 	if err != nil {
 		return nil, err
 	}
@@ -83,10 +85,12 @@ func (sm *Scope) GetInPath(path []string) (*ScopeEntry, error) {
 func findInObject(node ast.Node, path []string) (ast.Node, error) {
 	o, ok := node.(*ast.Object)
 	if !ok {
-		return nil, errors.Errorf("not an object: %T", node)
+		return nil, errors.Errorf("not a regular object: %T", node)
 	}
 
 	id, path := path[0], path[1:]
+
+	var fieldNames []string
 
 	for i := range o.Fields {
 		field := o.Fields[i]
@@ -105,6 +109,8 @@ func findInObject(node ast.Node, path []string) (ast.Node, error) {
 			name = astext.TokenValue(field.Expr1)
 		}
 
+		fieldNames = append(fieldNames, name)
+
 		if name != id {
 			continue
 		}
@@ -116,17 +122,20 @@ func findInObject(node ast.Node, path []string) (ast.Node, error) {
 		return findInObject(field.Expr2, path)
 	}
 
-	return nil, errors.Errorf("unable to find field %q", id)
+	return nil, errors.Errorf("unable to find field %q in [%s]",
+		id, strings.Join(fieldNames, ","))
 
 }
 
 func findInDesugaredObject(node ast.Node, path []string) (ast.Node, error) {
 	o, ok := node.(*ast.DesugaredObject)
 	if !ok {
-		return nil, errors.Errorf("not an object: %T", node)
+		return nil, errors.Errorf("not a desugared object: %T", node)
 	}
 
 	id, path := path[0], path[1:]
+
+	var fieldNames []string
 
 	for i := range o.Fields {
 		field := o.Fields[i]
@@ -134,34 +143,58 @@ func findInDesugaredObject(node ast.Node, path []string) (ast.Node, error) {
 		name, ok := field.Name.(*ast.LiteralString)
 		if !ok {
 			return nil, errors.New("field name was not a string")
-		} else if name.Value != id {
+		}
+
+		fieldNames = append(fieldNames, name.Value)
+
+		if name.Value != id {
 			continue
 		}
 
-		if len(path) == 0 {
-			local, ok := field.Body.(*ast.Local)
-			if !ok {
-				return nil, errors.New("field body wasn't a local")
-			}
-
-			logrus.Info("found body")
-			return local.Body, nil
+		var body ast.Node
+		// field body can be a local or a desugared object
+		switch n := field.Body.(type) {
+		case *ast.Local:
+			body = n.Body
+		case *ast.DesugaredObject:
+			body = n
+		default:
+			return n, nil
 		}
 
-		return findInDesugaredObject(field.Body, path)
+		if len(path) == 0 {
+			return body, nil
+		}
+
+		return findInDesugaredObject(body, path)
 	}
 
-	return nil, errors.Errorf("unable to find field %q", id)
+	return nil, errors.Errorf("desugared: unable to find field %q in [%s]",
+		id, strings.Join(fieldNames, ","))
 }
 
-func findInPath(node ast.Node, path []string) (ast.Node, error) {
+func (sm *Scope) findInPath(node ast.Node, path []string) (ast.Node, error) {
 	switch node := node.(type) {
 	case *ast.DesugaredObject:
 		return findInDesugaredObject(node, path)
 	case *ast.Object:
 		return findInObject(node, path)
+	case *ast.Index:
+		v, indexPath := resolveIndex(node)
+		if v == nil {
+			logrus.Infof("findInPath for index. v is nil. got indexPath [%s]",
+				strings.Join(indexPath, ","))
+		}
+		o, err := sm.Get(string(v.Id))
+		if err != nil {
+			return nil, err
+		}
+
+		path = append(indexPath[1:], path...)
+		return sm.findInPath(o.Node, path)
 	default:
-		return nil, errors.Errorf("not an object %T", node)
+		return nil, errors.Errorf("not an object %T: [%s]",
+			node, strings.Join(path, ","))
 	}
 }
 
@@ -199,8 +232,7 @@ func LocationScope(filename, source string, loc jlspos.Position, nodeCache *Node
 		return nil, err
 	}
 
-	logrus.Infof("locating scope at %s", loc.String())
-	found, err := locateNode(node, loc.ToJsonnet())
+	found, err := locateNode(node, loc)
 	if err != nil {
 		return nil, err
 	}
@@ -216,39 +248,29 @@ func LocationScope(filename, source string, loc jlspos.Position, nodeCache *Node
 	return sm, nil
 }
 
-func Identify(filename, source string, loc jlspos.Position, nodeCache *NodeCache) (ast.Node, error) {
-	node, err := Parse(filename, source)
-	if err != nil {
-		return nil, err
-	}
-
-	if err = DesugarFile(&node); err != nil {
-		return nil, err
-	}
-
-	err = static.Analyze(node)
-	if err != nil {
-		return nil, err
-	}
-
-	logrus.Infof("locating node at %s", loc.String())
-	found, err := locateNode(node, loc.ToJsonnet())
-	if err != nil {
-		return nil, err
-	}
-
-	es, err := eval(node, found, nodeCache)
-	if err != nil {
-		return nil, err
-	}
-
-	switch n := found.(type) {
-	case *ast.Var:
-		x, ok := es.store[n.Id]
-		if ok {
-			return x, nil
+func resolveIndex(i *ast.Index) (*ast.Var, []string) {
+	var cur ast.Node = i
+	var v *ast.Var
+	count := 0
+	done := false
+	var path []string
+	for count < 100 && !done {
+		switch c := cur.(type) {
+		case *ast.Index:
+			s, ok := c.Index.(*ast.LiteralString)
+			if !ok {
+				panic(fmt.Sprintf("can't index index of type %T", c.Index))
+			}
+			path = append([]string{s.Value}, path...)
+			cur = c.Target
+		case *ast.Var:
+			v = c
+			path = append([]string{string(c.Id)}, path...)
+			done = true
 		}
+
+		count++
 	}
 
-	return found, nil
+	return v, path
 }

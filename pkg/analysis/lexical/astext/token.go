@@ -5,10 +5,27 @@ import (
 	"fmt"
 
 	"github.com/google/go-jsonnet/ast"
-	"github.com/pkg/errors"
 )
 
-// tokenName returns a name for a token.
+// Item is something that can identified.
+type Item struct {
+	token interface{}
+}
+
+var _ fmt.Stringer = (*Item)(nil)
+
+// NewItem creates an instance of Item.
+func NewItem(token interface{}) *Item {
+	return &Item{
+		token: token,
+	}
+}
+
+func (i *Item) String() string {
+	return TokenName(i.token)
+}
+
+// TokenName returns a name for a token.
 // nolint: gocyclo
 func TokenName(token interface{}) string {
 	switch t := token.(type) {
@@ -23,7 +40,7 @@ func TokenName(token interface{}) string {
 	case *ast.Conditional:
 		return "(conditional)"
 	case *ast.DesugaredObject:
-		return "(object)"
+		return desugaredObject(t)
 	case ast.DesugaredObjectField:
 		name := TokenValue(t.Name)
 		return fmt.Sprintf("(field) %s", name)
@@ -36,7 +53,7 @@ func TokenName(token interface{}) string {
 	case *ast.LiteralNull:
 		return "(null)"
 	case *ast.LiteralNumber:
-		return "(number)"
+		return fmt.Sprintf("(number) %s", t.OriginalString)
 	case *ast.LiteralString:
 		return fmt.Sprintf("(string) %s", TokenValue(t))
 	case ast.Identifier:
@@ -60,7 +77,7 @@ func TokenName(token interface{}) string {
 		val := TokenValue(t.DefaultArg)
 		return fmt.Sprintf("(optional parameter) %s=%s", string(t.Name), val)
 	case *ast.Object:
-		return "(object)"
+		return ObjectDescription(t)
 	case ast.ObjectField:
 		return fmt.Sprintf("(field) %s", ObjectFieldName(t))
 	case *ast.Self:
@@ -81,9 +98,26 @@ func TokenValue(token interface{}) string {
 	case *ast.LiteralNumber:
 		return t.OriginalString
 	case *ast.LiteralString:
-		return t.Value
+		return stringValue(t, true)
 	default:
 		return fmt.Sprintf("unknown value from %T", t)
+	}
+}
+
+func stringValue(t *ast.LiteralString, quote bool) string {
+	if !quote {
+		return t.Value
+	}
+
+	switch t.Kind {
+	case ast.StringDouble:
+		return fmt.Sprintf(`"%s"`, t.Value)
+	case ast.StringSingle:
+		return fmt.Sprintf(`'%s'`, t.Value)
+	case ast.StringBlock:
+		return "<block string>"
+	default:
+		return t.Value
 	}
 }
 
@@ -99,52 +133,101 @@ func ObjectFieldName(f ast.ObjectField) string {
 	panic("object field does not have a name")
 }
 
-func ObjectFieldVisibility(f ast.ObjectField) (string, error) {
-	switch f.Hide {
+func ObjectFieldVisibility(f ast.ObjectFieldHide) string {
+	switch f {
 	case ast.ObjectFieldHidden:
-		return "::", nil
+		return "::"
 	case ast.ObjectFieldInherit:
-		return ":", nil
+		return ":"
 	case ast.ObjectFieldVisible:
-		return ":::", nil
+		return ":::"
 	default:
-		return "", errors.Errorf("unknown object visibility %d", f.Hide)
+		return ":"
 	}
 }
 
-func ObjectDescription(o *ast.Object) (string, error) {
+const (
+	genericObject = "(object)"
+)
+
+func ObjectDescription(o *ast.Object) string {
 	if o == nil {
-		return "", errors.New("object is nil")
+		return genericObject
 	}
 
 	var buf bytes.Buffer
 	if _, err := buf.WriteString("(object) {"); err != nil {
-		return "", err
+		return genericObject
 	}
 
 	// find object fields
 	for i, field := range o.Fields {
 		if i == 0 {
 			if _, err := buf.WriteString("\n"); err != nil {
-				return "", err
+				return genericObject
 			}
 		}
 		fieldName := ObjectFieldName(field)
-		visibility, err := ObjectFieldVisibility(field)
-		if err != nil {
-			return "", err
-		}
+		visibility := ObjectFieldVisibility(field.Hide)
 		label := "field"
 		if field.Params != nil {
 			label = "function"
 		}
 		if _, err := buf.WriteString(fmt.Sprintf("  (%s) %s%s,\n", label, fieldName, visibility)); err != nil {
-			return "", err
+			return genericObject
 		}
 	}
 	if _, err := buf.WriteString("}"); err != nil {
-		return "", err
+		return genericObject
 	}
 
-	return buf.String(), nil
+	return buf.String()
+}
+
+func desugaredObject(o *ast.DesugaredObject) string {
+	if o == nil {
+		return genericObject
+	}
+
+	var buf bytes.Buffer
+	if _, err := buf.WriteString("(object) {"); err != nil {
+		return genericObject
+	}
+
+	// find object fields
+	for i, field := range o.Fields {
+		if i == 0 {
+			if _, err := buf.WriteString("\n"); err != nil {
+				return genericObject
+			}
+		}
+
+		name, ok := field.Name.(*ast.LiteralString)
+		if !ok {
+			continue
+		}
+
+		fieldName := stringValue(name, false)
+		visibility := ObjectFieldVisibility(field.Hide)
+
+		// local, ok := field.Body.(*ast.Local)
+		// if !ok {
+		// 	return genericObject
+		// }
+
+		// local
+
+		label := "field"
+		// if field.Params != nil {
+		// 	label = "function"
+		// }
+		if _, err := buf.WriteString(fmt.Sprintf("  (%s) %s%s,\n", label, fieldName, visibility)); err != nil {
+			return genericObject
+		}
+	}
+	if _, err := buf.WriteString("}"); err != nil {
+		return genericObject
+	}
+
+	return buf.String()
 }

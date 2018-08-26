@@ -164,7 +164,7 @@ func bindOutput(bind ast.LocalBind, cache *token.NodeCache, scope Scope, jPaths 
 	case *ast.Function:
 		name = "function"
 	case *ast.Object:
-		return astext.ObjectDescription(t)
+		return astext.ObjectDescription(t), nil
 	case *ast.Index:
 		return resolvedIndex(t, cache, scope)
 	case *ast.Var:
@@ -262,7 +262,7 @@ func resolvedIdentifier(item interface{}, jPaths []string, cache *token.NodeCach
 	case *ast.Index:
 		return resolvedIndex(t, cache, scope)
 	case *ast.Object:
-		return astext.ObjectDescription(t)
+		return astext.ObjectDescription(t), nil
 	default:
 		logrus.Infof("resolvedIdentifer: unable to resolve %T", t)
 		return fmt.Sprintf("resolvedIdentifer %T: %s", t, astext.TokenName(item)), nil
@@ -337,7 +337,7 @@ func describe(item interface{}, indicies []string, cache *token.NodeCache, scope
 
 func describeInObject(o *ast.Object, indicies []string, cache *token.NodeCache, scope Scope) (string, error) {
 	if len(indicies) == 0 {
-		return astext.ObjectDescription(o)
+		return astext.ObjectDescription(o), nil
 	}
 
 	for i := range o.Fields {

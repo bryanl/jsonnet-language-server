@@ -1,13 +1,16 @@
 package server
 
 import (
-	"github.com/bryanl/jsonnet-language-server/pkg/analysis/lexical/astext"
 	"github.com/bryanl/jsonnet-language-server/pkg/analysis/lexical/token"
 	"github.com/bryanl/jsonnet-language-server/pkg/util/position"
 
 	"github.com/bryanl/jsonnet-language-server/pkg/config"
 	"github.com/bryanl/jsonnet-language-server/pkg/lsp"
 	"github.com/bryanl/jsonnet-language-server/pkg/util/uri"
+)
+
+var (
+	emptyHover = &lsp.Hover{}
 )
 
 type hover struct {
@@ -35,16 +38,21 @@ func (h *hover) handle() (interface{}, error) {
 
 	pos := position.FromLSPPosition(h.params.Position)
 
-	node, err := token.Identify(path, text.String(), pos, h.config.NodeCache())
+	item, err := token.Identify(path, text.String(), pos, h.config.NodeCache())
 	if err != nil {
 		return nil, err
+	}
+
+	value := item.String()
+	if value == "" {
+		return emptyHover, nil
 	}
 
 	response := &lsp.Hover{
 		Contents: []lsp.MarkedString{
 			{
 				Language: "jsonnet",
-				Value:    astext.TokenName(node),
+				Value:    value,
 			},
 		},
 	}

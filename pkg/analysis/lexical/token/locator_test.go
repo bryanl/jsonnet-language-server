@@ -3,6 +3,7 @@ package token
 import (
 	"testing"
 
+	jlspos "github.com/bryanl/jsonnet-language-server/pkg/util/position"
 	"github.com/google/go-jsonnet/ast"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -12,19 +13,19 @@ func Test_locator(t *testing.T) {
 	cases := []struct {
 		name     string
 		source   string
-		loc      ast.Location
+		loc      jlspos.Position
 		expected ast.LocationRange
 	}{
 		{
 			name:     "locate in missing object body",
 			source:   `local a="1";`,
-			loc:      createLoc(2, 1),
+			loc:      jlspos.New(2, 1),
 			expected: createRange("file.jsonnet", 1, 13, 0, 0),
 		},
 		{
 			name:     "locate locate body",
 			source:   `local a="1";a`,
-			loc:      createLoc(1, 13),
+			loc:      jlspos.New(1, 13),
 			expected: createRange("file.jsonnet", 1, 13, 1, 14),
 		},
 	}

@@ -36,9 +36,15 @@ func TestScope(t *testing.T) {
 			expected: []string{"o", "y"},
 		},
 		{
-			name:     "object keys",
+			name:     "object keys in invalid local",
 			src:      `local o={a:"a"};`,
 			loc:      jlspos.New(2, 1),
+			expected: []string{"o"},
+		},
+		{
+			name:     "deep object",
+			src:      `local o={a:{b:{c:{d:"e"}}}};o.a.b.c.d.e`,
+			loc:      jlspos.New(1, 36),
 			expected: []string{"o"},
 		},
 	}
@@ -86,11 +92,30 @@ func TestScopeMap_Get_invalid(t *testing.T) {
 }
 
 func TestScope_GetPath(t *testing.T) {
+	b := &ast.DesugaredObject{
+		Fields: ast.DesugaredObjectFields{
+			{
+				Name: createLiteralString("c"),
+				Body: &ast.Local{
+					Body: createLiteralString("a"),
+				},
+			},
+		},
+	}
+
 	data := &ast.DesugaredObject{
 		Fields: ast.DesugaredObjectFields{
 			{
 				Name: createLiteralString("a"),
-				Body: createLiteralString("a"),
+				Body: &ast.Local{
+					Body: createLiteralString("a"),
+				},
+			},
+			{
+				Name: createLiteralString("b"),
+				Body: &ast.Local{
+					Body: b,
+				},
 			},
 		},
 	}
@@ -135,8 +160,16 @@ func TestScope_GetPath(t *testing.T) {
 			name: "nested",
 			path: []string{"o", "data"},
 			expected: &ScopeEntry{
-				Detail: "(object)",
+				Detail: "(object) {\n  (field) a::,\n  (field) b::,\n}",
 				Node:   data,
+			},
+		},
+		{
+			name: "nested 2",
+			path: []string{"o", "data", "b"},
+			expected: &ScopeEntry{
+				Detail: "(object) {\n  (field) c::,\n}",
+				Node:   b,
 			},
 		},
 		{

@@ -479,6 +479,7 @@ func (p *mParser) parseBind(binds *ast.LocalBinds) error {
 		}
 	}
 
+	loc := locFromTokens(varID, varID)
 	if fun != nil {
 		fun.NodeBase = ast.NewNodeBaseLoc(locFromTokenAST(varID, body))
 		fun.Body = body
@@ -486,11 +487,13 @@ func (p *mParser) parseBind(binds *ast.LocalBinds) error {
 			Variable: ast.Identifier(varID.Data),
 			Body:     body,
 			Fun:      fun,
+			VarLoc:   loc,
 		})
 	} else {
 		*binds = append(*binds, ast.LocalBind{
 			Variable: ast.Identifier(varID.Data),
 			Body:     body,
+			VarLoc:   loc,
 		})
 	}
 

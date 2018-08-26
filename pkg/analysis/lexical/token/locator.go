@@ -4,11 +4,12 @@ import (
 	"fmt"
 
 	"github.com/bryanl/jsonnet-language-server/pkg/analysis/lexical/astext"
+	jlspos "github.com/bryanl/jsonnet-language-server/pkg/util/position"
 	"github.com/google/go-jsonnet/ast"
 )
 
 type locator struct {
-	loc           ast.Location
+	loc           jlspos.Position
 	err           error
 	enclosingNode ast.Node
 }
@@ -24,7 +25,7 @@ func (l *locator) visitNext(a ast.Node) {
 		return
 	}
 
-	if inRange(l.loc, *a.Loc()) {
+	if l.loc.IsInJsonnetRange(*a.Loc()) {
 		if l.enclosingNode == nil {
 			l.enclosingNode = a
 		} else if isRangeSmaller(*l.enclosingNode.Loc(), *a.Loc()) {
@@ -129,12 +130,15 @@ func (l *locator) analyzeVisit(a ast.Node) error {
 	return l.err
 }
 
-func locateNode(node ast.Node, loc ast.Location) (ast.Node, error) {
+func locateNode(node ast.Node, pos jlspos.Position) (ast.Node, error) {
 	if node == nil {
 		return &astext.Partial{}, nil
 	}
 
-	l := &locator{loc: loc}
+	l := &locator{
+		loc:           pos,
+		enclosingNode: node,
+	}
 	if err := l.analyzeVisit(node); err != nil {
 		return nil, err
 	}

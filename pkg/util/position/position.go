@@ -56,6 +56,26 @@ func (p *Position) ToJsonnet() ast.Location {
 	return l
 }
 
+// IsInJsonnetRange returns true if the position is in a Jsonnet
+// range.
+// nolint: gocyclo
+func (p *Position) IsInJsonnetRange(r ast.LocationRange) bool {
+	if r.Begin.Line == p.line && p.line == r.End.Line &&
+		r.Begin.Column <= p.column && p.column <= r.End.Column {
+		return true
+	} else if r.Begin.Line < p.line && p.line == r.End.Line &&
+		p.column <= r.End.Column {
+		return true
+	} else if r.Begin.Line == p.line && p.line < r.End.Line &&
+		p.column >= r.Begin.Column {
+		return true
+	} else if r.Begin.Line < p.line && p.line < r.End.Line {
+		return true
+	}
+
+	return false
+}
+
 func (p *Position) String() string {
 	return fmt.Sprintf("%v:%v", p.Line(), p.Column())
 }
