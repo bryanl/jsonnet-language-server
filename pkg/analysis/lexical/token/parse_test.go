@@ -77,7 +77,7 @@ func TestParse(t *testing.T) {
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			got, err := Parse("file.jsonnet", tc.source)
+			got, err := Parse("file.jsonnet", tc.source, nil)
 			require.NoError(t, err)
 
 			tc.check(t, got)

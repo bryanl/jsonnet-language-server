@@ -218,7 +218,7 @@ func (sm *Scope) add(key ast.Identifier, node ast.Node) {
 
 // LocationScope finds the free variables for a location.
 func LocationScope(filename, source string, loc jlspos.Position, nodeCache *NodeCache) (*Scope, error) {
-	node, err := Parse(filename, source)
+	node, err := Parse(filename, source, nil)
 	if err != nil {
 		return nil, err
 	}

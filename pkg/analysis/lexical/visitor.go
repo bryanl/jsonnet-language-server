@@ -32,6 +32,8 @@ type NodeVisitor struct {
 	PreVisit  VisitFn
 	PostVisit VisitFn
 
+	DiagCh chan<- token.ParseDiagnostic
+
 	*ApplyVisitor
 	*ApplyBraceVisitor
 	*ArrayVisitor
@@ -83,8 +85,8 @@ func PostVisit(fn VisitFn) VisitOpt {
 	}
 }
 
-func convertToNode(filename, snippet string) (ast.Node, error) {
-	node, err := token.Parse(filename, snippet)
+func convertToNode(filename, snippet string, diagCh chan<- token.ParseDiagnostic) (ast.Node, error) {
+	node, err := token.Parse(filename, snippet, diagCh)
 	if err != nil {
 		return nil, errors.Wrap(err, "parsing source")
 	}
@@ -103,23 +105,22 @@ func NewNodeVisitor(filename string, r io.Reader, partial bool, opts ...VisitOpt
 		return nil, errors.Wrap(err, "reading source")
 	}
 
-	node, err := convertToNode(filename, string(data))
-	if err != nil {
-		return nil, err
-	}
-
-	scope := locate.Scope{}
-
 	v := &NodeVisitor{
-		Node:   node,
 		Parent: nil,
-		Scope:  scope,
+		Scope:  locate.Scope{},
 		Source: data,
 	}
 
 	for _, opt := range opts {
 		opt(v)
 	}
+
+	node, err := convertToNode(filename, string(data), v.DiagCh)
+	if err != nil {
+		return nil, err
+	}
+
+	v.Node = node
 
 	return v, nil
 }

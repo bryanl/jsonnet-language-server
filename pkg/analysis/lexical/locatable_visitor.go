@@ -5,6 +5,7 @@ import (
 
 	"github.com/bryanl/jsonnet-language-server/pkg/analysis/lexical/astext"
 	"github.com/bryanl/jsonnet-language-server/pkg/analysis/lexical/locate"
+	"github.com/bryanl/jsonnet-language-server/pkg/analysis/lexical/token"
 	"github.com/sirupsen/logrus"
 )
 
@@ -14,12 +15,13 @@ type locatableVisitor struct {
 	locatables []locate.Locatable
 }
 
-func newLocatableVisitor(filename string, r io.Reader) (*locatableVisitor, error) {
+func newLocatableVisitor(filename string, r io.Reader, diagCh chan<- token.ParseDiagnostic) (*locatableVisitor, error) {
 	lv := &locatableVisitor{
 		filename: filename,
 	}
 
-	v, err := NewNodeVisitor(filename, r, true, PreVisit(lv.previsit))
+	v, err := NewNodeVisitor(filename, r, true,
+		PreVisit(lv.previsit), parseDiagOpt(diagCh))
 	if err != nil {
 		return nil, err
 	}
@@ -27,6 +29,12 @@ func newLocatableVisitor(filename string, r io.Reader) (*locatableVisitor, error
 	lv.visitor = v
 
 	return lv, nil
+}
+
+func parseDiagOpt(diagCh chan<- token.ParseDiagnostic) VisitOpt {
+	return func(v *NodeVisitor) {
+		v.DiagCh = diagCh
+	}
 }
 
 func (lv *locatableVisitor) Visit() error {

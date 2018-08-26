@@ -26,6 +26,11 @@ func FromLSPPosition(lspp lsp.Position) Position {
 	return New(lspp.Line+1, lspp.Character+1)
 }
 
+// FromJsonnetLocation converts a Jsonnet location to a Postion.
+func FromJsonnetLocation(loc ast.Location) Position {
+	return New(loc.Line, loc.Column)
+}
+
 // Line is the position line.
 func (p *Position) Line() int {
 	return p.line
@@ -100,4 +105,13 @@ func (r *Range) ToLSP() lsp.Range {
 		Start: r.Start.ToLSP(),
 		End:   r.End.ToLSP(),
 	}
+}
+
+// FromJsonnetRange converts a Jsonnet LocationRange to
+// Range.
+func FromJsonnetRange(r ast.LocationRange) Range {
+	start := FromJsonnetLocation(r.Begin)
+	end := FromJsonnetLocation(r.End)
+
+	return NewRange(start, end)
 }

@@ -8,7 +8,6 @@ import (
 	"github.com/google/go-jsonnet/ast"
 	"github.com/google/go-jsonnet/parser"
 	"github.com/pkg/errors"
-	"github.com/sirupsen/logrus"
 )
 
 type precedence int
@@ -20,13 +19,21 @@ const (
 )
 
 // Parse parses sources into a Jsonnet node.
-func Parse(filename, source string) (ast.Node, error) {
+func Parse(filename, source string, diagnostics chan<- ParseDiagnostic) (ast.Node, error) {
 	tokens, err := Lex(filename, source)
 	if err != nil {
 		return nil, errors.Wrap(err, "lexing source")
 	}
 
-	p := mParser{tokens: tokens}
+	p := mParser{
+		tokens: tokens,
+		diagCh: diagnostics,
+	}
+
+	if diagnostics != nil {
+		defer close(diagnostics)
+	}
+
 	return p.parse(maxPrecedence)
 }
 
@@ -73,11 +80,19 @@ func locFromPartial(begin *Token) ast.LocationRange {
 	}
 }
 
+// ParseDiagnostic is a diagnostic message about a parse.
+type ParseDiagnostic struct {
+	Message string
+	Loc     ast.LocationRange
+}
+
 type mParser struct {
 	tokens Tokens
 	cur    int
+	diagCh chan<- ParseDiagnostic
 }
 
+// nolint: gocyclo
 func (p *mParser) parse(prec precedence) (ast.Node, error) {
 	begin := p.peek()
 
@@ -223,17 +238,19 @@ func (p *mParser) parse(prec precedence) (ast.Node, error) {
 			}
 		}
 
+		fieldBodyStart := p.tokens[p.cur]
+
 		var body ast.Node
 		var err error
 		if p.atEnd() {
-			logrus.Info("local assignment is missing")
+			p.publishDiag("local assignment is missing", locFromTokens(&fieldBodyStart, p.peek()))
 			body = &astext.Partial{
 				NodeBase: ast.NewNodeBaseLoc(locFromPartial(p.peekPrev())),
 			}
 		} else {
 			body, err = p.parse(maxPrecedence)
 			if err != nil {
-				logrus.Infof("local body is invalid at %s: %v", p.loc(), err)
+				p.publishDiag("local body is not defined", locFromTokens(&fieldBodyStart, p.peek()))
 				body = &astext.Partial{
 					NodeBase: ast.NewNodeBaseLoc(locFromPartial(p.peekPrev())),
 				}
@@ -472,8 +489,7 @@ func (p *mParser) parseBind(binds *ast.LocalBinds) error {
 	body, err := p.parse(maxPrecedence)
 	if err != nil {
 		// body could be invalid in a completion event
-		logrus.Infof("bind body is incomplete at %s: %v",
-			p.loc(), err)
+		p.publishDiag("bind body is incomplete", locFromPartial(p.peekPrev()))
 		body = &astext.Partial{
 			NodeBase: ast.NewNodeBaseLoc(locFromPartial(p.peekPrev())),
 		}
@@ -862,7 +878,8 @@ func (p *mParser) parseObjectRemainder(tok *Token) (ast.Node, *Token, error) {
 
 				}
 				p.cur = p.cur - 1
-				logrus.Infof("object body is incomplete or missing")
+				p.publishDiag("object body is incomplete or missing",
+					locFromPartial(p.peek()))
 				body = &astext.Partial{
 					NodeBase: ast.NewNodeBaseLoc(locFromPartial(p.peek())),
 				}
@@ -1159,6 +1176,15 @@ func (p *mParser) popExpectOp(op string) (*Token, error) {
 			errors.Errorf("expected operator %v but got %v", op, t), t.Loc)
 	}
 	return t, nil
+}
+
+func (p *mParser) publishDiag(msg string, loc ast.LocationRange) {
+	if p.diagCh != nil {
+		p.diagCh <- ParseDiagnostic{
+			Message: msg,
+			Loc:     loc,
+		}
+	}
 }
 
 func (p *mParser) unexpectedError(t *Token, while string) error {

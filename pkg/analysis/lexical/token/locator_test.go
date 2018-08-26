@@ -33,7 +33,7 @@ func Test_locator(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			assert.NotPanics(t, func() {
-				node, err := Parse("file.jsonnet", tc.source)
+				node, err := Parse("file.jsonnet", tc.source, nil)
 				require.NoError(t, err)
 
 				n, err := locateNode(node, tc.loc)

@@ -12,7 +12,7 @@ import (
 
 // Identify identifies what is at a position.
 func Identify(filename, source string, pos jlspos.Position, nodeCache *NodeCache) (fmt.Stringer, error) {
-	node, err := Parse(filename, source)
+	node, err := Parse(filename, source, nil)
 	if err != nil {
 		return nil, err
 	}

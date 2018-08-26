@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"encoding/json"
+	"log"
 	"path/filepath"
 	"runtime/debug"
 
@@ -32,27 +33,35 @@ var operations = map[string]operation{
 	"updateClientConfiguration": updateClientConfiguration,
 }
 
-type lspHandler struct {
+type Handler struct {
 	logger              logrus.FieldLogger
 	config              *config.Config
 	decoder             *requestDecoder
 	nodeCache           *token.NodeCache
 	textDocumentWatcher *lexical.TextDocumentWatcher
+	conn                *jsonrpc2.Conn
 }
 
+var _ jsonrpc2.Handler = (*Handler)(nil)
+
 // NewHandler creates a handler to handle rpc commands.
-func NewHandler(logger logrus.FieldLogger) jsonrpc2.Handler {
+func NewHandler(logger logrus.FieldLogger) *Handler {
 	c := config.New()
 	nodeCache := token.NewNodeCache()
 	tdw := lexical.NewTextDocumentWatcher(c)
 
-	return &lspHandler{
+	return &Handler{
 		logger:              logger.WithField("component", "handler"),
 		decoder:             &requestDecoder{},
 		config:              c,
 		nodeCache:           nodeCache,
 		textDocumentWatcher: tdw,
 	}
+}
+
+func (h *Handler) SetConn(conn *jsonrpc2.Conn) {
+	h.conn = conn
+	h.textDocumentWatcher.SetConn(conn)
 }
 
 type request struct {
@@ -95,7 +104,7 @@ func (r *request) RegisterCapability(method string, options interface{}) (string
 	return id.String(), nil
 }
 
-func (lh *lspHandler) Handle(ctx context.Context, conn *jsonrpc2.Conn, req *jsonrpc2.Request) {
+func (lh *Handler) Handle(ctx context.Context, conn *jsonrpc2.Conn, req *jsonrpc2.Request) {
 	l := lh.logger.WithFields(logrus.Fields{
 		"method": req.Method,
 		"id":     req.ID.String()})
@@ -109,7 +118,7 @@ func (lh *lspHandler) Handle(ctx context.Context, conn *jsonrpc2.Conn, req *json
 
 	defer func() {
 		if r := recover(); r != nil {
-			l.Errorf("(CRASH) %v: %s", r, debug.Stack())
+			log.Printf("(CRASH) %v: %s", r, debug.Stack())
 		}
 	}()
 

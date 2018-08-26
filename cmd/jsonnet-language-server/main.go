@@ -43,7 +43,13 @@ func run(logger logrus.FieldLogger, debug bool) error {
 		opts = append(opts, LogMessages(logger))
 	}
 
-	<-jsonrpc2.NewConn(context.Background(), jsonrpc2.NewBufferedStream(stdrwc{}, jsonrpc2.VSCodeObjectCodec{}), handler, opts...).DisconnectNotify()
+	conn := jsonrpc2.NewConn(context.Background(),
+		jsonrpc2.NewBufferedStream(stdrwc{}, jsonrpc2.VSCodeObjectCodec{}),
+		handler, opts...)
+
+	handler.SetConn(conn)
+
+	<-conn.DisconnectNotify()
 
 	return nil
 }
