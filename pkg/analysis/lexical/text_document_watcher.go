@@ -39,6 +39,8 @@ func (tdw *TextDocumentWatcher) watch(item interface{}) error {
 		return errors.Errorf("text document watcher can't handle %T", item)
 	}
 
+	logger.Infof("caching %s", tdi.URI())
+
 	filename, err := uri.ToPath(tdi.URI())
 	if err != nil {
 		return err

@@ -6,7 +6,9 @@ import (
 
 	"github.com/bryanl/jsonnet-language-server/pkg/analysis/lexical/astext"
 	"github.com/google/go-jsonnet/ast"
+	"github.com/google/go-jsonnet/parser"
 	"github.com/pkg/errors"
+	"github.com/sirupsen/logrus"
 )
 
 type precedence int
@@ -224,12 +226,14 @@ func (p *mParser) parse(prec precedence) (ast.Node, error) {
 		var body ast.Node
 		var err error
 		if p.atEnd() {
+			logrus.Info("local assignment is missing")
 			body = &astext.Partial{
 				NodeBase: ast.NewNodeBaseLoc(locFromPartial(p.peekPrev())),
 			}
 		} else {
 			body, err = p.parse(maxPrecedence)
 			if err != nil {
+				logrus.Infof("local body is invalid at %s", p.peek().Loc.String())
 				body = &astext.Partial{
 					NodeBase: ast.NewNodeBaseLoc(locFromPartial(p.peekPrev())),
 				}
@@ -468,6 +472,8 @@ func (p *mParser) parseBind(binds *ast.LocalBinds) error {
 	body, err := p.parse(maxPrecedence)
 	if err != nil {
 		// body could be invalid in a completion event
+		logrus.Infof("bind body is incomplete at %s: %v",
+			p.peek().Loc.String(), err)
 		body = &astext.Partial{
 			NodeBase: ast.NewNodeBaseLoc(locFromPartial(p.peekPrev())),
 		}
@@ -519,8 +525,8 @@ func (p *mParser) parseArguments(elementKind string) (*Token, *ast.Arguments, bo
 			return p.pop(), args, gotComma, nil
 		}
 
-		if !first && gotComma {
-			return nil, nil, false, locError(errors.Errorf("expected a comma before next %s, got %s.", elementKind, next), next.Loc)
+		if !first && !gotComma {
+			return nil, nil, false, parser.MakeStaticError(fmt.Sprintf("Expected a comma before next %s, got %s.", elementKind, next), next.Loc)
 		}
 
 		id, expr, err := p.parseArgument()
@@ -529,7 +535,7 @@ func (p *mParser) parseArguments(elementKind string) (*Token, *ast.Arguments, bo
 		}
 		if id == nil {
 			if namedArgumentAdded {
-				return nil, nil, false, locError(errors.Errorf("positional argument after a named argument is not allowed"), next.Loc)
+				return nil, nil, false, parser.MakeStaticError("Positional argument after a named argument is not allowed", next.Loc)
 			}
 			args.Positional = append(args.Positional, expr)
 		} else {
@@ -851,6 +857,7 @@ func (p *mParser) parseObjectRemainder(tok *Token) (ast.Node, *Token, error) {
 
 				}
 				p.cur = p.cur - 1
+				logrus.Infof("object body is incomplete or missing")
 				body = &astext.Partial{
 					NodeBase: ast.NewNodeBaseLoc(locFromPartial(p.peek())),
 				}

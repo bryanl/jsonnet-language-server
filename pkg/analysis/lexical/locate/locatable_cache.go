@@ -77,10 +77,10 @@ func (lc *LocatableCache) Store(filename string, l []Locatable) error {
 	defer lc.mu.Unlock()
 
 	lc.store[filename] = l
-
+	tokenField := fmt.Sprintf("cache.locatable.file[%s].tokens", filename)
 	logrus.WithFields(logrus.Fields{
-		"cache.locatable.files.count":                            len(lc.store),
-		fmt.Sprintf("cache.locatable.file[%s].tokens", filename): len(lc.store[filename]),
+		"cache.locatable.files.count": len(lc.store),
+		tokenField:                    len(lc.store[filename]),
 	}).Info("locatable cache statistics")
 
 	return nil

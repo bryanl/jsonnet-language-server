@@ -1,13 +1,11 @@
 package token
 
 import (
-	"os"
 	"sort"
 
 	"github.com/bryanl/jsonnet-language-server/pkg/analysis/lexical/astext"
 	"github.com/bryanl/jsonnet-language-server/pkg/analysis/static"
 	jlspos "github.com/bryanl/jsonnet-language-server/pkg/util/position"
-	"github.com/davecgh/go-spew/spew"
 	"github.com/google/go-jsonnet/ast"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
@@ -238,8 +236,6 @@ func Identify(filename, source string, loc jlspos.Position, nodeCache *NodeCache
 	if err != nil {
 		return nil, err
 	}
-
-	spew.Fdump(os.Stderr, found)
 
 	es, err := eval(node, found, nodeCache)
 	if err != nil {
