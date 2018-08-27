@@ -88,5 +88,5 @@ func ImportPath(filename string, libPaths []string) (string, error) {
 		return path, nil
 	}
 
-	return "", errors.Errorf("import %q not found in lib path")
+	return "", errors.Errorf("import %q not found in lib path", filename)
 }

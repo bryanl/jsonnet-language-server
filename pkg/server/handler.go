@@ -33,6 +33,7 @@ var operations = map[string]operation{
 	"updateClientConfiguration": updateClientConfiguration,
 }
 
+// Handler is a JSON RPC Handler
 type Handler struct {
 	logger              logrus.FieldLogger
 	config              *config.Config
@@ -106,6 +107,7 @@ func (r *request) RegisterCapability(method string, options interface{}) (string
 	return id.String(), nil
 }
 
+// Handle handles a JSON RPC connection.
 func (lh *Handler) Handle(ctx context.Context, conn *jsonrpc2.Conn, req *jsonrpc2.Request) {
 	l := lh.logger.WithFields(logrus.Fields{
 		"method": req.Method,
@@ -288,6 +290,21 @@ func updateNodeCache(r *request, c *config.Config, uriStr string) {
 	}
 }
 
+func closeFile(r *request, c *config.Config, uriStr string) {
+	path, err := uri.ToPath(uriStr)
+	if err != nil {
+		r.log().WithError(err).Error("converting URI to path")
+		return
+	}
+
+	nodeCache := c.NodeCache()
+	if err := nodeCache.Remove(path); err != nil {
+		r.log().WithError(err).
+			WithField("uri", path).
+			Error("closing file")
+	}
+}
+
 func textDocumentDidOpen(r *request, c *config.Config) (interface{}, error) {
 	var dotdp lsp.DidOpenTextDocumentParams
 	if err := r.Decode(&dotdp); err != nil {
@@ -320,14 +337,14 @@ func textDocumentDidSave(r *request, c *config.Config) (interface{}, error) {
 }
 
 func textDocumentDidClose(r *request, c *config.Config) (interface{}, error) {
-	var dotdp lsp.DidOpenTextDocumentParams
-	if err := r.Decode(&dotdp); err != nil {
+	var params lsp.DidCloseTextDocumentParams
+	if err := r.Decode(&params); err != nil {
 		return nil, err
 	}
 
-	r.log().WithField("uri", dotdp.TextDocument.URI).Info("closed file")
+	r.log().WithField("uri", params.TextDocument.URI).Info("closed file")
 
-	go updateNodeCache(r, c, dotdp.TextDocument.URI)
+	go closeFile(r, c, params.TextDocument.URI)
 
 	return nil, nil
 }

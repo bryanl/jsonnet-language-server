@@ -238,6 +238,9 @@ func (p *mParser) parse(prec precedence) (ast.Node, error) {
 			}
 		}
 
+		if max := len(p.tokens) - 1; p.cur > max {
+			p.cur = max
+		}
 		fieldBodyStart := p.tokens[p.cur]
 
 		var body ast.Node
@@ -1143,6 +1146,10 @@ func (p *mParser) loc() string {
 }
 
 func (p *mParser) peek() *Token {
+	if max := len(p.tokens) - 1; p.cur > max {
+		return &p.tokens[max]
+	}
+
 	return &p.tokens[p.cur]
 }
 

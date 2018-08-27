@@ -139,52 +139,44 @@ func (c *NodeCache) set(key string, e *NodeEntry) error {
 	return nil
 }
 
+// Remove removes an item from the node cache.
+func (c *NodeCache) Remove(key string) error {
+	return errors.New("Remove is not implemented")
+}
+
 // UpdateNodeCache updates the node cache using a file.
 func UpdateNodeCache(path string, libPaths []string, cache *NodeCache) error {
+	logrus.WithFields(logrus.Fields{
+		"path":     path,
+		"libPaths": strings.Join(libPaths, ",")}).
+		Info("updating node cache")
 
 	ic := NewImportCollector(libPaths)
-	imports, err := ic.Collect(path, true)
+	pathImports, err := ic.Collect(path, true)
 	if err != nil {
 		return err
 	}
 
 	logrus.Infof("(before) cache keys %s", strings.Join(cache.Keys(), ","))
 
-	for _, jsonnetImport := range imports {
-		path, err := ImportPath(jsonnetImport, libPaths)
+	for _, pathImport := range pathImports {
+		path, err := ImportPath(pathImport, libPaths)
 		if err != nil {
 			return err
 		}
 
-		importImports, err := ic.Collect(path, false)
+		importedFiles, err := ic.Collect(path, false)
 		if err != nil {
 			return err
 		}
 
-		ncds := []NodeCacheDependency{}
-		for _, importImport := range importImports {
-			importPath, err := ImportPath(importImport, libPaths)
-			if err != nil {
-				return errors.Wrap(err, "finding path for import in import")
-			}
-
-			logrus.Infof("statting %s", importPath)
-			fi, err := os.Stat(importPath)
-			if err != nil {
-				return err
-			}
-
-			logrus.Info("building cache dependency")
-			ncd := NodeCacheDependency{
-				Name:      importImport,
-				UpdatedAt: fi.ModTime(),
-			}
-
-			ncds = append(ncds, ncd)
+		ncds, err := collectNodeDependencies(path, importedFiles, libPaths)
+		if err != nil {
+			return errors.Wrap(err, "collecting import dependencies")
 		}
 
-		ne := NewNodeEntry(ncds, libPaths, jsonnetImport)
-		if err := cache.Set(jsonnetImport, ne); err != nil {
+		ne := NewNodeEntry(ncds, libPaths, pathImport)
+		if err := cache.Set(pathImport, ne); err != nil {
 			return err
 		}
 	}
@@ -192,6 +184,31 @@ func UpdateNodeCache(path string, libPaths []string, cache *NodeCache) error {
 	logrus.Infof("(after) cache keys %s", strings.Join(cache.Keys(), ","))
 
 	return nil
+}
+
+func collectNodeDependencies(path string, names, libPaths []string) ([]NodeCacheDependency, error) {
+	ncds := []NodeCacheDependency{}
+	for _, importImport := range names {
+		importPath, err := ImportPath(importImport, libPaths)
+		if err != nil {
+			return nil, errors.Wrap(err, "finding path for import in import")
+		}
+
+		fi, err := os.Stat(importPath)
+		if err != nil {
+			return nil, err
+		}
+
+		logrus.Info("building cache dependency")
+		ncd := NodeCacheDependency{
+			Name:      importImport,
+			UpdatedAt: fi.ModTime(),
+		}
+
+		ncds = append(ncds, ncd)
+	}
+
+	return ncds, nil
 }
 
 // NodeBuilder builds ast.Node from source.

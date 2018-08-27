@@ -69,18 +69,10 @@ func (p *PerformDiagnostics) Process(td config.TextDocument, conn RPCConn) error
 		close(done)
 	}()
 
-	lv, err := newLocatableVisitor(filename, r, diagCh)
+	_, err = NewNodeVisitor(filename, r, true, parseDiagOpt(diagCh))
 	if err != nil {
 		logger.WithError(err).Info("creating visitor")
-		// The document might not be parseable, but that's not a
-		// error.
-		return nil
-	}
-
-	logger.Info("running visitText")
-	if err := lv.Visit(); err != nil {
-		logger.WithError(err).Errorf("text document watcher visit nodes in %s",
-			td.URI())
+		return err
 	}
 
 	<-done
