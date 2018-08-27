@@ -94,3 +94,9 @@ func (p *PerformDiagnostics) Process(td config.TextDocument, conn RPCConn) error
 
 	return nil
 }
+
+func parseDiagOpt(diagCh chan<- token.ParseDiagnostic) VisitOpt {
+	return func(v *NodeVisitor) {
+		v.DiagCh = diagCh
+	}
+}
