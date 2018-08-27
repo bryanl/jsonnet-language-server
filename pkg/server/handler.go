@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"log"
 	"path/filepath"
 	"runtime/debug"
@@ -313,10 +314,14 @@ func updateNodeCache(r *request, c *config.Config, uriStr string) {
 			return
 		case <-done:
 			if sentNotif {
+				msg := fmt.Sprintf("Import processing for %s is complete", path)
+				_ = showMessage(r, lsp.MTWarning, msg)
 				logrus.Info("cancel notification")
 			}
 			return
 		case <-timer.C:
+			msg := fmt.Sprintf("Import processing for %s is running", path)
+			_ = showMessage(r, lsp.MTWarning, msg)
 			logrus.Info("send notification")
 			sentNotif = true
 		}
