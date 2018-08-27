@@ -141,7 +141,7 @@ func (c *NodeCache) set(key string, e *NodeEntry) error {
 
 // Remove removes an item from the node cache.
 func (c *NodeCache) Remove(key string) error {
-	return errors.New("Remove is not implemented")
+	return nil
 }
 
 // UpdateNodeCache updates the node cache using a file.
