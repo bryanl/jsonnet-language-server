@@ -2,13 +2,14 @@ package lexical
 
 import (
 	"context"
-	"strings"
 
 	"github.com/bryanl/jsonnet-language-server/pkg/analysis/lexical/token"
 	"github.com/bryanl/jsonnet-language-server/pkg/config"
 	"github.com/bryanl/jsonnet-language-server/pkg/lsp"
 	"github.com/bryanl/jsonnet-language-server/pkg/util/position"
 	"github.com/bryanl/jsonnet-language-server/pkg/util/uri"
+	"github.com/google/go-jsonnet/ast"
+	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 )
 
@@ -39,8 +40,6 @@ func (p *PerformDiagnostics) Process(td config.TextDocument, conn RPCConn) error
 		return err
 	}
 
-	r := strings.NewReader(td.String())
-
 	done := make(chan bool, 1)
 	diagCh := make(chan token.ParseDiagnostic, 1)
 
@@ -69,10 +68,9 @@ func (p *PerformDiagnostics) Process(td config.TextDocument, conn RPCConn) error
 		close(done)
 	}()
 
-	_, err = NewNodeVisitor(filename, r, true, parseDiagOpt(diagCh))
+	_, err = convertToNode(filename, td.String(), diagCh)
 	if err != nil {
-		logger.WithError(err).Info("creating visitor")
-		return err
+		return errors.Wrap(err, "converting source to node")
 	}
 
 	<-done
@@ -95,8 +93,15 @@ func (p *PerformDiagnostics) Process(td config.TextDocument, conn RPCConn) error
 	return nil
 }
 
-func parseDiagOpt(diagCh chan<- token.ParseDiagnostic) VisitOpt {
-	return func(v *NodeVisitor) {
-		v.DiagCh = diagCh
+func convertToNode(filename, snippet string, diagCh chan<- token.ParseDiagnostic) (ast.Node, error) {
+	node, err := token.Parse(filename, snippet, diagCh)
+	if err != nil {
+		return nil, errors.Wrap(err, "parsing source")
 	}
+
+	if err := token.DesugarFile(&node); err != nil {
+		return nil, err
+	}
+
+	return node, nil
 }

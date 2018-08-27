@@ -147,3 +147,10 @@ func createIdentifier(s string) ast.Identifier {
 func idPtr(id ast.Identifier) *ast.Identifier {
 	return &id
 }
+
+func createLoc(l, c int) ast.Location {
+	return ast.Location{
+		Line:   l,
+		Column: c,
+	}
+}
