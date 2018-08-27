@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"io/ioutil"
 
-	"github.com/bryanl/jsonnet-language-server/pkg/analysis/lexical/locate"
 	"github.com/bryanl/jsonnet-language-server/pkg/analysis/lexical/token"
 	"github.com/bryanl/jsonnet-language-server/pkg/lsp"
 	"github.com/bryanl/jsonnet-language-server/pkg/util/uri"
@@ -26,7 +25,6 @@ type Config struct {
 	textDocuments   map[string]TextDocument
 	jsonnetLibPaths []string
 	nodeCache       *token.NodeCache
-	locatableCache  *locate.LocatableCache
 	dispatchers     map[string]*Dispatcher
 }
 
@@ -36,14 +34,8 @@ func New() *Config {
 		textDocuments:   make(map[string]TextDocument),
 		jsonnetLibPaths: make([]string, 0),
 		nodeCache:       token.NewNodeCache(),
-		locatableCache:  locate.NewLocatableCache(),
 		dispatchers:     map[string]*Dispatcher{},
 	}
-}
-
-// LocatableCache returns the locatable cache.
-func (c *Config) LocatableCache() *locate.LocatableCache {
-	return c.locatableCache
 }
 
 // NodeCache returns the node cache.

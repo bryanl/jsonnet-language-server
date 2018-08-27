@@ -3,7 +3,6 @@ package lexical
 import (
 	"context"
 
-	"github.com/bryanl/jsonnet-language-server/pkg/analysis/lexical/locate"
 	"github.com/bryanl/jsonnet-language-server/pkg/config"
 	"github.com/pkg/errors"
 	"github.com/sourcegraph/jsonrpc2"
@@ -16,7 +15,6 @@ type RPCConn interface {
 
 // TextDocumentWatcherConfig is configuration for TextDocumentWatcher.
 type TextDocumentWatcherConfig interface {
-	LocatableCache() *locate.LocatableCache
 	Watch(string, config.DispatchFn) config.DispatchCancelFn
 }
 

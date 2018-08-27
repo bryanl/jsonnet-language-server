@@ -3,16 +3,12 @@ package lexical
 import (
 	"testing"
 
-	"github.com/bryanl/jsonnet-language-server/pkg/analysis/lexical/locate"
 	"github.com/bryanl/jsonnet-language-server/pkg/config"
 	"github.com/bryanl/jsonnet-language-server/pkg/lsp"
 )
 
 func TestTextDocumentWatcher_watch(t *testing.T) {
-	lc := locate.NewLocatableCache()
-	c := &fakeTextDocumentWatcherConfig{
-		lc: lc,
-	}
+	c := &fakeTextDocumentWatcherConfig{}
 
 	dp := &fakeDocumentProcessor{}
 

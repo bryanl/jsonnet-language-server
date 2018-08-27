@@ -48,7 +48,7 @@ func Test_matchHandler_handleIndex(t *testing.T) {
 			at:   position.New(5, 13),
 			expected: func(r position.Range) []lsp.CompletionItem {
 				return []lsp.CompletionItem{
-					createCompletionItem("a", `a`, lsp.CIKVariable, r,
+					createCompletionItem(`"a"`, `"a"`, lsp.CIKVariable, r,
 						&token.ScopeEntry{Detail: "(local)"}),
 				}
 			},
@@ -59,8 +59,8 @@ func Test_matchHandler_handleIndex(t *testing.T) {
 			at:   position.New(1, 31),
 			expected: func(r position.Range) []lsp.CompletionItem {
 				return []lsp.CompletionItem{
-					createCompletionItem("a", `a`, lsp.CIKVariable, r,
-						&token.ScopeEntry{Detail: "(string) a"}),
+					createCompletionItem(`"a"`, `"a"`, lsp.CIKVariable, r,
+						&token.ScopeEntry{Detail: `(string) "a"`}),
 				}
 			},
 		},

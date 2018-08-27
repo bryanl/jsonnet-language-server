@@ -6,7 +6,6 @@ import (
 	"io/ioutil"
 	"log"
 
-	"github.com/bryanl/jsonnet-language-server/pkg/analysis/lexical/locate"
 	"github.com/bryanl/jsonnet-language-server/pkg/analysis/lexical/token"
 	"github.com/bryanl/jsonnet-language-server/pkg/analysis/static"
 	"github.com/davecgh/go-spew/spew"
@@ -39,18 +38,6 @@ func main() {
 		}
 
 		spew.Dump(n)
-	case 2:
-		m, err := token.NewMatch(*filename, string(data))
-		if err != nil {
-			log.Fatal(err)
-		}
-
-		n, err := m.Expr(0)
-		if err != nil {
-			log.Fatal(err)
-		}
-
-		fmt.Println(m.Tokens[0 : n+1])
 	case 3:
 		n, err := jsonnet.SnippetToAST(*filename, string(data))
 		if err != nil {
@@ -59,7 +46,7 @@ func main() {
 
 		spew.Dump(n)
 	case 4:
-		n, err := token.Parse(*filename, string(data))
+		n, err := token.Parse(*filename, string(data), nil)
 		if err != nil {
 			log.Fatal(err)
 		}
@@ -80,7 +67,7 @@ func main() {
 }
 
 func lex(filename, snippet string) {
-	tokens, err := locate.Lex(filename, snippet)
+	tokens, err := token.Lex(filename, snippet)
 	if err != nil {
 		log.Fatal(err)
 	}
