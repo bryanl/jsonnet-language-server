@@ -6,6 +6,7 @@ import (
 	"log"
 	"path/filepath"
 	"runtime/debug"
+	"time"
 
 	"github.com/bryanl/jsonnet-language-server/pkg/analysis/lexical"
 	"github.com/bryanl/jsonnet-language-server/pkg/analysis/lexical/token"
@@ -283,11 +284,44 @@ func updateNodeCache(r *request, c *config.Config, uriStr string) {
 		return
 	}
 
-	if err := token.UpdateNodeCache(path, c.JsonnetLibPaths(), c.NodeCache()); err != nil {
-		r.log().WithError(err).
-			WithField("uri", path).
-			Error("updating node cache")
+	// do notification stuff here
+
+	done := make(chan bool, 1)
+	errCh := make(chan error, 1)
+
+	timer := time.NewTimer(1 * time.Second)
+	defer timer.Stop()
+
+	go func() {
+		err := token.UpdateNodeCache(path, c.JsonnetLibPaths(), c.NodeCache())
+		if err != nil {
+			errCh <- err
+			return
+		}
+
+		done <- true
+	}()
+
+	sentNotif := false
+
+	for {
+		select {
+		case err := <-errCh:
+			r.log().WithError(err).
+				WithField("uri", path).
+				Error("updating node cache")
+			return
+		case <-done:
+			if sentNotif {
+				logrus.Info("cancel notification")
+			}
+			return
+		case <-timer.C:
+			logrus.Info("send notification")
+			sentNotif = true
+		}
 	}
+
 }
 
 func closeFile(r *request, c *config.Config, uriStr string) {
