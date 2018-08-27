@@ -48,7 +48,8 @@ var _ jsonrpc2.Handler = (*Handler)(nil)
 func NewHandler(logger logrus.FieldLogger) *Handler {
 	c := config.New()
 	nodeCache := token.NewNodeCache()
-	tdw := lexical.NewTextDocumentWatcher(c)
+
+	tdw := lexical.NewTextDocumentWatcher(c, lexical.NewPerformDiagnostics())
 
 	return &Handler{
 		logger:              logger.WithField("component", "handler"),
@@ -59,6 +60,7 @@ func NewHandler(logger logrus.FieldLogger) *Handler {
 	}
 }
 
+// SetConn sets the RPC connection for the handler.
 func (h *Handler) SetConn(conn *jsonrpc2.Conn) {
 	h.conn = conn
 	h.textDocumentWatcher.SetConn(conn)
