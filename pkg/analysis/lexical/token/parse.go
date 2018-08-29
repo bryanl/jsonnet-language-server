@@ -128,6 +128,17 @@ func (p *mParser) parse(prec precedence) (ast.Node, error) {
 			Rest:     rest,
 		}, nil
 
+	case TokenError:
+		p.pop()
+		expr, err := p.parse(maxPrecedence)
+		if err != nil {
+			return nil, err
+		}
+		return &ast.Error{
+			NodeBase: ast.NewNodeBaseLoc(locFromTokenAST(begin, expr)),
+			Expr:     expr,
+		}, nil
+
 	case TokenIf:
 		p.pop()
 		cond, err := p.parse(maxPrecedence)
@@ -1195,7 +1206,7 @@ func (p *mParser) publishDiag(msg string, loc ast.LocationRange) {
 }
 
 func (p *mParser) unexpectedError(t *Token, while string) error {
-	return locError(errors.Errorf("unexpected: %v while %v", t, while), t.Loc)
+	return errors.Errorf("unexpected: %v while %v at %s", t, while, t.Loc.String())
 }
 
 func (p *mParser) unexpectedTokenError(tk TokenKind, t *Token) error {

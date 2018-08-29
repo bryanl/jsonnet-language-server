@@ -3,8 +3,10 @@ package token
 import (
 	"fmt"
 
+	rice "github.com/GeertJohan/go.rice"
 	"github.com/bryanl/jsonnet-language-server/pkg/analysis/lexical/astext"
 	"github.com/google/go-jsonnet/ast"
+	"github.com/pkg/errors"
 )
 
 type evaluator struct {
@@ -14,16 +16,24 @@ type evaluator struct {
 	err       error
 }
 
+// evalScope is an evaluation scope.
 type evalScope struct {
 	nodeCache *NodeCache
 	store     map[ast.Identifier]ast.Node
 }
 
-func newEvalScope(nc *NodeCache) *evalScope {
-	return &evalScope{
-		store:     make(map[ast.Identifier]ast.Node),
-		nodeCache: nc,
+func newEvalScope(nc *NodeCache) (*evalScope, error) {
+	std, err := loadStdlib()
+	if err != nil {
+		return nil, errors.Wrap(err, "load stdlib")
 	}
+
+	return &evalScope{
+		store: map[ast.Identifier]ast.Node{
+			ast.Identifier("std"): std,
+		},
+		nodeCache: nc,
+	}, nil
 }
 
 func (e *evalScope) set(id ast.Identifier, node ast.Node) error {
@@ -42,8 +52,26 @@ func (e *evalScope) set(id ast.Identifier, node ast.Node) error {
 	return nil
 }
 
+func loadStdlib() (ast.Node, error) {
+	box, err := rice.FindBox("ext")
+	if err != nil {
+		return nil, err
+	}
+
+	source, err := box.String("std.jsonnet")
+	if err != nil {
+		return nil, err
+	}
+
+	return Parse("std.jsonnet", source, nil)
+}
+
 func (e *evalScope) Clone() *evalScope {
-	clone := newEvalScope(e.nodeCache)
+	clone := &evalScope{
+		store:     make(map[ast.Identifier]ast.Node),
+		nodeCache: e.nodeCache,
+	}
+
 	for k, v := range e.store {
 		clone.store[k] = v
 	}
@@ -131,14 +159,18 @@ func (e *evaluator) eval(n ast.Node, parentScope *evalScope) {
 }
 
 func eval(node, until ast.Node, nc *NodeCache) (*evalScope, error) {
+	es, err := newEvalScope(nc)
+	if err != nil {
+		return nil, errors.Wrap(err, "create eval scope")
+	}
+
 	e := evaluator{
 		nodeCache: nc,
 		until:     until,
-		scope:     newEvalScope(nc),
+		scope:     es,
 	}
 
-	s := newEvalScope(nc)
-	e.eval(node, s)
+	e.eval(node, es)
 
 	if e.err != nil {
 		return nil, e.err

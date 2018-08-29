@@ -21,31 +21,31 @@ func TestScope(t *testing.T) {
 			name:     "valid local",
 			src:      `local a="a";a`,
 			loc:      jlspos.New(1, 13),
-			expected: []string{"a"},
+			expected: []string{"a", "std"},
 		},
 		{
 			name:     "local with no body",
 			src:      `local a="a";`,
 			loc:      jlspos.New(2, 1),
-			expected: []string{"a"},
+			expected: []string{"a", "std"},
 		},
 		{
 			name:     "local with an incomplete body",
 			src:      "local o={a:'b'};\nlocal y=o.\n",
 			loc:      jlspos.New(2, 11),
-			expected: []string{"o", "y"},
+			expected: []string{"o", "std", "y"},
 		},
 		{
 			name:     "object keys in invalid local",
 			src:      `local o={a:"a"};`,
 			loc:      jlspos.New(2, 1),
-			expected: []string{"o"},
+			expected: []string{"o", "std"},
 		},
 		{
 			name:     "deep object",
 			src:      `local o={a:{b:{c:{d:"e"}}}};o.a.b.c.d.e`,
 			loc:      jlspos.New(1, 36),
-			expected: []string{"o"},
+			expected: []string{"o", "std"},
 		},
 	}
 

@@ -45,7 +45,9 @@ func Test_eval(t *testing.T) {
 	got, err := eval(n, localBody, nc)
 	require.NoError(t, err)
 
-	expected := newEvalScope(nc)
+	expected, err := newEvalScope(nc)
+	require.NoError(t, err)
+
 	expected.set("o", n.Binds[0].Body)
 
 	require.Equal(t, expected, got)
@@ -97,7 +99,9 @@ func Test_eval_nested_local(t *testing.T) {
 	got, err := eval(n, localBody, nc)
 	require.NoError(t, err)
 
-	expected := newEvalScope(nc)
+	expected, err := newEvalScope(nc)
+	require.NoError(t, err)
+
 	expected.set("o", n.Binds[0].Body)
 	expected.set("b", localB.Binds[0].Body)
 
@@ -138,7 +142,9 @@ func Test_eval_in_object(t *testing.T) {
 	got, err := eval(n, fieldBody, nc)
 	require.NoError(t, err)
 
-	expected := newEvalScope(nc)
+	expected, err := newEvalScope(nc)
+	require.NoError(t, err)
+
 	expected.set("o", n.Binds[0].Body)
 	expected.set("$", &ast.Self{})
 
@@ -167,7 +173,9 @@ func Test_eval_import(t *testing.T) {
 	got, err := eval(n, localBody, nc)
 	require.NoError(t, err)
 
-	expected := newEvalScope(nc)
+	expected, err := newEvalScope(nc)
+	require.NoError(t, err)
+
 	expected.set("params", importedNode)
 
 	require.Equal(t, expected, got)
