@@ -42,10 +42,6 @@ func (ns *nodeScope) Remove(i ast.Identifier) {
 	delete(ns.store, i)
 }
 
-func (ns *nodeScope) ToScope() ast.Scope {
-	return ns.store
-}
-
 type analysisState struct {
 	err       error
 	freeVars  ast.IdentifierSet
@@ -61,9 +57,6 @@ func newAnalysisState() *analysisState {
 
 func (s *analysisState) Add(node ast.Node) {
 	s.freeVars.AddIdentifiers(node.FreeVariables())
-	for k, v := range node.Scope() {
-		s.nodeScope.Add(k, v)
-	}
 }
 
 type analysisVars struct {
@@ -244,7 +237,6 @@ func analyzeVisit(a ast.Node, inObject bool, vars *analysisVars) error {
 		panic(fmt.Sprintf("Unexpected node %T", a))
 	}
 	a.SetFreeVariables(s.freeVars.ToOrderedSlice())
-	a.SetScope(s.nodeScope.ToScope())
 	return s.err
 }
 
