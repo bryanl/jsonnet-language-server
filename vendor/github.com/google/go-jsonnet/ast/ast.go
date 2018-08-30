@@ -401,11 +401,7 @@ type LocalBind struct {
 	Body     Node
 	Fun      *Function
 
-	loc *LocationRange
-}
-
-func (lb *LocalBind) Loc() *LocationRange {
-	return lb.loc
+	VarLoc LocationRange
 }
 
 // LocalBinds represents a LocalBind slice.
