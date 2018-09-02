@@ -51,17 +51,17 @@ func Test_matchHandler_handleIndex(t *testing.T) {
 				}
 			},
 		},
-		// {
-		// 	name: "nested index",
-		// 	text: `local o={data:{a:"a"}};o.data.`,
-		// 	at:   position.New(1, 31),
-		// 	expected: func(r position.Range) []lsp.CompletionItem {
-		// 		return []lsp.CompletionItem{
-		// 			createCompletionItem(`"a"`, `"a"`, lsp.CIKVariable, r,
-		// 				&token.ScopeEntry{Detail: `(string) "a"`}),
-		// 		}
-		// 	},
-		// },
+		{
+			name: "nested index",
+			text: `local o={data:{a:"a"}};o.data.`,
+			at:   position.New(1, 31),
+			expected: func(r position.Range) []lsp.CompletionItem {
+				return []lsp.CompletionItem{
+					createCompletionItem(`"a"`, `"a"`, lsp.CIKVariable, r,
+						&token.ScopeEntry{Detail: `(string) "a"`}),
+				}
+			},
+		},
 	}
 
 	for _, tc := range cases {

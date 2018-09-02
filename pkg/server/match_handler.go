@@ -13,7 +13,6 @@ import (
 	"github.com/bryanl/jsonnet-language-server/pkg/langserver"
 	"github.com/bryanl/jsonnet-language-server/pkg/lsp"
 	"github.com/bryanl/jsonnet-language-server/pkg/util/position"
-	"github.com/davecgh/go-spew/spew"
 	"github.com/google/go-jsonnet/ast"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
@@ -98,21 +97,16 @@ func (mh *matchHandler) handleIndex(pos position.Position, filePath, source stri
 		return nil, err
 	}
 
-	spew.Dump("scope keys", scope.Keys())
-
 	truncated, err := truncateText(source, pos)
 	if err != nil {
 		return nil, err
 	}
 
-	fmt.Println("source - ", source)
-	fmt.Println("truncated - ", truncated)
 	path, err := resolveIndex(truncated)
 	if err != nil {
 		return nil, err
 	}
 
-	fmt.Printf("XXX - %s", spew.Sdump(path))
 	se, err := scope.GetInPath(path)
 	if err != nil {
 		return nil, err
@@ -133,6 +127,7 @@ func (mh *matchHandler) handleIndex(pos position.Position, filePath, source stri
 			items = append(items, ci)
 		}
 	case *ast.Object:
+		// TODO check to see if this case is used. Objects should be desguared.
 		for _, field := range n.Fields {
 			var name string
 			switch field.Kind {
@@ -183,11 +178,10 @@ func createCompletionItem(label, text string, kind int, r position.Range, se *to
 }
 
 var (
-	reIndex = regexp.MustCompile(`((\w+\.)*\w+)\.[\]\)\}]*$`)
+	reIndex = regexp.MustCompile(`((\w+\.)*\w+)\.[;\]\)\}]*$`)
 )
 
 func resolveIndex(source string) ([]string, error) {
-	fmt.Printf("XXX - resolveIndex source [%s]\n", source)
 	match := reIndex.FindAllString(source, 1)
 	if match == nil {
 		return nil, errors.Errorf("%q does not contain an index", source)
