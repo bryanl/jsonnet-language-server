@@ -24,6 +24,10 @@
 #   go-tests = true
 #   unused-packages = true
 
+[[constraint]]
+  name = "github.com/ksonnet/ksonnet-lib"
+  source = "github.com/bryanl/ksonnet-lib"
+  branch = "print-desugared-object"
 
 [[constraint]]
   name = "github.com/davecgh/go-spew"
@@ -33,7 +37,7 @@
   name = "github.com/sirupsen/logrus"
   version = "1.0.6"
 
-[[constraint]]
+[[override]]
   name = "github.com/google/go-jsonnet"
   source = "github.com/bryanl/go-jsonnet"
   branch = "manifest-to-node"

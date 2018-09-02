@@ -8,7 +8,6 @@ import (
 	"github.com/bryanl/jsonnet-language-server/pkg/analysis/lexical/astext"
 	"github.com/bryanl/jsonnet-language-server/pkg/analysis/static"
 	jlspos "github.com/bryanl/jsonnet-language-server/pkg/util/position"
-	"github.com/davecgh/go-spew/spew"
 	"github.com/google/go-jsonnet/ast"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
@@ -52,14 +51,20 @@ func (sm *Scope) Keys() []string {
 	return keys
 }
 
+// Keywords returns jsonnet keywords.
 func (sm *Scope) Keywords() []string {
 	return []string{"assert", "else", "error", "false", "for",
 		"function", "if", "import", "importstr", "in", "local",
 		"null", "tailstrict", "then", "self", "super", "true"}
 }
 
+// GetInPath returns an entry given a path.
 func (sm *Scope) GetInPath(path []string) (*ScopeEntry, error) {
 	id, path := path[0], path[1:]
+
+	if id == "std" {
+		return resolveStd(path)
+	}
 
 	e, err := sm.Get(id)
 	if err != nil {
@@ -249,8 +254,6 @@ func LocationScope(filename, source string, loc jlspos.Position, nodeCache *Node
 		return nil, err
 	}
 
-	spew.Dump(node)
-
 	sm := newScope(nodeCache)
 	sm.addEvalScope(es)
 
@@ -265,6 +268,8 @@ func resolveIndex(i *ast.Index) (*ast.Var, []string) {
 	var path []string
 	for count < 100 && !done {
 		switch c := cur.(type) {
+		case *ast.Apply:
+			cur = c.Target
 		case *ast.Index:
 			s, ok := c.Index.(*ast.LiteralString)
 			if !ok {
@@ -276,10 +281,17 @@ func resolveIndex(i *ast.Index) (*ast.Var, []string) {
 			v = c
 			path = append([]string{string(c.Id)}, path...)
 			done = true
+		default:
+			panic(fmt.Sprintf("unable to resolve a %T in index", c))
 		}
 
 		count++
 	}
 
 	return v, path
+}
+
+func resolveStd(path []string) (*ScopeEntry, error) {
+	return nil, errors.Errorf("resolveStd for %s not implemented",
+		strings.Join(path, "."))
 }

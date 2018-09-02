@@ -257,7 +257,11 @@ func textDocumentHover(r *request, c *config.Config) (interface{}, error) {
 		return nil, err
 	}
 
-	h := newHover(tdpp, c)
+	h, err := newHover(tdpp, c)
+	if err != nil {
+		return nil, err
+	}
+
 	return h.handle()
 }
 

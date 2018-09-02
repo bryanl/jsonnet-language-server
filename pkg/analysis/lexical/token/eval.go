@@ -63,7 +63,16 @@ func loadStdlib() (ast.Node, error) {
 		return nil, err
 	}
 
-	return Parse("std.jsonnet", source, nil)
+	node, err := Parse("std.jsonnet", source, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	if err = DesugarFile(&node); err != nil {
+		return nil, err
+	}
+
+	return node, nil
 }
 
 func (e *evalScope) Clone() *evalScope {

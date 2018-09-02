@@ -5,7 +5,6 @@ import (
 
 	"github.com/bryanl/jsonnet-language-server/pkg/analysis/lexical/astext"
 	pos "github.com/bryanl/jsonnet-language-server/pkg/util/position"
-	"github.com/davecgh/go-spew/spew"
 	"github.com/google/go-jsonnet/ast"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -98,8 +97,7 @@ func TestParse(t *testing.T) {
 			done := make(chan bool, 1)
 
 			go func() {
-				for pd := range ch {
-					spew.Dump(pd)
+				for _ = range ch {
 				}
 
 				done <- true
