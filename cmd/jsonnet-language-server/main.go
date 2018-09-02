@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	"log"
+	"net/http"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -16,6 +18,8 @@ import (
 	"github.com/sourcegraph/jsonrpc2"
 
 	"github.com/sirupsen/logrus"
+
+	_ "net/http/pprof"
 )
 
 func main() {
@@ -35,6 +39,10 @@ func main() {
 
 func run(logger logrus.FieldLogger, debug bool) error {
 	logger.Info("scanning stdin")
+
+	go func() {
+		log.Fatal(http.ListenAndServe("localhost:9765", http.DefaultServeMux))
+	}()
 
 	handler := server.NewHandler(logger)
 
