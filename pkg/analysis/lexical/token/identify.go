@@ -124,12 +124,15 @@ func (i *identifier) clone(n ast.Node) identifier {
 
 func (i *identifier) identify() (fmt.Stringer, error) {
 	switch n := i.n.(type) {
+
 	case *ast.Index:
 		return i.index(n)
 	case *ast.Local:
 		return i.local(n)
 	case *ast.Var:
 		return i.variable(n)
+	case *ast.Apply, *ast.Object:
+		return astext.NewItem(i.n), nil
 	case nil, *ast.Array, *ast.DesugaredObject, *ast.Import,
 		*ast.LiteralBoolean, *ast.LiteralNumber, *ast.LiteralString,
 		*astext.Partial:
@@ -163,8 +166,13 @@ func (i *identifier) index(idx *ast.Index) (fmt.Stringer, error) {
 func (i *identifier) variable(v *ast.Var) (fmt.Stringer, error) {
 	x, ok := i.es.store[v.Id]
 	if ok {
-		ptr := i.clone(x)
-		return ptr.identify()
+		switch v := x.(type) {
+		case *ast.Index:
+			ptr := i.clone(v)
+			return ptr.identify()
+		default:
+			return astext.NewItem(x), nil
+		}
 	}
 
 	return IdentifyNoMatch, nil

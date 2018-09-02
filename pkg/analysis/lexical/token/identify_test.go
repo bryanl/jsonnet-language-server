@@ -39,7 +39,7 @@ func TestIdentify(t *testing.T) {
 	}{
 		{name: "local keyword", source: source1, pos: jlspos.New(1, 1), expected: ""},
 		{name: "local bind variable", source: source1, pos: jlspos.New(1, 7), expected: `(string) 'a'`},
-		// {name: "local body", source: source1, pos: jlspos.New(1, 14), expected: `(string) "a"`},
+		{name: "local body", source: source1, pos: jlspos.New(1, 14), expected: `(string) "a"`},
 		{name: "object", source: source2, pos: jlspos.New(1, 7), expected: "(object) {\n  (field) a:,\n}"},
 		{name: "import", source: source3, pos: jlspos.New(1, 7), expected: "(object) {\n  (field) imported::,\n}"},
 		{name: "index object", source: source4, pos: jlspos.New(1, 24), expected: "(object) {\n  (field) b:,\n}"},
@@ -48,7 +48,6 @@ func TestIdentify(t *testing.T) {
 		{name: "deep nested 2", source: source7, pos: jlspos.New(3, 5), expected: "(string) \"d\""},
 		{name: "local extVar assignment", source: source8, pos: jlspos.New(1, 7), expected: "(object) {\n  (field) item1:,\n}"},
 		{name: "item from extVar", source: source8, pos: jlspos.New(1, 53), expected: "(object) {\n  (field) item1:,\n}"},
-		{name: "item in extVar", source: source8, pos: jlspos.New(1, 55), expected: "(object) {\n  (field) item1:,\n}"},
 	}
 
 	for _, tc := range cases {
