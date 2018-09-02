@@ -623,7 +623,7 @@ func desugar(astPtr *ast.Node, objLevel int) (err error) {
 	case *ast.Var:
 		// Nothing to do.
 
-	case *astext.Partial:
+	case *astext.Partial, *astext.PartialIndex:
 		// Noting to do.
 
 	default:

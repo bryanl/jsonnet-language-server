@@ -4,6 +4,8 @@ import (
 	"testing"
 
 	"github.com/bryanl/jsonnet-language-server/pkg/analysis/lexical/astext"
+	pos "github.com/bryanl/jsonnet-language-server/pkg/util/position"
+	"github.com/davecgh/go-spew/spew"
 	"github.com/google/go-jsonnet/ast"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -36,12 +38,6 @@ func TestParse(t *testing.T) {
 					if assert.Len(t, local.Binds, 1) {
 						bind := local.Binds[0]
 						require.Equal(t, createIdentifier("y"), bind.Variable)
-						body, ok := bind.Body.(*astext.Partial)
-						if assert.True(t, ok) {
-							expected := createLoc(1, 11)
-							require.Equal(t, expected, body.Loc().Begin)
-						}
-
 					}
 
 					body, ok := local.Body.(*astext.Partial)
@@ -73,14 +69,49 @@ func TestParse(t *testing.T) {
 				})
 			},
 		},
+		{
+			name:   "incomplete index in local body",
+			source: "local o={a: 9}; o.",
+			check: func(t *testing.T, node ast.Node) {
+				withLocal(t, node, func(local *ast.Local) {
+					index, ok := local.Body.(*astext.PartialIndex)
+					if assert.True(t, ok, "got %T; expected %T", local.Body, &astext.PartialIndex{}) {
+						r := pos.NewRange(
+							pos.New(1, 19),
+							pos.New(1, 19))
+						require.Equal(t, r, pos.FromJsonnetRange(*index.Loc()))
+
+						v, ok := index.Target.(*ast.Var)
+						if assert.True(t, ok, "got %T; expected %T", index.Target, &ast.Var{}) {
+							expected := ast.Identifier("o")
+							assert.Equal(t, expected, v.Id)
+						}
+					}
+				})
+			},
+		},
 	}
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			got, err := Parse("file.jsonnet", tc.source, nil)
+			ch := make(chan ParseDiagnostic, 1)
+			done := make(chan bool, 1)
+
+			go func() {
+				for pd := range ch {
+					spew.Dump(pd)
+				}
+
+				done <- true
+			}()
+
+			got, err := Parse("file.jsonnet", tc.source, ch)
 			require.NoError(t, err)
 
 			tc.check(t, got)
+
+			<-done
+
 		})
 	}
 }

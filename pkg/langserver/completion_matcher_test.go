@@ -26,14 +26,14 @@ func TestCompletionMatchers(t *testing.T) {
 		},
 	}
 
-	fn := func(r position.Range, source, matched string) ([]lsp.CompletionItem, error) {
+	fn := func(p position.Position, path, source string) ([]lsp.CompletionItem, error) {
 		return resp, nil
 	}
 
 	err := cm.Register(`item\s?`, fn)
 	require.NoError(t, err)
 
-	list, err := cm.Match(editRange, "local item ")
+	list, err := cm.Match(pos, "file.jsonnet", "local item ")
 	require.NoError(t, err)
 
 	assert.Equal(t, resp, list)
@@ -56,14 +56,14 @@ func TestCompletionMatchers_no_match(t *testing.T) {
 		},
 	}
 
-	fn := func(r position.Range, source, matched string) ([]lsp.CompletionItem, error) {
+	fn := func(p position.Position, path, source string) ([]lsp.CompletionItem, error) {
 		return resp, nil
 	}
 
 	err := cm.Register("item", fn)
 	require.NoError(t, err)
 
-	list, err := cm.Match(editRange, "local foo ")
+	list, err := cm.Match(pos, "file.jsonnet", "local foo ")
 	require.NoError(t, err)
 
 	expected := []lsp.CompletionItem{}
@@ -73,7 +73,7 @@ func TestCompletionMatchers_no_match(t *testing.T) {
 func TestCompletionMatchers_invalid_term(t *testing.T) {
 	cm := NewCompletionMatcher()
 
-	fn := func(r position.Range, source, atched string) ([]lsp.CompletionItem, error) {
+	fn := func(p position.Position, path, source string) ([]lsp.CompletionItem, error) {
 		panic("shouldn't be able to get here")
 	}
 
@@ -98,14 +98,14 @@ func TestCompletionMatchers_proceeding_ender(t *testing.T) {
 		},
 	}
 
-	fn := func(r position.Range, source, matched string) ([]lsp.CompletionItem, error) {
+	fn := func(p position.Position, path, source string) ([]lsp.CompletionItem, error) {
 		return resp, nil
 	}
 
 	err := cm.Register(`item\s?`, fn)
 	require.NoError(t, err)
 
-	list, err := cm.Match(editRange, "local item ]")
+	list, err := cm.Match(pos, "file.jsonnet", "local item ]")
 	require.NoError(t, err)
 
 	assert.Equal(t, resp, list)

@@ -410,7 +410,13 @@ func (p *mParser) parse(prec precedence) (ast.Node, error) {
 			case TokenDot:
 				fieldID, err := p.popExpect(TokenIdentifier)
 				if err != nil {
-					return nil, err
+					cur := p.peek()
+					loc := locFromTokens(cur, cur)
+					p.publishDiag("expected field id", cur.Loc)
+					return &astext.PartialIndex{
+						NodeBase: ast.NewNodeBaseLoc(loc),
+						Target:   lhs,
+					}, nil
 				}
 				id := ast.Identifier(fieldID.Data)
 				lhs = &ast.Index{

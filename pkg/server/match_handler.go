@@ -1,6 +1,8 @@
 package server
 
 import (
+	"bufio"
+	"bytes"
 	"fmt"
 	"regexp"
 	"strings"
@@ -11,6 +13,7 @@ import (
 	"github.com/bryanl/jsonnet-language-server/pkg/langserver"
 	"github.com/bryanl/jsonnet-language-server/pkg/lsp"
 	"github.com/bryanl/jsonnet-language-server/pkg/util/position"
+	"github.com/davecgh/go-spew/spew"
 	"github.com/google/go-jsonnet/ast"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
@@ -37,14 +40,12 @@ func (jpm *defaultJsonnetPathManager) Files() ([]string, error) {
 
 type matchHandler struct {
 	jsonnetPathManager jsonnetPathManager
-	textDocument       config.TextDocument
 	nodeCache          *token.NodeCache
 }
 
-func newMatchHandler(jpm jsonnetPathManager, td config.TextDocument, nc *token.NodeCache) *matchHandler {
+func newMatchHandler(jpm jsonnetPathManager, nc *token.NodeCache) *matchHandler {
 	mh := &matchHandler{
 		jsonnetPathManager: jpm,
-		textDocument:       td,
 		nodeCache:          nc,
 	}
 
@@ -67,7 +68,8 @@ func (mh *matchHandler) register(cm *langserver.CompletionMatcher) error {
 	return nil
 }
 
-func (mh *matchHandler) handleImport(editRange position.Range, source, matched string) ([]lsp.CompletionItem, error) {
+func (mh *matchHandler) handleImport(pos position.Position, path, source string) ([]lsp.CompletionItem, error) {
+	editRange := position.NewRange(pos, pos)
 	logrus.Printf("handling import")
 	var items []lsp.CompletionItem
 
@@ -86,31 +88,37 @@ func (mh *matchHandler) handleImport(editRange position.Range, source, matched s
 	return items, nil
 }
 
-func (mh *matchHandler) handleIndex(editRange position.Range, source, matched string) ([]lsp.CompletionItem, error) {
+func (mh *matchHandler) handleIndex(pos position.Position, filePath, source string) ([]lsp.CompletionItem, error) {
 	logrus.Printf("handling index")
-	loc := editRange.Start
-
-	filename, err := mh.textDocument.Filename()
-	if err != nil {
-		return nil, err
-	}
 
 	var items []lsp.CompletionItem
 
-	scope, err := token.LocationScope(filename, mh.textDocument.String(), loc, mh.nodeCache)
+	scope, err := token.LocationScope(filePath, source, pos, mh.nodeCache)
 	if err != nil {
 		return nil, err
 	}
 
-	path, err := resolveIndex(source)
+	spew.Dump("scope keys", scope.Keys())
+
+	truncated, err := truncateText(source, pos)
 	if err != nil {
 		return nil, err
 	}
 
+	fmt.Println("source - ", source)
+	fmt.Println("truncated - ", truncated)
+	path, err := resolveIndex(truncated)
+	if err != nil {
+		return nil, err
+	}
+
+	fmt.Printf("XXX - %s", spew.Sdump(path))
 	se, err := scope.GetInPath(path)
 	if err != nil {
 		return nil, err
 	}
+
+	editRange := position.NewRange(pos, pos)
 
 	switch n := se.Node.(type) {
 	case *ast.DesugaredObject:
@@ -179,6 +187,7 @@ var (
 )
 
 func resolveIndex(source string) ([]string, error) {
+	fmt.Printf("XXX - resolveIndex source [%s]\n", source)
 	match := reIndex.FindAllString(source, 1)
 	if match == nil {
 		return nil, errors.Errorf("%q does not contain an index", source)
@@ -192,7 +201,7 @@ func resolveIndex(source string) ([]string, error) {
 }
 
 var (
-	ignoredIndexItems = []string{"}", "]", ")"}
+	ignoredIndexItems = []string{"}", "]", ")", ";"}
 )
 
 func removeEmpty(sl []string) []string {
@@ -216,4 +225,41 @@ func stringInSlice(s string, sl []string) bool {
 	}
 
 	return false
+}
+
+// Truncate returns text truncated at a position.
+func truncateText(source string, p position.Position) (string, error) {
+	scanner := bufio.NewScanner(strings.NewReader(source))
+	scanner.Split(bufio.ScanBytes)
+
+	var buf bytes.Buffer
+
+	c := 0
+	l := 1
+
+	for scanner.Scan() {
+		c++
+
+		t := scanner.Text()
+
+		_, err := buf.WriteString(t)
+		if err != nil {
+			return "", err
+		}
+
+		if l == p.Line() && c == p.Column() {
+			break
+		}
+
+		if t == "\n" {
+			l++
+			c = 0
+		}
+	}
+
+	if err := scanner.Err(); err != nil {
+		return "", err
+	}
+
+	return strings.TrimRight(buf.String(), "\n"), nil
 }

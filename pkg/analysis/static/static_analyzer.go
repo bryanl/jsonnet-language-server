@@ -217,7 +217,7 @@ func analyzeVisit(a ast.Node, inObject bool, vars *analysisVars) error {
 		for _, assert := range a.Asserts {
 			visitNext(assert, true, vars, s)
 		}
-	case *astext.Partial:
+	case *astext.Partial, *astext.PartialIndex:
 		// Nothing to do here
 	case *ast.Self:
 		if !inObject {

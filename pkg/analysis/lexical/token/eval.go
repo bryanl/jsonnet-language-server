@@ -140,7 +140,7 @@ func (e *evaluator) eval(n ast.Node, parentScope *evalScope) {
 		}
 
 		e.eval(n.Body, s)
-	case *astext.Partial:
+	case *astext.Partial, *astext.PartialIndex:
 		// nothing to do
 	case *ast.Self:
 	case *ast.SuperIndex:

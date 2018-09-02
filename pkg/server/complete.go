@@ -30,13 +30,8 @@ func newComplete(rp lsp.ReferenceParams, cfg *config.Config) (*complete, error) 
 		completionMatcher: langserver.NewCompletionMatcher(),
 	}
 
-	td, err := cfg.Text(rp.TextDocument.URI)
-	if err != nil {
-		return nil, err
-	}
-
 	jpm := newJsonnetPathManager(cfg)
-	mh := newMatchHandler(jpm, *td, cfg.NodeCache())
+	mh := newMatchHandler(jpm, cfg.NodeCache())
 	if err := mh.register(c.completionMatcher); err != nil {
 		return nil, err
 	}
@@ -74,7 +69,7 @@ func (c *complete) handle() (interface{}, error) {
 	matchText = strings.TrimSpace(matchText)
 	logrus.Info(matchText)
 
-	matchItems, err := c.completionMatcher.Match(editRange, matchText)
+	matchItems, err := c.completionMatcher.Match(pos, path, text.String())
 	if err != nil {
 		return nil, err
 	}

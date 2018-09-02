@@ -8,6 +8,7 @@ import (
 	"github.com/bryanl/jsonnet-language-server/pkg/analysis/lexical/astext"
 	"github.com/bryanl/jsonnet-language-server/pkg/analysis/static"
 	jlspos "github.com/bryanl/jsonnet-language-server/pkg/util/position"
+	"github.com/davecgh/go-spew/spew"
 	"github.com/google/go-jsonnet/ast"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
@@ -62,7 +63,8 @@ func (sm *Scope) GetInPath(path []string) (*ScopeEntry, error) {
 
 	e, err := sm.Get(id)
 	if err != nil {
-		return nil, err
+		return nil, errors.Wrapf(err, "current path [%s]",
+			strings.Join(path, ","))
 	}
 
 	if len(path) == 0 {
@@ -202,7 +204,12 @@ func (sm *Scope) findInPath(node ast.Node, path []string) (ast.Node, error) {
 func (sm *Scope) Get(key string) (*ScopeEntry, error) {
 	se, ok := sm.store[key]
 	if !ok {
-		return nil, errors.Errorf("scope does not contain %q", key)
+		var keys []string
+		for k := range sm.store {
+			keys = append(keys, k)
+		}
+		return nil, errors.Errorf("scope does not contain %q (%s)",
+			key, strings.Join(keys, ","))
 	}
 
 	return &se, nil
@@ -241,6 +248,8 @@ func LocationScope(filename, source string, loc jlspos.Position, nodeCache *Node
 	if err != nil {
 		return nil, err
 	}
+
+	spew.Dump(node)
 
 	sm := newScope(nodeCache)
 	sm.addEvalScope(es)

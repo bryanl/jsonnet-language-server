@@ -122,6 +122,8 @@ func (l *locator) analyzeVisit(a ast.Node) error {
 		//nothing to do here
 	case *astext.Partial:
 		//nothing to do here
+	case *astext.PartialIndex:
+		l.visitNext(a.Target)
 	case nil:
 	default:
 		panic(fmt.Sprintf("Unexpected node %#v", a))
