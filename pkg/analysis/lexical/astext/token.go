@@ -49,7 +49,7 @@ func TokenName(token interface{}) string {
 	case *ast.Function:
 		return fmt.Sprintf("(function)")
 	case *ast.LiteralBoolean:
-		return "(bool)"
+		return fmt.Sprintf("(bool) %t", t.Value)
 	case *ast.LiteralNull:
 		return "(null)"
 	case *ast.LiteralNumber:

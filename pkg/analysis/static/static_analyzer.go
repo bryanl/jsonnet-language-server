@@ -226,18 +226,19 @@ func analyzeVisit(a ast.Node, inObject bool, vars *analysisVars) error {
 	case *ast.Unary:
 		visitNext(a.Expr, inObject, vars, s)
 	case *ast.Var:
-		if !vars.Contains(a.Id) {
-			return parser.MakeStaticError(fmt.Sprintf("Unknown variable: %v", a.Id), *a.Loc())
+		if vars.Contains(a.Id) {
+			s.freeVars.Add(a.Id)
+			s.nodeScope.Add(a.Id, a)
 		}
-		s.freeVars.Add(a.Id)
-		s.nodeScope.Add(a.Id, a)
+
 	case nil:
 		return nil
 	default:
 		panic(fmt.Sprintf("Unexpected node %T", a))
 	}
+
 	a.SetFreeVariables(s.freeVars.ToOrderedSlice())
-	return s.err
+	return nil
 }
 
 func Analyze(node ast.Node) error {

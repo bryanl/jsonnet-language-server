@@ -643,7 +643,7 @@ func (p *printer) handleDesugaredObjectField(f ast.DesugaredObjectField) {
 	// body should be a local that contains the scope
 	local, ok := f.Body.(*ast.Local)
 	if !ok {
-		p.err = errors.New("desguared object field body should be a local")
+		p.print(f.Body)
 		return
 	}
 
@@ -1019,6 +1019,18 @@ func (p *printer) indexID(i *ast.Index) {
 		default:
 			p.err = errors.Errorf("can't handle index type %T", t)
 			return
+		case *ast.Apply:
+			p.writeString("(")
+			p.print(t)
+			p.writeString(")")
+		case *ast.Binary:
+			p.writeString("[")
+			p.print(t)
+			p.writeString("]")
+		case *ast.Index:
+			p.writeString("[")
+			p.print(t)
+			p.writeString("]")
 		case *ast.LiteralNumber:
 			p.writeString(fmt.Sprintf(`[%s]`, t.OriginalString))
 		case *ast.LiteralString:

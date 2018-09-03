@@ -4,12 +4,12 @@ import (
 	"fmt"
 
 	"github.com/bryanl/jsonnet-language-server/pkg/analysis/lexical/astext"
-	jlspos "github.com/bryanl/jsonnet-language-server/pkg/util/position"
+	jpos "github.com/bryanl/jsonnet-language-server/pkg/util/position"
 	"github.com/google/go-jsonnet/ast"
 )
 
 type locator struct {
-	loc           jlspos.Position
+	loc           jpos.Position
 	err           error
 	enclosingNode ast.Node
 }
@@ -132,7 +132,7 @@ func (l *locator) analyzeVisit(a ast.Node) error {
 	return l.err
 }
 
-func locateNode(node ast.Node, pos jlspos.Position) (ast.Node, error) {
+func locateNode(node ast.Node, pos jpos.Position) (ast.Node, error) {
 	if node == nil {
 		return &astext.Partial{}, nil
 	}

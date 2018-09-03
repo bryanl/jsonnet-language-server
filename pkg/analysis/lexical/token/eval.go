@@ -120,10 +120,10 @@ func (e *evaluator) eval(n ast.Node, parentScope *evalScope) {
 		s := parentScope.Clone()
 
 		for _, param := range n.Parameters.Required {
-			s.set(param, nil)
+			_ = s.set(param, nil)
 		}
 		for _, param := range n.Parameters.Optional {
-			s.set(param.Name, nil)
+			_ = s.set(param.Name, nil)
 		}
 		for _, param := range n.Parameters.Optional {
 			e.eval(param.DefaultArg, s)
@@ -145,6 +145,12 @@ func (e *evaluator) eval(n ast.Node, parentScope *evalScope) {
 
 		for _, bind := range n.Binds {
 			e.err = s.set(bind.Variable, bind.Body)
+			if e.err != nil {
+				return
+			}
+		}
+
+		for _, bind := range n.Binds {
 			e.eval(bind.Body, s)
 		}
 

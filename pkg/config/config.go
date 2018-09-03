@@ -83,10 +83,10 @@ func (c *Config) UpdateTextDocumentItem(dctdp lsp.DidChangeTextDocumentParams) e
 func (c *Config) Text(uriStr string) (*TextDocument, error) {
 	text, ok := c.textDocuments[uriStr]
 	if ok {
-		logrus.Info("returning text from cache")
+		logrus.Debugf("returning text from cache")
 		return &text, nil
 	}
-	logrus.Info("returning text from disk")
+	logrus.Debugf("returning text from disk")
 	path, err := uri.ToPath(uriStr)
 	if err != nil {
 		return nil, err
