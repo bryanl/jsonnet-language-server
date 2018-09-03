@@ -51,14 +51,14 @@
 
 [[projects]]
   branch = "print-desugared-object"
-  digest = "1:5e08a661206585b5a9fe4f993486da35e48f18e9e4c40b49682d6e1dc6fe340c"
+  digest = "1:04ed7f436c6bc4b96219dceea16ac0679a76794e4225b4472e1434929eedec69"
   name = "github.com/ksonnet/ksonnet-lib"
   packages = [
     "ksonnet-gen/astext",
     "ksonnet-gen/printer",
   ]
   pruneopts = "UT"
-  revision = "06291d6fe38df4a4b7249b3521ac17dfb47c2346"
+  revision = "a8b784109bb9fc037108974fb4fd4b5eff4e0a65"
   source = "github.com/bryanl/ksonnet-lib"
 
 [[projects]]

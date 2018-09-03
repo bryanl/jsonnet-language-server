@@ -309,6 +309,8 @@ func updateNodeCache(r *request, c *config.Config, uriStr string) {
 
 	sentNotif := false
 
+	_, file := filepath.Split(path)
+
 	for {
 		select {
 		case err := <-errCh:
@@ -318,13 +320,13 @@ func updateNodeCache(r *request, c *config.Config, uriStr string) {
 			return
 		case <-done:
 			if sentNotif {
-				msg := fmt.Sprintf("Import processing for %s is complete", path)
+				msg := fmt.Sprintf("Import processing for %q is complete", file)
 				_ = showMessage(r, lsp.MTWarning, msg)
 				logrus.Info("cancel notification")
 			}
 			return
 		case <-timer.C:
-			msg := fmt.Sprintf("Import processing for %s is running", path)
+			msg := fmt.Sprintf("Import processing for %q is running", file)
 			_ = showMessage(r, lsp.MTWarning, msg)
 			logrus.Info("send notification")
 			sentNotif = true

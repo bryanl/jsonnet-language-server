@@ -632,7 +632,21 @@ func (p *printer) handleDesugaredObjectField(f ast.DesugaredObjectField) {
 		fieldType = ":"
 	}
 
-	p.print(f.Name)
+	// body could be a local that contains the scope
+	local, isLocal := f.Body.(*ast.Local)
+
+	if ls, ok := f.Name.(*ast.LiteralString); ok {
+		p.writeString(ls.Value)
+	} else {
+		p.print(f.Name)
+	}
+
+	if isLocal {
+		if fun, ok := local.Body.(*ast.Function); ok {
+			p.addMethodSignature(fun)
+		}
+	}
+
 	if f.PlusSuper {
 		p.writeByte(syntaxSugar, 1)
 	}
@@ -640,14 +654,15 @@ func (p *printer) handleDesugaredObjectField(f ast.DesugaredObjectField) {
 	p.writeString(fieldType)
 	p.writeByte(space, 1)
 
-	// body should be a local that contains the scope
-	local, ok := f.Body.(*ast.Local)
-	if !ok {
+	if isLocal {
+		if fun, ok := local.Body.(*ast.Function); ok {
+			p.print(fun.Body)
+		} else {
+			p.print(local.Body)
+		}
+	} else {
 		p.print(f.Body)
-		return
 	}
-
-	p.print(local.Body)
 }
 
 func (p *printer) handleIndex(i *ast.Index) {
