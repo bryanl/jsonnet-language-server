@@ -21,7 +21,7 @@ func Test_visitSymbols(t *testing.T) {
 			expected: []Symbol{
 				{
 					name:           "a",
-					kind:           lsp.SKVariable,
+					kind:           lsp.SKString,
 					selectionRange: jpos.NewRange(jpos.New(1, 9), jpos.New(1, 12)),
 					enclosingRange: jpos.NewRange(jpos.New(1, 9), jpos.New(1, 12)),
 				},
@@ -33,13 +33,13 @@ func Test_visitSymbols(t *testing.T) {
 			expected: []Symbol{
 				{
 					name:           "a",
-					kind:           lsp.SKVariable,
+					kind:           lsp.SKNumber,
 					selectionRange: jpos.NewRange(jpos.New(1, 9), jpos.New(1, 10)),
 					enclosingRange: jpos.NewRange(jpos.New(1, 9), jpos.New(1, 10)),
 				},
 				{
 					name:           "b",
-					kind:           lsp.SKVariable,
+					kind:           lsp.SKNumber,
 					selectionRange: jpos.NewRange(jpos.New(1, 14), jpos.New(1, 15)),
 					enclosingRange: jpos.NewRange(jpos.New(1, 14), jpos.New(1, 15)),
 				},
@@ -51,13 +51,13 @@ func Test_visitSymbols(t *testing.T) {
 			expected: []Symbol{
 				{
 					name:           "a",
-					kind:           lsp.SKVariable,
+					kind:           lsp.SKNumber,
 					selectionRange: jpos.NewRange(jpos.New(1, 9), jpos.New(1, 10)),
 					enclosingRange: jpos.NewRange(jpos.New(1, 9), jpos.New(1, 10)),
 				},
 				{
 					name:           "b",
-					kind:           lsp.SKVariable,
+					kind:           lsp.SKNumber,
 					selectionRange: jpos.NewRange(jpos.New(1, 20), jpos.New(1, 21)),
 					enclosingRange: jpos.NewRange(jpos.New(1, 20), jpos.New(1, 21)),
 				},
@@ -69,7 +69,7 @@ func Test_visitSymbols(t *testing.T) {
 			expected: []Symbol{
 				{
 					name:           "id",
-					kind:           lsp.SKVariable,
+					kind:           lsp.SKFunction,
 					selectionRange: jpos.NewRange(jpos.New(1, 7), jpos.New(1, 16)),
 					enclosingRange: jpos.NewRange(jpos.New(1, 7), jpos.New(1, 16)),
 				},

@@ -105,7 +105,7 @@ func (s *symbolVisitor) visit(n ast.Node) []Symbol {
 				// TODO figure out the exact ranges. The AST doesn't provide
 				sym := Symbol{
 					name:           string(bind.Variable),
-					kind:           lsp.SKVariable,
+					kind:           symbolKind(bind.Body),
 					selectionRange: jpos.FromJsonnetRange(*bind.Body.Loc()),
 					enclosingRange: jpos.FromJsonnetRange(*bind.Body.Loc()),
 				}

@@ -296,8 +296,6 @@ func evaluateNode(node ast.Node, vm *jsonnet.VM) (ast.Node, error) {
 		return nil, err
 	}
 
-	fmt.Println(buf.String())
-
 	// evaluate node and manifest value to node
 	evaluated, err := vm.EvaluateToNode("snippet.jsonnet", buf.String())
 	if err != nil {

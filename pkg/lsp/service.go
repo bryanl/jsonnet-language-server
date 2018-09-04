@@ -133,7 +133,7 @@ type SignatureHelp struct {
 type SignatureInformation struct {
 	Label         string                 `json:"label"`
 	Documentation string                 `json:"documentation,omitempty"`
-	Paramaters    []ParameterInformation `json:"paramaters,omitempty"`
+	Parameters    []ParameterInformation `json:"paramaters,omitempty"`
 }
 
 type ParameterInformation struct {
