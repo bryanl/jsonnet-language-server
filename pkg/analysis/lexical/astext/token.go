@@ -7,24 +7,6 @@ import (
 	"github.com/google/go-jsonnet/ast"
 )
 
-// Item is something that can identified.
-type Item struct {
-	token interface{}
-}
-
-var _ fmt.Stringer = (*Item)(nil)
-
-// NewItem creates an instance of Item.
-func NewItem(token interface{}) *Item {
-	return &Item{
-		token: token,
-	}
-}
-
-func (i *Item) String() string {
-	return TokenName(i.token)
-}
-
 // TokenName returns a name for a token.
 // nolint: gocyclo
 func TokenName(token interface{}) string {
@@ -210,17 +192,14 @@ func desugaredObject(o *ast.DesugaredObject) string {
 		fieldName := stringValue(name, false)
 		visibility := ObjectFieldVisibility(field.Hide)
 
-		// local, ok := field.Body.(*ast.Local)
-		// if !ok {
-		// 	return genericObject
-		// }
-
-		// local
-
+		local, ok := field.Body.(*ast.Local)
 		label := "field"
-		// if field.Params != nil {
-		// 	label = "function"
-		// }
+		if ok {
+			if _, ok := local.Body.(*ast.Function); ok {
+				label = "function"
+			}
+		}
+
 		if _, err := buf.WriteString(fmt.Sprintf("  (%s) %s%s,\n", label, fieldName, visibility)); err != nil {
 			return genericObject
 		}

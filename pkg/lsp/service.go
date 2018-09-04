@@ -188,7 +188,20 @@ const (
 	SKNumber      SymbolKind = 16
 	SKBoolean     SymbolKind = 17
 	SKArray       SymbolKind = 18
+	SKObject      SymbolKind = 19
+	SKKey         SymbolKind = 20
+	SKNull        SymbolKind = 21
 )
+
+type DocumentSymbol struct {
+	Name           string           `json:"name,omitempty"`
+	Detail         string           `json:"detail,omitempty"`
+	Kind           SymbolKind       `json:"kind,omitempty"`
+	Deprecated     bool             `json:"deprecated,omitempty"`
+	Range          Range            `json:"range,omitempty"`
+	SelectionRange Range            `json:"selectionRange,omitempty"`
+	Children       []DocumentSymbol `json:"children,omitempty"`
+}
 
 type SymbolInformation struct {
 	Name          string     `json:"name"`

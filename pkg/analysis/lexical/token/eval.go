@@ -94,6 +94,10 @@ func (e *evaluator) eval(n ast.Node, parentScope *evalScope) {
 		return
 	}
 
+	if n == nil {
+		return
+	}
+
 	switch n := n.(type) {
 	case *ast.Array:
 		for _, elem := range n.Elements {
@@ -113,6 +117,13 @@ func (e *evaluator) eval(n ast.Node, parentScope *evalScope) {
 		for _, field := range n.Fields {
 			e.eval(field.Name, s)
 			e.eval(field.Body, s)
+		}
+	case *ast.Object:
+		s := parentScope.Clone()
+		for _, field := range n.Fields {
+			e.eval(field.Expr1, s)
+			e.eval(field.Expr2, s)
+			e.eval(field.Expr3, s)
 		}
 	case *ast.Error:
 		e.eval(n.Expr, parentScope)

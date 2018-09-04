@@ -61,7 +61,7 @@ func (c *complete) handle() (interface{}, error) {
 	pos := position.FromLSPPosition(c.referenceParams.Position)
 	editRange := position.NewRange(pos, pos)
 
-	logrus.Infof("truncating to %s", pos.String())
+	logrus.Debugf("truncating to %s", pos.String())
 	matchText, err := text.Truncate(pos)
 	if err != nil {
 		return nil, err

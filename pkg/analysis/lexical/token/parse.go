@@ -230,6 +230,12 @@ func (p *mParser) parse(prec precedence) (ast.Node, error) {
 
 		local := &ast.Local{}
 
+		next := p.peek()
+		if next.Kind == TokenEndOfFile {
+			// return here if EOF because this is a partial parser.
+			return local, nil
+		}
+
 		for {
 			err := p.parseBind(&local.Binds)
 			if err != nil {
@@ -1044,7 +1050,12 @@ func (p *mParser) parseTerminal() (ast.Node, error) {
 		return nil, p.unexpectedError(tok, "parsing terminal")
 
 	case TokenEndOfFile:
-		return nil, locError(errors.New("unexpected end of file"), tok.Loc)
+		node := &astext.Partial{
+			NodeBase: ast.NewNodeBaseLoc(tok.Loc),
+		}
+		p.publishDiag("unexpected end of file", tok.Loc)
+		return node, nil
+		// return nil, locError(errors.New("unexpected end of file"), tok.Loc)
 
 	case TokenBraceL:
 		obj, _, err := p.parseObjectRemainder(tok)

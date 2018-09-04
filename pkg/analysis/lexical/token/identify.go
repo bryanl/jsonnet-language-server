@@ -5,7 +5,6 @@ import (
 	"fmt"
 
 	"github.com/bryanl/jsonnet-language-server/pkg/analysis/lexical/astext"
-	"github.com/bryanl/jsonnet-language-server/pkg/analysis/static"
 	jlspos "github.com/bryanl/jsonnet-language-server/pkg/util/position"
 	jsonnet "github.com/google/go-jsonnet"
 	"github.com/google/go-jsonnet/ast"
@@ -13,55 +12,61 @@ import (
 	"github.com/pkg/errors"
 )
 
-// IdentifyConfig is configuration for Identify.
-type IdentifyConfig struct {
-	JsonnetLibPaths []string
-	ExtVar          map[string]string
-	ExtCode         map[string]string
-	TLACode         map[string]string
-	TLAVar          map[string]string
+// Item is something that can identified.
+type Item struct {
+	token interface{}
 }
 
-// VM create a jsonnet VM using IdentifyConfig.
-func (ic *IdentifyConfig) VM() *jsonnet.VM {
-	vm := jsonnet.MakeVM()
+var _ Identity = (*Item)(nil)
 
-	importer := &jsonnet.FileImporter{
-		JPaths: ic.JsonnetLibPaths,
+// NewItem creates an instance of Item.
+func NewItem(token interface{}) *Item {
+	return &Item{
+		token: token,
 	}
+}
 
-	vm.Importer(importer)
+func (i *Item) String() string {
+	return astext.TokenName(i.token)
+}
 
-	for k, v := range ic.ExtVar {
-		vm.ExtVar(k, v)
-	}
-	for k, v := range ic.ExtCode {
-		vm.ExtCode(k, v)
-	}
-	for k, v := range ic.TLACode {
-		vm.TLACode(k, v)
-	}
-	for k, v := range ic.TLAVar {
-		vm.TLAVar(k, v)
-	}
+// Signature is the item's signature if it is a function.
+func (i *Item) Signature() *Signature {
+	return nil
+}
 
-	return vm
+// Signature is a function signature.
+type Signature struct {
+	label         string
+	documentation string
+	parameters    []string
+}
+
+// Label is the function signature label.
+func (s *Signature) Label() string {
+	return s.label
+}
+
+// Documentation is documentation for the function.
+func (s *Signature) Documentation() string {
+	return s.documentation
+}
+
+// Parameters are parameters for the function.
+func (s *Signature) Parameters() []string {
+	return s.parameters
+}
+
+type Identity interface {
+	Signature() *Signature
+	String() string
 }
 
 // Identify identifies what is at a position.
-func Identify(filename, source string, pos jlspos.Position, nodeCache *NodeCache, config IdentifyConfig) (fmt.Stringer, error) {
-	node, err := Parse(filename, source, nil)
+func Identify(source string, pos jlspos.Position, nodeCache *NodeCache, config IdentifyConfig) (Identity, error) {
+	node, err := readSource(config.path, source, nil)
 	if err != nil {
-		return nil, errors.Wrap(err, "parse source")
-	}
-
-	if err = DesugarFile(&node); err != nil {
-		return nil, errors.Wrap(err, "desugar node")
-	}
-
-	err = static.Analyze(node)
-	if err != nil {
-		return nil, errors.Wrap(err, "analyze node")
+		return nil, err
 	}
 
 	found, err := locateNode(node, pos)
@@ -108,7 +113,7 @@ func (i *identifier) clone() identifier {
 	}
 }
 
-func (i *identifier) identify(n ast.Node) (fmt.Stringer, error) {
+func (i *identifier) identify(n ast.Node) (Identity, error) {
 	switch n := n.(type) {
 
 	case *ast.Apply:
@@ -122,7 +127,7 @@ func (i *identifier) identify(n ast.Node) (fmt.Stringer, error) {
 			return nil, errors.Wrap(err, "evaluate apply")
 		}
 
-		return astext.NewItem(evaluated), nil
+		return NewItem(evaluated), nil
 
 	case *ast.Index:
 		return i.index(n)
@@ -131,18 +136,18 @@ func (i *identifier) identify(n ast.Node) (fmt.Stringer, error) {
 	case *ast.Var:
 		return i.variable(n)
 	case *ast.Function, *ast.Object:
-		return astext.NewItem(n), nil
+		return NewItem(n), nil
 	case nil, *astext.Partial:
 		return IdentifyNoMatch, nil
 	case *ast.Array, *ast.DesugaredObject, *ast.Import,
 		*ast.LiteralBoolean, *ast.LiteralNumber, *ast.LiteralString:
-		return astext.NewItem(n), nil
+		return NewItem(n), nil
 	default:
 		panic(fmt.Sprintf("unable to identify %T", n))
 	}
 }
 
-func (i *identifier) index(idx *ast.Index) (fmt.Stringer, error) {
+func (i *identifier) index(idx *ast.Index) (Identity, error) {
 	v, path := resolveIndex(idx)
 
 	vSe, err := i.scope.Get(string(v.Id))
@@ -163,7 +168,7 @@ func (i *identifier) index(idx *ast.Index) (fmt.Stringer, error) {
 			return nil, errors.Wrap(err, "evaluate node in index")
 		}
 
-		return astext.NewItem(evaluated), nil
+		return NewItem(evaluated), nil
 	}
 
 	se, err := i.scope.GetInPath(path)
@@ -174,7 +179,7 @@ func (i *identifier) index(idx *ast.Index) (fmt.Stringer, error) {
 	return i.identify(se.Node)
 }
 
-func (i *identifier) variable(v *ast.Var) (fmt.Stringer, error) {
+func (i *identifier) variable(v *ast.Var) (Identity, error) {
 	es, err := eval(i.sourceNode, v, i.nodeCache)
 	if err != nil {
 		return nil, err
@@ -187,7 +192,7 @@ func (i *identifier) variable(v *ast.Var) (fmt.Stringer, error) {
 			ptr := i.clone()
 			return ptr.identify(v)
 		default:
-			return astext.NewItem(x), nil
+			return NewItem(x), nil
 		}
 	}
 
@@ -199,18 +204,18 @@ var (
 	IdentifyNoMatch = &emptyItem{}
 )
 
-func (i *identifier) local(local *ast.Local) (fmt.Stringer, error) {
+func (i *identifier) local(local *ast.Local) (Identity, error) {
 	for _, bind := range local.Binds {
 		if i.pos.IsInJsonnetRange(bind.VarLoc) {
 			switch n := bind.Body.(type) {
 			case *ast.Import:
 				ne, err := i.nodeCache.Get(n.File.Value)
 				if err == nil {
-					return astext.NewItem(ne.Node), nil
+					return NewItem(ne.Node), nil
 				}
 			case *ast.LiteralString, *ast.LiteralBoolean, *ast.LiteralNumber,
 				*ast.LiteralNull, *ast.Function:
-				return astext.NewItem(bind.Body), nil
+				return NewItem(bind.Body), nil
 			case *ast.Self:
 				return IdentifyNoMatch, nil
 			default:
@@ -225,7 +230,7 @@ func (i *identifier) local(local *ast.Local) (fmt.Stringer, error) {
 				}
 
 				// report on evaluated node
-				return astext.NewItem(evaluated), nil
+				return NewItem(evaluated), nil
 			}
 		}
 	}
@@ -304,8 +309,12 @@ func evaluateNode(node ast.Node, vm *jsonnet.VM) (ast.Node, error) {
 
 type emptyItem struct{}
 
-var _ fmt.Stringer = (*emptyItem)(nil)
+var _ Identity = (*emptyItem)(nil)
 
 func (ei *emptyItem) String() string {
 	return ""
+}
+
+func (ei *emptyItem) Signature() *Signature {
+	return nil
 }

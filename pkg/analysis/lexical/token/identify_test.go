@@ -24,7 +24,7 @@ var (
 
 func TestIdentify(t *testing.T) {
 	importedSource := `{imported: true, fn(x):: [x], nested: {x: x.fn(1)}}`
-	imported, err := Parse("imported.jsonnet", importedSource, nil)
+	imported, err := readSource("imported.jsonnet", importedSource, nil)
 	require.NoError(t, err)
 
 	cases := []struct {
@@ -38,7 +38,7 @@ func TestIdentify(t *testing.T) {
 		{name: "local body", source: source1, pos: jlspos.New(1, 14), expected: `(string) "a"`},
 		{name: "object", source: source2, pos: jlspos.New(1, 7), expected: "(object) {\n  (field) a:,\n}"},
 		{name: "import 1", source: source3, pos: jlspos.New(1, 7), expected: "(object) {\n  (field) imported:,\n  (function) fn::,\n  (field) nested:,\n}"},
-		{name: "import 2 ", source: source3, pos: jlspos.New(1, 43), expected: "(array)"},
+		{name: "import 2", source: source3, pos: jlspos.New(1, 43), expected: "(array)"},
 		{name: "index object", source: source4, pos: jlspos.New(1, 24), expected: "(object) {\n  (field) b:,\n}"},
 		{name: "index array", source: source5, pos: jlspos.New(1, 24), expected: "(array)"},
 		{name: "deep nested", source: source6, pos: jlspos.New(1, 33), expected: "(string) \"d\""},
@@ -59,13 +59,12 @@ func TestIdentify(t *testing.T) {
 			nc := NewNodeCache()
 			nc.store["import.jsonnet"] = NodeEntry{Node: imported}
 
-			config := IdentifyConfig{
-				ExtCode: map[string]string{
-					"__ksonnet/params": "{components: {x: {item1: 'param'}}}",
-				},
-			}
+			ic, err := NewIdentifyConfig("file.jsonnet")
+			require.NoError(t, err)
 
-			item, err := Identify("file.jsonnet", tc.source, tc.pos, nc, config)
+			ic.ExtCode("__ksonnet/params", "{components: {x: {item1: 'param'}}}")
+
+			item, err := Identify(tc.source, tc.pos, nc, ic)
 			require.NoError(t, err)
 			assert.Equal(t, tc.expected, item.String())
 		})

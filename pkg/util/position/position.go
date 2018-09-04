@@ -99,6 +99,14 @@ func NewRange(start, end Position) Range {
 	}
 }
 
+// CombinedRange combines two ranges.
+func CombinedRange(start, end Range) Range {
+	return Range{
+		Start: start.Start,
+		End:   end.End,
+	}
+}
+
 // ToLSP converts a range to a LSP Range.
 func (r *Range) ToLSP() lsp.Range {
 	return lsp.Range{

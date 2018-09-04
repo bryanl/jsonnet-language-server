@@ -20,7 +20,7 @@ func Test_locator(t *testing.T) {
 			name:     "locate in missing object body",
 			source:   `local a="1";`,
 			loc:      jlspos.New(2, 1),
-			expected: createRange("file.jsonnet", 1, 13, 0, 0),
+			expected: createRange("file.jsonnet", 1, 13, 1, 13),
 		},
 		{
 			name:     "locate locate body",

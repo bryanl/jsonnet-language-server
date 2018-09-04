@@ -10,12 +10,23 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// nolint: gocyclo
 func TestParse(t *testing.T) {
 	cases := []struct {
 		name   string
 		source string
 		check  func(t *testing.T, node ast.Node)
 	}{
+		{
+			name:   "local without definition",
+			source: "local",
+			check: func(t *testing.T, node ast.Node) {
+				withLocal(t, node, func(local *ast.Local) {
+					assert.Len(t, local.Binds, 0)
+					assert.Nil(t, local.Body)
+				})
+			},
+		},
 		{
 			name:   "local missing body",
 			source: "local a='a';",

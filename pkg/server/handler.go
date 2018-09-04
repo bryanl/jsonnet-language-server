@@ -24,15 +24,17 @@ import (
 type operation func(*request, *config.Config) (interface{}, error)
 
 var operations = map[string]operation{
-	"completionItem/resolve":    completionItemResolve,
-	"initialize":                initialize,
-	"textDocument/completion":   textDocumentCompletion,
-	"textDocument/didChange":    textDocumentDidChange,
-	"textDocument/didClose":     textDocumentDidClose,
-	"textDocument/didOpen":      textDocumentDidOpen,
-	"textDocument/didSave":      textDocumentDidSave,
-	"textDocument/hover":        textDocumentHover,
-	"updateClientConfiguration": updateClientConfiguration,
+	"completionItem/resolve":      completionItemResolve,
+	"initialize":                  initialize,
+	"textDocument/completion":     textDocumentCompletion,
+	"textDocument/didChange":      textDocumentDidChange,
+	"textDocument/didClose":       textDocumentDidClose,
+	"textDocument/didOpen":        textDocumentDidOpen,
+	"textDocument/didSave":        textDocumentDidSave,
+	"textDocument/documentSymbol": textDocumentSymbol,
+	"textDocument/hover":          textDocumentHover,
+	"textDocument/signatureHelp":  textDocumentSignatureHelper,
+	"updateClientConfiguration":   updateClientConfiguration,
 }
 
 // Handler is a JSON RPC Handler
@@ -212,7 +214,11 @@ func initialize(r *request, c *config.Config) (interface{}, error) {
 			CompletionProvider: &lsp.CompletionOptions{
 				ResolveProvider: true,
 			},
-			HoverProvider:    true,
+			DocumentSymbolProvider: true,
+			HoverProvider:          true,
+			SignatureHelpProvider: &lsp.SignatureHelpOptions{
+				TriggerCharacters: []string{"("},
+			},
 			TextDocumentSync: lsp.TDSKFull,
 		},
 	}

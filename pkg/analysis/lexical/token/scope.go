@@ -228,9 +228,8 @@ func (sm *Scope) add(key ast.Identifier, node ast.Node) {
 	}
 }
 
-// LocationScope finds the free variables for a location.
-func LocationScope(filename, source string, loc jlspos.Position, nodeCache *NodeCache) (*Scope, error) {
-	node, err := Parse(filename, source, nil)
+func readSource(filename, source string, ch chan<- ParseDiagnostic) (ast.Node, error) {
+	node, err := Parse(filename, source, ch)
 	if err != nil {
 		return nil, err
 	}
@@ -240,6 +239,16 @@ func LocationScope(filename, source string, loc jlspos.Position, nodeCache *Node
 	}
 
 	err = static.Analyze(node)
+	if err != nil {
+		return nil, err
+	}
+
+	return node, nil
+}
+
+// LocationScope finds the free variables for a location.
+func LocationScope(filename, source string, loc jlspos.Position, nodeCache *NodeCache) (*Scope, error) {
+	node, err := readSource(filename, source, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -271,11 +280,13 @@ func resolveIndex(i *ast.Index) (*ast.Var, []string) {
 		case *ast.Apply:
 			cur = c.Target
 		case *ast.Index:
-			s, ok := c.Index.(*ast.LiteralString)
-			if !ok {
-				panic(fmt.Sprintf("can't index index of type %T", c.Index))
+			if c.Index != nil {
+				s, ok := c.Index.(*ast.LiteralString)
+				if !ok {
+					panic(fmt.Sprintf("can't index index of type %T", c.Index))
+				}
+				path = append([]string{s.Value}, path...)
 			}
-			path = append([]string{s.Value}, path...)
 			cur = c.Target
 		case *ast.Var:
 			v = c
