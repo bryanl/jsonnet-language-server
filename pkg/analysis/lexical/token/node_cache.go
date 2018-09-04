@@ -99,7 +99,7 @@ func (c *NodeCache) Set(key string, e *NodeEntry) error {
 
 	existing, ok := c.store[key]
 	if !ok {
-		logrus.WithField("key", key).Info("setting new cache entry")
+		logrus.WithField("key", key).Debug("setting new cache entry")
 		return c.set(key, e)
 	}
 
@@ -115,18 +115,18 @@ func (c *NodeCache) Set(key string, e *NodeEntry) error {
 	}
 
 	if isUpdate {
-		logrus.WithField("key", key).Info("updating existing cache entry")
+		logrus.WithField("key", key).Debug("updating existing cache entry")
 		return c.set(key, e)
 	}
 
-	logrus.WithField("key", key).Info("cache entry is up to date")
+	logrus.WithField("key", key).Debug("cache entry is up to date")
 	return nil
 }
 
 func (c *NodeCache) set(key string, e *NodeEntry) error {
 	now := time.Now()
 	defer func() {
-		logrus.WithField("elapsed", time.Since(now)).Info("node evaluate time")
+		logrus.WithField("elapsed", time.Since(now)).Debug("node evaluate time")
 	}()
 
 	node, err := c.nodeBuilder.Build(e.libPaths, e.filename)
@@ -149,7 +149,7 @@ func UpdateNodeCache(path string, libPaths []string, cache *NodeCache) error {
 	logrus.WithFields(logrus.Fields{
 		"path":     path,
 		"libPaths": strings.Join(libPaths, ",")}).
-		Info("updating node cache")
+		Debug("updating node cache")
 
 	ic := NewImportCollector(libPaths)
 	pathImports, err := ic.Collect(path, true)
@@ -157,7 +157,7 @@ func UpdateNodeCache(path string, libPaths []string, cache *NodeCache) error {
 		return err
 	}
 
-	logrus.Infof("(before) cache keys %s", strings.Join(cache.Keys(), ","))
+	logrus.Debugf("(before) cache keys %s", strings.Join(cache.Keys(), ","))
 
 	for _, pathImport := range pathImports {
 		path, err := ImportPath(pathImport, libPaths)
@@ -181,7 +181,7 @@ func UpdateNodeCache(path string, libPaths []string, cache *NodeCache) error {
 		}
 	}
 
-	logrus.Infof("(after) cache keys %s", strings.Join(cache.Keys(), ","))
+	logrus.Debugf("(after) cache keys %s", strings.Join(cache.Keys(), ","))
 
 	return nil
 }
@@ -199,7 +199,7 @@ func collectNodeDependencies(path string, names, libPaths []string) ([]NodeCache
 			return nil, err
 		}
 
-		logrus.Info("building cache dependency")
+		logrus.Debug("building cache dependency")
 		ncd := NodeCacheDependency{
 			Name:      importImport,
 			UpdatedAt: fi.ModTime(),

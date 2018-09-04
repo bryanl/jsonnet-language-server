@@ -58,7 +58,7 @@ func (cm *CompletionMatcher) Match(pos position.Position, path, source string) (
 	}
 
 	for re, m := range cm.store {
-		logrus.Infof("trying to match %q to %s", matched, re.String())
+		logrus.Debugf("trying to match %q to %s", matched, re.String())
 		match := re.FindStringSubmatch(matched)
 		if match != nil {
 			return m(pos, path, matched)
@@ -80,7 +80,7 @@ func (cm *CompletionMatcher) defaultMatcher(pos position.Position, path, source 
 		for _, k := range m.Keys() {
 			e, err := m.Get(k)
 			if err != nil {
-				logrus.WithError(err).Infof("fetching %q from scope", k)
+				logrus.WithError(err).Debugf("fetching %q from scope", k)
 				break
 			}
 

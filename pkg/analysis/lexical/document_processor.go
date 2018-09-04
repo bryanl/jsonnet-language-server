@@ -33,7 +33,7 @@ func NewPerformDiagnostics() *PerformDiagnostics {
 func (p *PerformDiagnostics) Process(td config.TextDocument, conn RPCConn) error {
 	logger := logrus.WithField("component", "perform-diagnostics")
 
-	logger.Infof("caching %s", td.URI())
+	logger.Debugf("caching %s", td.URI())
 
 	filename, err := uri.ToPath(td.URI())
 	if err != nil {
@@ -76,7 +76,7 @@ func (p *PerformDiagnostics) Process(td config.TextDocument, conn RPCConn) error
 	<-done
 
 	if conn != nil {
-		logger.Info("sending diagnostics")
+		logger.Debug("sending diagnostics")
 		response := &lsp.PublishDiagnosticsParams{
 			URI:         td.URI(),
 			Diagnostics: diagnostics,
