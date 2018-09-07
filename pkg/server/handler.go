@@ -33,6 +33,7 @@ var operations = map[string]operation{
 	"textDocument/didSave":        textDocumentDidSave,
 	"textDocument/documentSymbol": textDocumentSymbol,
 	"textDocument/hover":          textDocumentHover,
+	"textDocument/references":     textDocumentReferences,
 	"textDocument/signatureHelp":  textDocumentSignatureHelper,
 	"updateClientConfiguration":   updateClientConfiguration,
 }
@@ -216,6 +217,7 @@ func initialize(r *request, c *config.Config) (interface{}, error) {
 			},
 			DocumentSymbolProvider: true,
 			HoverProvider:          true,
+			ReferencesProvider:     true,
 			SignatureHelpProvider: &lsp.SignatureHelpOptions{
 				TriggerCharacters: []string{"("},
 			},

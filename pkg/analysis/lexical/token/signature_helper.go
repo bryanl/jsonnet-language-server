@@ -18,7 +18,7 @@ type SignatureResponse struct {
 
 // SignatureHelper retrieves the signature for a function at a position.
 func SignatureHelper(source string, pos jpos.Position, nodeCache *NodeCache) (*SignatureResponse, error) {
-	node, err := readSource("snippet.jsonnet", source, nil)
+	node, err := ReadSource("snippet.jsonnet", source, nil)
 	if err != nil {
 		return nil, err
 	}

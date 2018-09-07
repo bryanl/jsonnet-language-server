@@ -9,7 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func Test_visitSymbols(t *testing.T) {
+func TestSymbols(t *testing.T) {
 	cases := []struct {
 		name     string
 		source   string
@@ -105,7 +105,7 @@ func Test_symbolKind(t *testing.T) {
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			node, err := readSource("source.jsonnet", tc.source, nil)
+			node, err := ReadSource("source.jsonnet", tc.source, nil)
 			require.NoError(t, err)
 
 			got := symbolKind(node)

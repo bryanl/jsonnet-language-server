@@ -527,6 +527,7 @@ type ObjectFields []ObjectField
 type Object struct {
 	NodeBase
 	Fields        ObjectFields
+	FieldLocs     map[interface{}]LocationRange
 	TrailingComma bool
 }
 
@@ -549,8 +550,9 @@ type DesugaredObjectFields []DesugaredObjectField
 // The assertions either return true or raise an error.
 type DesugaredObject struct {
 	NodeBase
-	Asserts Nodes
-	Fields  DesugaredObjectFields
+	Asserts   Nodes
+	Fields    DesugaredObjectFields
+	FieldLocs map[interface{}]LocationRange
 }
 
 // ---------------------------------------------------------------------------

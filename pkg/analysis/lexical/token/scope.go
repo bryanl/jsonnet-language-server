@@ -228,7 +228,7 @@ func (sm *Scope) add(key ast.Identifier, node ast.Node) {
 	}
 }
 
-func readSource(filename, source string, ch chan<- ParseDiagnostic) (ast.Node, error) {
+func ReadSource(filename, source string, ch chan<- ParseDiagnostic) (ast.Node, error) {
 	node, err := Parse(filename, source, ch)
 	if err != nil {
 		return nil, err
@@ -248,7 +248,7 @@ func readSource(filename, source string, ch chan<- ParseDiagnostic) (ast.Node, e
 
 // LocationScope finds the free variables for a location.
 func LocationScope(filename, source string, loc jlspos.Position, nodeCache *NodeCache) (*Scope, error) {
-	node, err := readSource(filename, source, nil)
+	node, err := ReadSource(filename, source, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -283,7 +283,7 @@ func resolveIndex(i *ast.Index) (*ast.Var, []string) {
 			if c.Index != nil {
 				s, ok := c.Index.(*ast.LiteralString)
 				if !ok {
-					panic(fmt.Sprintf("can't index index of type %T", c.Index))
+					panic(fmt.Sprintf("can't handle index of type %T", c.Index))
 				}
 				path = append([]string{s.Value}, path...)
 			}

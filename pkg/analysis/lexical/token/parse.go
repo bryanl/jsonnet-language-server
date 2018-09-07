@@ -769,6 +769,7 @@ type LiteralField string
 // nolint: gocyclo
 func (p *mParser) parseObjectRemainder(tok *Token) (ast.Node, *Token, error) {
 	var fields ast.ObjectFields
+	fieldLocs := make(map[interface{}]ast.LocationRange)
 	literalFields := make(LiteralFieldSet)
 	binds := make(ast.IdentifierSet)
 
@@ -790,6 +791,7 @@ func (p *mParser) parseObjectRemainder(tok *Token) (ast.Node, *Token, error) {
 				NodeBase:      ast.NewNodeBaseLoc(locFromTokens(tok, next)),
 				Fields:        fields,
 				TrailingComma: gotComma,
+				FieldLocs:     fieldLocs,
 			}, next, nil
 		}
 
@@ -849,10 +851,19 @@ func (p *mParser) parseObjectRemainder(tok *Token) (ast.Node, *Token, error) {
 			case TokenIdentifier:
 				kind = ast.ObjectFieldID
 				id = (*ast.Identifier)(&next.Data)
+				fieldLocs[*id] = next.Loc
 			case TokenStringDouble, TokenStringSingle,
 				TokenStringBlock, TokenVerbatimStringDouble, TokenVerbatimStringSingle:
 				kind = ast.ObjectFieldStr
 				expr1 = tokenStringToAst(next)
+
+				var key string
+				switch ls := expr1.(type) {
+				case *ast.LiteralString:
+					key = ls.Value
+				}
+
+				fieldLocs[key] = *expr1.Loc()
 			default:
 				kind = ast.ObjectFieldExpr
 				var err error
@@ -864,6 +875,7 @@ func (p *mParser) parseObjectRemainder(tok *Token) (ast.Node, *Token, error) {
 				if err != nil {
 					return nil, nil, err
 				}
+				fieldLocs[expr1] = *expr1.Loc()
 			}
 
 			isMethod := false

@@ -64,7 +64,7 @@ type Identity interface {
 
 // Identify identifies what is at a position.
 func Identify(source string, pos jlspos.Position, nodeCache *NodeCache, config IdentifyConfig) (Identity, error) {
-	node, err := readSource(config.path, source, nil)
+	node, err := ReadSource(config.path, source, nil)
 	if err != nil {
 		return nil, err
 	}

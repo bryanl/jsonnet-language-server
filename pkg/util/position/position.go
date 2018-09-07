@@ -99,6 +99,13 @@ func NewRange(start, end Position) Range {
 	}
 }
 
+// NewRangeFromCoords creates a range from coordinates.
+func NewRangeFromCoords(sl, sc, el, ec int) Range {
+	return NewRange(
+		New(sl, sc),
+		New(el, ec))
+}
+
 // CombinedRange combines two ranges.
 func CombinedRange(start, end Range) Range {
 	return Range{
@@ -122,4 +129,36 @@ func FromJsonnetRange(r ast.LocationRange) Range {
 	end := FromJsonnetLocation(r.End)
 
 	return NewRange(start, end)
+}
+
+// Location is a range within a URI.
+type Location struct {
+	uri string
+	r   Range
+}
+
+// NewLocation creates a Location.
+func NewLocation(uri string, r Range) Location {
+	return Location{
+		uri: uri,
+		r:   r,
+	}
+}
+
+// URI is the URI for the location.
+func (l *Location) URI() string {
+	return l.uri
+}
+
+// Range is range of the location.
+func (l *Location) Range() Range {
+	return l.r
+}
+
+// ToLSP converts the Location to a LSP Location.
+func (l *Location) ToLSP() lsp.Location {
+	return lsp.Location{
+		URI:   fmt.Sprintf("file://%s", l.uri),
+		Range: l.r.ToLSP(),
+	}
 }

@@ -30,7 +30,7 @@
 
 [[projects]]
   branch = "manifest-to-node"
-  digest = "1:2ec22812b571855c24e8ff04502e84490251bc4b4a011ee0ee26c2e7e4783628"
+  digest = "1:bf09050e8114387fd3e60b489c24780e9895b6d78544f54b8e3f4d8a0e3a9458"
   name = "github.com/google/go-jsonnet"
   packages = [
     ".",
@@ -38,7 +38,7 @@
     "parser",
   ]
   pruneopts = "UT"
-  revision = "0225f0ccb5d838e205508dc43dcfdc951036b8b0"
+  revision = "d649696207cfa80c59ce976a29516cb2dace9d5f"
   source = "github.com/bryanl/go-jsonnet"
 
 [[projects]]

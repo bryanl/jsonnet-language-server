@@ -100,6 +100,70 @@ func TestParse(t *testing.T) {
 				})
 			},
 		},
+		{
+			name:   "field key location: id",
+			source: "local o={a:9}; o",
+			check: func(t *testing.T, node ast.Node) {
+				withLocal(t, node, func(local *ast.Local) {
+					if assert.Len(t, local.Binds, 1) {
+						bind := local.Binds[0]
+						o, ok := bind.Body.(*ast.Object)
+						if assert.True(t, ok) {
+							if assert.Len(t, o.FieldLocs, 1) {
+								id := createIdentifier("a")
+								loc, ok := o.FieldLocs[id]
+								if assert.True(t, ok) {
+									begin := createLoc(1, 10)
+									end := createLoc(1, 11)
+									assert.Equal(t, begin, loc.Begin)
+									assert.Equal(t, end, loc.End)
+								}
+							}
+						}
+					}
+				})
+			},
+		},
+		{
+			name:   "field key location: string",
+			source: "local o={'a':9}; o",
+			check: func(t *testing.T, node ast.Node) {
+				withLocal(t, node, func(local *ast.Local) {
+					if assert.Len(t, local.Binds, 1) {
+						bind := local.Binds[0]
+						o, ok := bind.Body.(*ast.Object)
+						if assert.True(t, ok) {
+							if assert.Len(t, o.FieldLocs, 1) {
+								loc, ok := o.FieldLocs["a"]
+								if assert.True(t, ok, "expected string; got %T", o.FieldLocs["a"]) {
+									begin := createLoc(1, 10)
+									end := createLoc(1, 13)
+									assert.Equal(t, begin, loc.Begin)
+									assert.Equal(t, end, loc.End)
+								}
+							}
+						}
+					}
+				})
+			},
+		},
+		{
+			name:   "field key location: expression",
+			source: "local key='a'; local o={[key]:9}; o",
+			check: func(t *testing.T, node ast.Node) {
+				withLocal(t, node, func(local *ast.Local) {
+					withLocal(t, local.Body, func(local *ast.Local) {
+						if assert.Len(t, local.Binds, 1) {
+							bind := local.Binds[0]
+							o, ok := bind.Body.(*ast.Object)
+							if assert.True(t, ok, "expected object; got %T", bind.Body) {
+								assert.Len(t, o.FieldLocs, 1)
+							}
+						}
+					})
+				})
+			},
+		},
 	}
 
 	for _, tc := range cases {

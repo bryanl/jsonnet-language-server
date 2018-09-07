@@ -51,8 +51,7 @@ func (s *Symbol) SelectionRange() jpos.Range {
 	return s.selectionRange
 }
 
-type symbolVisitor struct {
-}
+type symbolVisitor struct{}
 
 func newSymbolVisitor() *symbolVisitor {
 	return &symbolVisitor{}
@@ -135,7 +134,7 @@ func (s *symbolVisitor) visit(n ast.Node) []Symbol {
 
 // Symbols retrieves symbols from source.
 func Symbols(source string) ([]Symbol, error) {
-	node, err := readSource("symbols.jsonnet", source, nil)
+	node, err := ReadSource("symbols.jsonnet", source, nil)
 	if err != nil {
 		return nil, err
 	}

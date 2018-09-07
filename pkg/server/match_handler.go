@@ -1,8 +1,6 @@
 package server
 
 import (
-	"bufio"
-	"bytes"
 	"fmt"
 	"regexp"
 	"strings"
@@ -13,6 +11,7 @@ import (
 	"github.com/bryanl/jsonnet-language-server/pkg/langserver"
 	"github.com/bryanl/jsonnet-language-server/pkg/lsp"
 	"github.com/bryanl/jsonnet-language-server/pkg/util/position"
+	"github.com/bryanl/jsonnet-language-server/pkg/util/text"
 	"github.com/google/go-jsonnet/ast"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
@@ -97,7 +96,7 @@ func (mh *matchHandler) handleIndex(pos position.Position, filePath, source stri
 		return nil, err
 	}
 
-	truncated, err := truncateText(source, pos)
+	truncated, err := text.Truncate(source, pos)
 	if err != nil {
 		return nil, err
 	}
@@ -219,41 +218,4 @@ func stringInSlice(s string, sl []string) bool {
 	}
 
 	return false
-}
-
-// Truncate returns text truncated at a position.
-func truncateText(source string, p position.Position) (string, error) {
-	scanner := bufio.NewScanner(strings.NewReader(source))
-	scanner.Split(bufio.ScanBytes)
-
-	var buf bytes.Buffer
-
-	c := 0
-	l := 1
-
-	for scanner.Scan() {
-		c++
-
-		t := scanner.Text()
-
-		_, err := buf.WriteString(t)
-		if err != nil {
-			return "", err
-		}
-
-		if l == p.Line() && c == p.Column() {
-			break
-		}
-
-		if t == "\n" {
-			l++
-			c = 0
-		}
-	}
-
-	if err := scanner.Err(); err != nil {
-		return "", err
-	}
-
-	return strings.TrimRight(buf.String(), "\n"), nil
 }

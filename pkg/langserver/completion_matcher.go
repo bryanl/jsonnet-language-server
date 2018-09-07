@@ -1,16 +1,14 @@
 package langserver
 
 import (
-	"bufio"
-	"bytes"
 	"fmt"
 	"regexp"
-	"strings"
 	"sync"
 
 	"github.com/bryanl/jsonnet-language-server/pkg/analysis/lexical/token"
 	"github.com/bryanl/jsonnet-language-server/pkg/lsp"
 	"github.com/bryanl/jsonnet-language-server/pkg/util/position"
+	"github.com/bryanl/jsonnet-language-server/pkg/util/text"
 	"github.com/sirupsen/logrus"
 )
 
@@ -52,7 +50,7 @@ func (cm *CompletionMatcher) Match(pos position.Position, path, source string) (
 	cm.mu.Lock()
 	defer cm.mu.Unlock()
 
-	matched, err := truncateText(source, pos)
+	matched, err := text.Truncate(source, pos)
 	if err != nil {
 		return nil, err
 	}
@@ -100,56 +98,5 @@ func (cm *CompletionMatcher) defaultMatcher(pos position.Position, path, source 
 		}
 	}
 
-	// for _, k := range m.Keywords() {
-	// 	ci := lsp.CompletionItem{
-	// 		Label:    k,
-	// 		Kind:     lsp.CIKKeyword,
-	// 		SortText: fmt.Sprintf("1_%s", k),
-	// 		TextEdit: lsp.TextEdit{
-	// 			Range:   editRange.ToLSP(),
-	// 			NewText: k,
-	// 		},
-	// 	}
-
-	// 	list.Items = append(list.Items, ci)
-	// }
-
 	return items, nil
-}
-
-// Truncate returns text truncated at a position.
-func truncateText(source string, p position.Position) (string, error) {
-	scanner := bufio.NewScanner(strings.NewReader(source))
-	scanner.Split(bufio.ScanBytes)
-
-	var buf bytes.Buffer
-
-	c := 0
-	l := 1
-
-	for scanner.Scan() {
-		c++
-
-		t := scanner.Text()
-
-		_, err := buf.WriteString(t)
-		if err != nil {
-			return "", err
-		}
-
-		if l == p.Line() && c == p.Column() {
-			break
-		}
-
-		if t == "\n" {
-			l++
-			c = 0
-		}
-	}
-
-	if err := scanner.Err(); err != nil {
-		return "", err
-	}
-
-	return strings.TrimRight(buf.String(), "\n"), nil
 }

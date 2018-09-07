@@ -24,7 +24,7 @@ var (
 
 func TestIdentify(t *testing.T) {
 	importedSource := `{imported: true, fn(x):: [x], nested: {x: x.fn(1)}}`
-	imported, err := readSource("imported.jsonnet", importedSource, nil)
+	imported, err := ReadSource("imported.jsonnet", importedSource, nil)
 	require.NoError(t, err)
 
 	cases := []struct {

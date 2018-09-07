@@ -238,7 +238,7 @@ func desugarObjectComp(comp *ast.ObjectComp, objLevel int) (ast.Node, error) {
 	}
 
 	arrComp := ast.ArrayComp{
-		Body: buildDesugaredObject(comp.NodeBase, comp.Fields),
+		Body: buildDesugaredObject(comp.NodeBase, comp.Fields, nil),
 		Spec: comp.Spec,
 	}
 
@@ -274,7 +274,7 @@ func buildStdCall(builtinName ast.Identifier, args ...ast.Node) ast.Node {
 	}
 }
 
-func buildDesugaredObject(nodeBase ast.NodeBase, fields ast.ObjectFields) *ast.DesugaredObject {
+func buildDesugaredObject(nodeBase ast.NodeBase, fields ast.ObjectFields, fieldLocs map[interface{}]ast.LocationRange) *ast.DesugaredObject {
 	var newFields ast.DesugaredObjectFields
 	var newAsserts ast.Nodes
 
@@ -293,10 +293,26 @@ func buildDesugaredObject(nodeBase ast.NodeBase, fields ast.ObjectFields) *ast.D
 		}
 	}
 
+	locs := make(map[interface{}]ast.LocationRange)
+
+	if fieldLocs != nil {
+		for k, v := range fieldLocs {
+			switch k := k.(type) {
+			case ast.Identifier:
+				locs[string(k)] = v
+			case string:
+				locs[k] = v
+			case *ast.Var:
+				locs[k] = v
+			}
+		}
+	}
+
 	return &ast.DesugaredObject{
-		NodeBase: nodeBase,
-		Asserts:  newAsserts,
-		Fields:   newFields,
+		NodeBase:  nodeBase,
+		Asserts:   newAsserts,
+		Fields:    newFields,
+		FieldLocs: locs,
 	}
 }
 
@@ -554,7 +570,7 @@ func desugar(astPtr *ast.Node, objLevel int) (err error) {
 			return
 		}
 
-		*astPtr = buildDesugaredObject(node.NodeBase, node.Fields)
+		*astPtr = buildDesugaredObject(node.NodeBase, node.Fields, node.FieldLocs)
 		err = desugar(astPtr, objLevel)
 		if err != nil {
 			return
