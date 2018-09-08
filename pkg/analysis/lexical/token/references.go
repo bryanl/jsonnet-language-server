@@ -2,7 +2,6 @@ package token
 
 import (
 	jpos "github.com/bryanl/jsonnet-language-server/pkg/util/position"
-	"github.com/davecgh/go-spew/spew"
 	"github.com/google/go-jsonnet/ast"
 	"github.com/pkg/errors"
 )
@@ -109,8 +108,6 @@ func objectReferences(node ast.Node, o *ast.DesugaredObject, pos jpos.Position, 
 
 		locations = append(locations, paramLocations...)
 	}
-
-	spew.Dump(es.references, op.path)
 
 	return locations, nil
 }
