@@ -36,6 +36,15 @@ func TestHighlight(t *testing.T) {
 				jpos.NewLocation(file, jpos.NewRangeFromCoords(1, 23, 1, 25)),
 			},
 		},
+		{
+			name:   "shadow: function parameter",
+			source: "local x=1; local id(x)=x; id(1)",
+			pos:    jpos.New(1, 21),
+			locs: []jpos.Location{
+				jpos.NewLocation(file, jpos.NewRangeFromCoords(1, 21, 1, 22)),
+				jpos.NewLocation(file, jpos.NewRangeFromCoords(1, 24, 1, 25)),
+			},
+		},
 	}
 
 	for _, tc := range cases {

@@ -74,7 +74,7 @@ func (s *scope) refersTo(id ast.Identifier, path ...string) []jpos.Location {
 
 	idLoc, ok := s.idMap[id]
 	if !ok {
-		panic(fmt.Sprintf("couldn't find location of %q", id))
+		return locations
 	}
 
 	switch n := s.declMap[id].(type) {

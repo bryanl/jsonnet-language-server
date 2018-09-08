@@ -32,6 +32,20 @@ func idNode(node ast.Node, pos jpos.Position, s *scope) (ast.Identifier, []strin
 	switch found := node.(type) {
 	case *ast.DesugaredObject:
 		return idNode(s.parent(found), pos, s)
+	case *ast.Function:
+		for paramID, loc := range found.Parameters.RequiredLocs {
+			if pos.IsInJsonnetRange(loc) {
+				id = paramID
+				break
+			}
+		}
+
+		for _, param := range found.Parameters.Optional {
+			if pos.IsInJsonnetRange(param.Loc) {
+				id = param.Name
+				break
+			}
+		}
 	case *ast.Index:
 		v, indexPath := resolveIndex(found)
 		id = v.Id

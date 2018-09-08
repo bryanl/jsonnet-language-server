@@ -116,10 +116,22 @@ func Test_scopeGraph(t *testing.T) {
 				checkScopeRefersTo(t, expectedLocation, s, "o", "id")
 			},
 		},
+		{
+			name:   "shadow: function parameter",
+			source: "local x=1; local id(x)=x; id(1)",
+			pos:    jpos.New(1, 21),
+			check: func(t *testing.T, s *scope) {
+				expectedLocation := []jpos.Location{
+					jpos.NewLocation(file, jpos.NewRangeFromCoords(1, 21, 1, 22)),
+					jpos.NewLocation(file, jpos.NewRangeFromCoords(1, 24, 1, 25)),
+				}
+				checkScopeRefersTo(t, expectedLocation, s, "x")
+			},
+		},
 	}
 
 	for _, tc := range cases {
-		if tc.name != "target apply which points to object field" {
+		if tc.name != "shadow: function parameter" {
 			continue
 		}
 		t.Run(tc.name, func(t *testing.T) {
