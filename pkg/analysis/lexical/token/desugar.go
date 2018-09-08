@@ -527,6 +527,7 @@ func desugar(astPtr *ast.Node, objLevel int) (err error) {
 					Variable: node.Binds[i].Variable,
 					Body:     node.Binds[i].Fun,
 					Fun:      nil,
+					VarLoc:   node.Binds[i].VarLoc,
 				}
 			}
 			err = desugar(&node.Binds[i].Body, objLevel)

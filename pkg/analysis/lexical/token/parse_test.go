@@ -170,8 +170,16 @@ func TestParse(t *testing.T) {
 			check: func(t *testing.T, node ast.Node) {
 				withLocal(t, node, func(local *ast.Local) {
 					require.Len(t, local.Binds, 1)
-					require.NotNil(t, local.Binds[0].Fun)
-					fun := local.Binds[0].Fun
+					bind := local.Binds[0]
+
+					assert.Equal(t, ast.Identifier("fn"), bind.Variable)
+
+					expectedVarLoc := pos.NewRangeFromCoords(1, 7, 1, 9)
+					assert.Equal(t, expectedVarLoc.Start.ToJsonnet(), bind.VarLoc.Begin)
+					assert.Equal(t, expectedVarLoc.End.ToJsonnet(), bind.VarLoc.End)
+
+					require.NotNil(t, bind.Fun)
+					fun := bind.Fun
 
 					xLoc := fun.Parameters.RequiredLocs[ast.Identifier("x")]
 					expectedXLoc := pos.NewRangeFromCoords(1, 10, 1, 11)
@@ -182,6 +190,24 @@ func TestParse(t *testing.T) {
 					expectedYLoc := pos.NewRangeFromCoords(1, 12, 1, 15)
 					assert.Equal(t, expectedYLoc.Start.ToJsonnet(), yLoc.Begin)
 					assert.Equal(t, expectedYLoc.End.ToJsonnet(), yLoc.End)
+				})
+			},
+		},
+		{
+			name:   "local function",
+			source: "local id(x)=x; fn(1)",
+			check: func(t *testing.T, node ast.Node) {
+				withLocal(t, node, func(local *ast.Local) {
+					require.Len(t, local.Binds, 1)
+					bind := local.Binds[0]
+
+					assert.Equal(t, ast.Identifier("id"), bind.Variable)
+
+					expectedVarLoc := pos.NewRangeFromCoords(1, 7, 1, 9)
+					assert.Equal(t, expectedVarLoc.Start.ToJsonnet(), bind.VarLoc.Begin)
+					assert.Equal(t, expectedVarLoc.End.ToJsonnet(), bind.VarLoc.End)
+
+					require.NotNil(t, bind.Fun)
 				})
 			},
 		},

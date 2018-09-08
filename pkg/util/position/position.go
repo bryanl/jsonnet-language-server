@@ -145,6 +145,13 @@ func NewLocation(uri string, r Range) Location {
 	}
 }
 
+// LocationFromJsonnet converts a Jsonnet LocationRange to
+// Location.
+func LocationFromJsonnet(r ast.LocationRange) Location {
+	fileName := r.FileName
+	return NewLocation(fileName, FromJsonnetRange(r))
+}
+
 // URI is the URI for the location.
 func (l *Location) URI() string {
 	return l.uri

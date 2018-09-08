@@ -3,6 +3,7 @@ package token
 import (
 	"testing"
 
+	pos "github.com/bryanl/jsonnet-language-server/pkg/util/position"
 	"github.com/google/go-jsonnet/ast"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -74,6 +75,18 @@ func TestDesugar(t *testing.T) {
 							assert.True(t, found)
 						}
 					}
+				})
+			},
+		},
+		{
+			name:   "keep function varloc in bind",
+			source: "local id(x)=x; x;",
+			check: func(t *testing.T, node ast.Node) {
+				withLocal(t, node, func(local *ast.Local) {
+					bind := local.Binds[0]
+					expectedVarLoc := pos.NewRangeFromCoords(1, 7, 1, 9)
+					assert.Equal(t, expectedVarLoc.Start.ToJsonnet(), bind.VarLoc.Begin)
+					assert.Equal(t, expectedVarLoc.End.ToJsonnet(), bind.VarLoc.End)
 				})
 			},
 		},
