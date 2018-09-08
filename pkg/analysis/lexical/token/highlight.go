@@ -35,7 +35,7 @@ func idNode(node ast.Node, pos jpos.Position, s *scope) (ast.Identifier, []strin
 	case *ast.Index:
 		v, indexPath := resolveIndex(found)
 		id = v.Id
-		path = indexPath
+		path = indexPath[1:]
 	case *ast.Local:
 		for _, bind := range found.Binds {
 			if pos.IsInJsonnetRange(bind.VarLoc) {

@@ -104,9 +104,24 @@ func Test_scopeGraph(t *testing.T) {
 				checkScopeRefersTo(t, expectedLocations, s, "o", "a", "b", "c", "d")
 			},
 		},
+		{
+			name:   "target apply which points to object field",
+			source: "local o={id(x)::x}; o.id(1)",
+			pos:    jpos.New(1, 23),
+			check: func(t *testing.T, s *scope) {
+				expectedLocation := []jpos.Location{
+					jpos.NewLocation(file, jpos.NewRangeFromCoords(1, 10, 1, 12)),
+					jpos.NewLocation(file, jpos.NewRangeFromCoords(1, 23, 1, 25)),
+				}
+				checkScopeRefersTo(t, expectedLocation, s, "o", "id")
+			},
+		},
 	}
 
 	for _, tc := range cases {
+		if tc.name != "target apply which points to object field" {
+			continue
+		}
 		t.Run(tc.name, func(t *testing.T) {
 			node, err := ReadSource(file, tc.source, nil)
 			require.NoError(t, err)
