@@ -114,7 +114,7 @@ func Test_scopeGraph(t *testing.T) {
 			nc := NewNodeCache()
 			sg := scanScope(node, nc)
 
-			s, err := sg.at(tc.pos)
+			_, s, err := sg.at(tc.pos)
 			require.NoError(t, err)
 
 			tc.check(t, s)

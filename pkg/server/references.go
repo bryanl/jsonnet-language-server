@@ -27,7 +27,7 @@ func textDocumentReferences(r *request, c *config.Config) (interface{}, error) {
 
 	pos := jpos.FromLSPPosition(params.Position)
 
-	locations, err := token.References(path, doc.String(), pos, c.NodeCache())
+	locations, err := token.Highlight(path, doc.String(), pos, c.NodeCache())
 	if err != nil {
 		return nil, err
 	}

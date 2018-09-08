@@ -41,7 +41,6 @@ type scope struct {
 	refMap    map[ast.Identifier][]scopeReference
 	parentMap map[ast.Node]ast.Node
 	objectMap map[*ast.DesugaredObject][]objectLookup
-	parent    *scope
 	nodeCache *NodeCache
 }
 
@@ -56,6 +55,10 @@ func newScope2(nodeCache *NodeCache) *scope {
 	}
 
 	return s
+}
+
+func (s *scope) parent(node ast.Node) ast.Node {
+	return s.parentMap[node]
 }
 
 func (s *scope) ids() []ast.Identifier {
@@ -197,13 +200,13 @@ func scanScope(node ast.Node, nc *NodeCache) *scopeGraph {
 	return sg
 }
 
-func (sg *scopeGraph) at(pos jpos.Position) (*scope, error) {
+func (sg *scopeGraph) at(pos jpos.Position) (ast.Node, *scope, error) {
 	n, err := locateNode(sg.root, pos)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
-	return sg.idScopes[n], nil
+	return n, sg.idScopes[n], nil
 }
 
 // nolint: gocyclo
