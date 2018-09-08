@@ -1,9 +1,8 @@
 package token
 
 import (
-	"fmt"
-
 	jpos "github.com/bryanl/jsonnet-language-server/pkg/util/position"
+	"github.com/davecgh/go-spew/spew"
 	"github.com/google/go-jsonnet/ast"
 	"github.com/pkg/errors"
 )
@@ -26,7 +25,6 @@ func References(path, source string, pos jpos.Position, nodeCache *NodeCache) ([
 	case *ast.Local:
 		return localReferences(node, n, pos, nodeCache)
 	default:
-		fmt.Printf("can't find references in a %T\n", n)
 		return []jpos.Location{}, nil
 	}
 }
@@ -101,8 +99,19 @@ func objectReferences(node ast.Node, o *ast.DesugaredObject, pos jpos.Position, 
 	if err != nil {
 		return nil, err
 	}
-
 	locations = append(locations, refLocations...)
+
+	if op.requiredID != nil {
+		paramLocations, err := locateReferences(*op.requiredID, es, nil)
+		if err != nil {
+			return nil, err
+		}
+
+		locations = append(locations, paramLocations...)
+	}
+
+	spew.Dump(es.references, op.path)
+
 	return locations, nil
 }
 

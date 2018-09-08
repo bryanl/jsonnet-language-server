@@ -164,6 +164,27 @@ func TestParse(t *testing.T) {
 				})
 			},
 		},
+		{
+			name:   "parameter location",
+			source: "local fn(x,y=1) = x+y; fn(1)",
+			check: func(t *testing.T, node ast.Node) {
+				withLocal(t, node, func(local *ast.Local) {
+					require.Len(t, local.Binds, 1)
+					require.NotNil(t, local.Binds[0].Fun)
+					fun := local.Binds[0].Fun
+
+					xLoc := fun.Parameters.RequiredLocs[ast.Identifier("x")]
+					expectedXLoc := pos.NewRangeFromCoords(1, 10, 1, 11)
+					assert.Equal(t, expectedXLoc.Start.ToJsonnet(), xLoc.Begin)
+					assert.Equal(t, expectedXLoc.End.ToJsonnet(), xLoc.End)
+
+					yLoc := fun.Parameters.Optional[0].Loc
+					expectedYLoc := pos.NewRangeFromCoords(1, 12, 1, 15)
+					assert.Equal(t, expectedYLoc.Start.ToJsonnet(), yLoc.Begin)
+					assert.Equal(t, expectedYLoc.End.ToJsonnet(), yLoc.End)
+				})
+			},
+		},
 	}
 
 	for _, tc := range cases {

@@ -558,7 +558,9 @@ func (p *mParser) parseArgument() (*ast.Identifier, ast.Node, error) {
 }
 
 func (p *mParser) parseArguments(elementKind string) (*Token, *ast.Arguments, bool, error) {
-	args := &ast.Arguments{}
+	args := &ast.Arguments{
+		PositionalLocs: make(map[ast.Node]ast.LocationRange),
+	}
 	gotComma := false
 	namedArgumentAdded := false
 	first := true
@@ -578,14 +580,21 @@ func (p *mParser) parseArguments(elementKind string) (*Token, *ast.Arguments, bo
 		if err != nil {
 			return nil, nil, false, err
 		}
+
 		if id == nil {
 			if namedArgumentAdded {
 				return nil, nil, false, parser.MakeStaticError("Positional argument after a named argument is not allowed", next.Loc)
 			}
 			args.Positional = append(args.Positional, expr)
+			args.PositionalLocs[expr] = next.Loc
 		} else {
 			namedArgumentAdded = true
-			args.Named = append(args.Named, ast.NamedArgument{Name: *id, Arg: expr})
+			named := ast.NamedArgument{
+				Name: *id,
+				Arg:  expr,
+				Loc:  ast.LocationRangeBetween(&next.Loc, expr.Loc()),
+			}
+			args.Named = append(args.Named, named)
 		}
 
 		if p.peek().Kind == TokenComma {
@@ -1036,7 +1045,9 @@ func (p *mParser) parseParameters(elementKind string) (*ast.Parameters, bool, er
 		return nil, false, err
 	}
 
-	var params ast.Parameters
+	params := ast.Parameters{
+		RequiredLocs: make(map[ast.Identifier]ast.LocationRange),
+	}
 	for _, arg := range args.Positional {
 		id, ok := astVarToIdentifier(arg)
 		if !ok {
@@ -1044,9 +1055,15 @@ func (p *mParser) parseParameters(elementKind string) (*ast.Parameters, bool, er
 				errors.Errorf("expected simple identifer but got a complex expression"), *arg.Loc())
 		}
 		params.Required = append(params.Required, *id)
+		params.RequiredLocs[*id] = args.PositionalLocs[arg]
 	}
 	for _, arg := range args.Named {
-		params.Optional = append(params.Optional, ast.NamedParameter{Name: arg.Name, DefaultArg: arg.Arg})
+		named := ast.NamedParameter{
+			Name:       arg.Name,
+			DefaultArg: arg.Arg,
+			Loc:        arg.Loc,
+		}
+		params.Optional = append(params.Optional, named)
 	}
 	return &params, trailingComma, nil
 
@@ -1175,14 +1192,6 @@ func (p *mParser) parsingFailure(msg string, tok *Token) (ast.Node, error) {
 
 func (p *mParser) atEnd() bool {
 	return p.cur == len(p.tokens)
-}
-
-func (p *mParser) loc() string {
-	if p.cur >= len(p.tokens)-1 {
-		return "eof"
-	}
-
-	return p.peek().Loc.String()
 }
 
 func (p *mParser) peek() *Token {

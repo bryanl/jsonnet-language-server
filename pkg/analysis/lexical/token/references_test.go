@@ -51,6 +51,15 @@ func TestReferences(t *testing.T) {
 				jpos.NewLocation("file.jsonnet", jpos.NewRangeFromCoords(1, 22, 1, 27)),
 			},
 		},
+		{
+			name:   "param references in object",
+			source: "local x={fn(y):: y}; x",
+			pos:    jpos.New(1, 13),
+			expected: []jpos.Location{
+				jpos.NewLocation("file.jsonnet", jpos.NewRangeFromCoords(1, 13, 1, 14)),
+				jpos.NewLocation("file.jsonnet", jpos.NewRangeFromCoords(1, 18, 1, 19)),
+			},
+		},
 	}
 
 	for _, tc := range cases {

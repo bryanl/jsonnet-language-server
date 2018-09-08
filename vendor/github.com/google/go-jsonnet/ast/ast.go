@@ -147,13 +147,15 @@ type Apply struct {
 type NamedArgument struct {
 	Name Identifier
 	Arg  Node
+	Loc  LocationRange
 }
 
 // Arguments represents positional and named arguments to a function call
 // f(x, y, z=1).
 type Arguments struct {
-	Positional Nodes
-	Named      []NamedArgument
+	Positional     Nodes
+	PositionalLocs map[Node]LocationRange
+	Named          []NamedArgument
 }
 
 // ---------------------------------------------------------------------------
@@ -342,6 +344,7 @@ type Function struct {
 
 // NamedParameter represents an optional named parameter of a function.
 type NamedParameter struct {
+	Loc        LocationRange
 	Name       Identifier
 	DefaultArg Node
 }
@@ -349,8 +352,9 @@ type NamedParameter struct {
 // Parameters represents the required positional parameters and optional named
 // parameters to a function definition.
 type Parameters struct {
-	Required Identifiers
-	Optional []NamedParameter
+	Required     Identifiers
+	RequiredLocs map[Identifier]LocationRange
+	Optional     []NamedParameter
 }
 
 // ---------------------------------------------------------------------------

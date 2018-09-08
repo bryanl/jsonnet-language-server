@@ -11,53 +11,53 @@ import (
 
 func Test_pathToLocation(t *testing.T) {
 	cases := []struct {
-		name     string
-		source   string
-		pos      jpos.Position
-		expected objectPath
-		isErr    bool
+		name         string
+		source       string
+		pos          jpos.Position
+		expectedPath []string
+		expectedLoc  jpos.Range
+		isErr        bool
 	}{
 		{
-			name:   "position in field name",
-			source: "{a:'a'}",
-			pos:    jpos.New(1, 2),
-			expected: objectPath{
-				path: []string{"a"},
-				loc:  jpos.NewRangeFromCoords(1, 2, 1, 3),
-			},
+			name:         "position in field name",
+			source:       "{a:'a'}",
+			pos:          jpos.New(1, 2),
+			expectedPath: []string{"a"},
+			expectedLoc:  jpos.NewRangeFromCoords(1, 2, 1, 3),
 		},
 		{
-			name:   "position in field body",
-			source: "{a:'a'}",
-			pos:    jpos.New(1, 5),
-			expected: objectPath{
-				path: []string{"a"},
-				loc:  jpos.NewRangeFromCoords(1, 2, 1, 3),
-			},
+			name:         "position in field body",
+			source:       "{a:'a'}",
+			pos:          jpos.New(1, 5),
+			expectedPath: []string{"a"},
+			expectedLoc:  jpos.NewRangeFromCoords(1, 2, 1, 3),
 		},
 		{
-			name:   "position in field body and body is object",
-			source: "{a:{b:'b'}}",
-			pos:    jpos.New(1, 5),
-			expected: objectPath{
-				path: []string{"a", "b"},
-				loc:  jpos.NewRangeFromCoords(1, 5, 1, 6),
-			},
+			name:         "position in field body and body is object",
+			source:       "{a:{b:'b'}}",
+			pos:          jpos.New(1, 5),
+			expectedPath: []string{"a", "b"},
+			expectedLoc:  jpos.NewRangeFromCoords(1, 5, 1, 6),
 		},
 		{
-			name:   "position in field with string name",
-			source: "{'a': 'a'}",
-			pos:    jpos.New(1, 3),
-			expected: objectPath{
-				path: []string{"a"},
-				loc:  jpos.NewRangeFromCoords(1, 2, 1, 5),
-			},
+			name:         "position in field with string name",
+			source:       "{'a': 'a'}",
+			pos:          jpos.New(1, 3),
+			expectedPath: []string{"a"},
+			expectedLoc:  jpos.NewRangeFromCoords(1, 2, 1, 5),
 		},
 		{
 			name:   "position in field with expression name",
 			source: "{[a]: 'a'}",
 			pos:    jpos.New(1, 3),
 			isErr:  true,
+		},
+		{
+			name:         "position in function field parameters",
+			source:       "{id(y): y}",
+			pos:          jpos.New(1, 5),
+			expectedPath: []string{"id"},
+			expectedLoc:  jpos.NewRangeFromCoords(1, 5, 1, 6),
 		},
 	}
 
@@ -67,14 +67,15 @@ func Test_pathToLocation(t *testing.T) {
 			require.NoError(t, err)
 
 			withDesugaredObject(t, node, func(o *ast.DesugaredObject) {
-				path, err := pathToLocation(o, tc.pos)
+				op, err := pathToLocation(o, tc.pos)
 				if tc.isErr {
 					require.Error(t, err)
 					return
 				}
 
 				require.NoError(t, err)
-				assert.Equal(t, tc.expected, path)
+				assert.Equal(t, tc.expectedPath, op.path)
+				assert.Equal(t, tc.expectedLoc, op.loc)
 			})
 		})
 	}

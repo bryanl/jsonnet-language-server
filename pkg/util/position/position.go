@@ -162,3 +162,12 @@ func (l *Location) ToLSP() lsp.Location {
 		Range: l.r.ToLSP(),
 	}
 }
+
+// ToJSonnet converts the Location to a Jsonnet LocationRange.
+func (l *Location) ToJsonnet() ast.LocationRange {
+	return ast.LocationRange{
+		FileName: l.uri,
+		Begin:    l.r.Start.ToJsonnet(),
+		End:      l.r.End.ToJsonnet(),
+	}
+}
