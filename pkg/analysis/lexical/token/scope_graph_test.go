@@ -19,7 +19,7 @@ func Test_scopeGraph(t *testing.T) {
 		check  func(*testing.T, *scope)
 	}{
 		{
-			name:   "check declaration",
+			name:   "target variable in bind",
 			source: "local x=1; x",
 			pos:    jpos.New(1, 7),
 			check: func(t *testing.T, s *scope) {
@@ -33,7 +33,7 @@ func Test_scopeGraph(t *testing.T) {
 			},
 		},
 		{
-			name:   "check reference",
+			name:   "target var in local body",
 			source: "local x=1; x",
 			pos:    jpos.New(1, 12),
 			check: func(t *testing.T, s *scope) {
@@ -45,7 +45,7 @@ func Test_scopeGraph(t *testing.T) {
 			},
 		},
 		{
-			name:   "function param",
+			name:   "target parameter in bind function",
 			source: "local id(x)=x; id(1)",
 			pos:    jpos.New(1, 10),
 			check: func(t *testing.T, s *scope) {
@@ -57,7 +57,7 @@ func Test_scopeGraph(t *testing.T) {
 			},
 		},
 		{
-			name:   "var created from function param",
+			name:   "target variable in function",
 			source: "local id(x)=x; id(1)",
 			pos:    jpos.New(1, 13),
 			check: func(t *testing.T, s *scope) {
@@ -69,7 +69,7 @@ func Test_scopeGraph(t *testing.T) {
 			},
 		},
 		{
-			name:   "function in bind",
+			name:   "target function in bind",
 			source: "local id(x)=x; id(1)",
 			pos:    jpos.New(1, 7),
 			check: func(t *testing.T, s *scope) {
@@ -81,7 +81,7 @@ func Test_scopeGraph(t *testing.T) {
 			},
 		},
 		{
-			name:   "var with index",
+			name:   "target bind variable (object)",
 			source: "local o={a:{b:{c:{d:'e'}}}}; o.a.b.c.d",
 			pos:    jpos.New(1, 7),
 			check: func(t *testing.T, s *scope) {
@@ -93,7 +93,7 @@ func Test_scopeGraph(t *testing.T) {
 			},
 		},
 		{
-			name:   "in index",
+			name:   "target index in body",
 			source: "local o={a:{b:{c:{d:'e'}}}}; o.a.b.c.d",
 			pos:    jpos.New(1, 38),
 			check: func(t *testing.T, s *scope) {
