@@ -282,12 +282,15 @@ func resolveIndex(i *ast.Index) (*ast.Var, []string) {
 		case *ast.Index:
 			if c.Index != nil {
 				s, ok := c.Index.(*ast.LiteralString)
-				if !ok {
-					panic(fmt.Sprintf("can't handle index of type %T", c.Index))
+				if ok {
+					path = append([]string{s.Value}, path...)
 				}
-				path = append([]string{s.Value}, path...)
+
 			}
 			cur = c.Target
+		case *ast.Self:
+			path = append([]string{"self"}, path...)
+			done = true
 		case *ast.Var:
 			v = c
 			path = append([]string{string(c.Id)}, path...)

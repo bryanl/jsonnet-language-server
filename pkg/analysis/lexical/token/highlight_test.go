@@ -45,9 +45,31 @@ func TestHighlight(t *testing.T) {
 				jpos.NewLocation(file, jpos.NewRangeFromCoords(1, 24, 1, 25)),
 			},
 		},
+		{
+			name:   "target in array index",
+			source: "local x=1, i=1; local a=[x]; a[i]",
+			pos:    jpos.New(1, 32),
+			locs: []jpos.Location{
+				jpos.NewLocation(file, jpos.NewRangeFromCoords(1, 12, 1, 13)),
+				jpos.NewLocation(file, jpos.NewRangeFromCoords(1, 32, 1, 33)),
+			},
+		},
+		{
+			name:   "self",
+			source: `{person1: {name: "Alice", welcome: "Hello " + self.name + "!",}, person2: self.person1 {name: "Bob"}}`,
+			pos:    jpos.New(1, 52),
+			locs: []jpos.Location{
+				jpos.NewLocation(file, jpos.NewRangeFromCoords(1, 12, 1, 16)),
+				jpos.NewLocation(file, jpos.NewRangeFromCoords(1, 52, 1, 56)),
+				jpos.NewLocation(file, jpos.NewRangeFromCoords(1, 89, 1, 93)),
+			},
+		},
 	}
 
 	for _, tc := range cases {
+		if tc.name != "self" {
+			continue
+		}
 		t.Run(tc.name, func(t *testing.T) {
 			nc := NewNodeCache()
 			locations, err := Highlight(file, tc.source, tc.pos, nc)

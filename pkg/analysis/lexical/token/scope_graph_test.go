@@ -128,10 +128,34 @@ func Test_scopeGraph(t *testing.T) {
 				checkScopeRefersTo(t, expectedLocation, s, "x")
 			},
 		},
+		{
+			name:   "target in array",
+			source: "local x=1, i=1; local a=[x]; a[i]",
+			pos:    jpos.New(1, 30),
+			check: func(t *testing.T, s *scope) {
+				expectedLocation := []jpos.Location{
+					jpos.NewLocation(file, jpos.NewRangeFromCoords(1, 23, 1, 24)),
+					jpos.NewLocation(file, jpos.NewRangeFromCoords(1, 30, 1, 31)),
+				}
+				checkScopeRefersTo(t, expectedLocation, s, "a")
+			},
+		},
+		{
+			name:   "target in array index",
+			source: "local x=1, i=1; local a=[x]; a[i]",
+			pos:    jpos.New(1, 32),
+			check: func(t *testing.T, s *scope) {
+				expectedLocation := []jpos.Location{
+					jpos.NewLocation(file, jpos.NewRangeFromCoords(1, 12, 1, 13)),
+					jpos.NewLocation(file, jpos.NewRangeFromCoords(1, 32, 1, 33)),
+				}
+				checkScopeRefersTo(t, expectedLocation, s, "i")
+			},
+		},
 	}
 
 	for _, tc := range cases {
-		if tc.name != "shadow: function parameter" {
+		if tc.name != "self" {
 			continue
 		}
 		t.Run(tc.name, func(t *testing.T) {

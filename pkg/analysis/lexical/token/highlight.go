@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	jpos "github.com/bryanl/jsonnet-language-server/pkg/util/position"
+	"github.com/davecgh/go-spew/spew"
 	"github.com/google/go-jsonnet/ast"
 )
 
@@ -23,6 +24,7 @@ func Highlight(filepath, source string, pos jpos.Position, nodeCache *NodeCache)
 
 	id, path := idNode(found, pos, s)
 
+	spew.Dump("highlighting", id, path)
 	return s.refersTo(id, path...), nil
 }
 
@@ -47,8 +49,8 @@ func idNode(node ast.Node, pos jpos.Position, s *scope) (ast.Identifier, []strin
 			}
 		}
 	case *ast.Index:
-		v, indexPath := resolveIndex(found)
-		id = v.Id
+		_, indexPath := resolveIndex(found)
+		id = ast.Identifier(indexPath[0])
 		path = indexPath[1:]
 	case *ast.Local:
 		for _, bind := range found.Binds {

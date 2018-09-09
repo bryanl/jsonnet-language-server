@@ -5,6 +5,7 @@ import (
 
 	"github.com/bryanl/jsonnet-language-server/pkg/analysis/lexical/astext"
 	jpos "github.com/bryanl/jsonnet-language-server/pkg/util/position"
+	"github.com/davecgh/go-spew/spew"
 	"github.com/google/go-jsonnet/ast"
 )
 
@@ -92,7 +93,6 @@ func (s *scope) refersTo(id ast.Identifier, path ...string) []jpos.Location {
 		}
 	default:
 		locations = append(locations, idLoc)
-
 		for _, ref := range s.refMap[id] {
 			locations = append(locations, jpos.LocationFromJsonnet(ref.loc))
 		}
@@ -103,6 +103,8 @@ func (s *scope) refersTo(id ast.Identifier, path ...string) []jpos.Location {
 
 func (s *scope) findObjectPath(o *ast.DesugaredObject, path []string) []jpos.Location {
 	var locations []jpos.Location
+
+	fmt.Println("findObjectPath path: ", path)
 
 	lookups := s.objectMap[o]
 	for _, ol := range lookups {
@@ -124,13 +126,16 @@ func (s *scope) reference(id ast.Identifier, node ast.Node, path ...string) {
 	var loc ast.LocationRange
 	switch node := node.(type) {
 	case *ast.Index:
-		ls, ok := node.Index.(*ast.LiteralString)
-		if !ok {
-			panic(fmt.Sprintf("index id type %T", node.Index))
+		switch in := node.Index.(type) {
+		case *ast.LiteralString:
+			loc = *node.Loc()
+			loc.Begin.Column = loc.End.Column - len(in.Value)
+		case *ast.Self:
+			loc = *node.Loc()
+		case *ast.Var:
+			return
 		}
 
-		loc = *node.Loc()
-		loc.Begin.Column = loc.End.Column - len(ls.Value)
 	default:
 		loc = *node.Loc()
 	}
@@ -149,6 +154,7 @@ func (s *scope) reference(id ast.Identifier, node ast.Node, path ...string) {
 }
 
 func (s *scope) indexObject(root, cur *ast.DesugaredObject, name string, path []string) {
+	fmt.Println("indexing field", name)
 	_, ok := s.objectMap[root]
 	if !ok {
 		s.objectMap[root] = make([]objectLookup, 0)
@@ -159,6 +165,8 @@ func (s *scope) indexObject(root, cur *ast.DesugaredObject, name string, path []
 		path: path,
 		r:    cur.FieldLocs[name],
 	}
+
+	spew.Dump(ol)
 
 	s.objectMap[root] = append(s.objectMap[root], ol)
 }
@@ -249,6 +257,8 @@ func (sg *scopeGraph) visit(parent, n ast.Node, parentScope *scope) {
 			inRootObject = true
 		}
 
+		currentScope.declare(ast.Identifier("self"), *n.Loc(), n)
+
 		for _, field := range n.Fields {
 			name, err := fieldName(field)
 			if err != nil {
@@ -287,8 +297,12 @@ func (sg *scopeGraph) visit(parent, n ast.Node, parentScope *scope) {
 	case *ast.InSuper:
 		sg.visit(n, n.Index, currentScope)
 	case *ast.Index:
-		v, path := resolveIndex(n)
-		currentScope.reference(v.Id, n, path[1:]...)
+		_, path := resolveIndex(n)
+		refPath := make([]string, 0)
+		if len(path) > 1 {
+			refPath = path[1:]
+		}
+		currentScope.reference(ast.Identifier(path[0]), n, refPath...)
 
 		sg.visit(n, n.Target, currentScope)
 		sg.visit(n, n.Index, currentScope)
@@ -298,7 +312,6 @@ func (sg *scopeGraph) visit(parent, n ast.Node, parentScope *scope) {
 	case *ast.LiteralString:
 	case *ast.Local:
 		currentScope = currentScope.Clone()
-
 		for _, bind := range n.Binds {
 
 			currentScope.declare(bind.Variable, bind.VarLoc, bind.Body)
