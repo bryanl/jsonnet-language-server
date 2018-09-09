@@ -297,7 +297,7 @@ func (sg *scopeGraph) visit(parent, n ast.Node, parentScope *scope) {
 	case *ast.InSuper:
 		sg.visit(n, n.Index, currentScope)
 	case *ast.Index:
-		_, path := resolveIndex(n)
+		path := resolveIndex(n)
 		refPath := make([]string, 0)
 		if len(path) > 1 {
 			refPath = path[1:]

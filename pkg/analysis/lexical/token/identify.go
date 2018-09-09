@@ -148,9 +148,9 @@ func (i *identifier) identify(n ast.Node) (Identity, error) {
 }
 
 func (i *identifier) index(idx *ast.Index) (Identity, error) {
-	v, path := resolveIndex(idx)
+	path := resolveIndex(idx)
 
-	vSe, err := i.scope.Get(string(v.Id))
+	vSe, err := i.scope.Get(path[0])
 	if err != nil {
 		return nil, err
 	}

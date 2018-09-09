@@ -49,7 +49,7 @@ func idNode(node ast.Node, pos jpos.Position, s *scope) (ast.Identifier, []strin
 			}
 		}
 	case *ast.Index:
-		_, indexPath := resolveIndex(found)
+		indexPath := resolveIndex(found)
 		id = ast.Identifier(indexPath[0])
 		path = indexPath[1:]
 	case *ast.Local:

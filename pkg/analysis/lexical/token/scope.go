@@ -1,7 +1,6 @@
 package token
 
 import (
-	"fmt"
 	"sort"
 	"strings"
 
@@ -10,7 +9,6 @@ import (
 	jlspos "github.com/bryanl/jsonnet-language-server/pkg/util/position"
 	"github.com/google/go-jsonnet/ast"
 	"github.com/pkg/errors"
-	"github.com/sirupsen/logrus"
 )
 
 // ScopeEntry is a scope entry.
@@ -187,12 +185,8 @@ func (sm *Scope) findInPath(node ast.Node, path []string) (ast.Node, error) {
 	case *ast.Object:
 		return findInObject(node, path)
 	case *ast.Index:
-		v, indexPath := resolveIndex(node)
-		if v == nil {
-			logrus.Infof("findInPath for index. v is nil. got indexPath [%s]",
-				strings.Join(indexPath, ","))
-		}
-		o, err := sm.Get(string(v.Id))
+		indexPath := resolveIndex(node)
+		o, err := sm.Get(indexPath[0])
 		if err != nil {
 			return nil, err
 		}
@@ -267,42 +261,6 @@ func LocationScope(filename, source string, loc jlspos.Position, nodeCache *Node
 	sm.addEvalScope(es)
 
 	return sm, nil
-}
-
-func resolveIndex(i *ast.Index) (*ast.Var, []string) {
-	var cur ast.Node = i
-	var v *ast.Var
-	count := 0
-	done := false
-	var path []string
-	for count < 100 && !done {
-		switch c := cur.(type) {
-		case *ast.Apply:
-			cur = c.Target
-		case *ast.Index:
-			if c.Index != nil {
-				s, ok := c.Index.(*ast.LiteralString)
-				if ok {
-					path = append([]string{s.Value}, path...)
-				}
-
-			}
-			cur = c.Target
-		case *ast.Self:
-			path = append([]string{"self"}, path...)
-			done = true
-		case *ast.Var:
-			v = c
-			path = append([]string{string(c.Id)}, path...)
-			done = true
-		default:
-			panic(fmt.Sprintf("unable to resolve a %T in index", c))
-		}
-
-		count++
-	}
-
-	return v, path
 }
 
 func resolveStd(path []string) (*ScopeEntry, error) {

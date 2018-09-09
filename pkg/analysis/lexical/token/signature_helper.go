@@ -51,7 +51,7 @@ func SignatureHelper(source string, pos jpos.Position, nodeCache *NodeCache) (*S
 			return nil, err
 		}
 	case *ast.Index:
-		_, path := resolveIndex(n)
+		path := resolveIndex(n)
 		se, err = s.GetInPath(path)
 		if err != nil {
 			return nil, err

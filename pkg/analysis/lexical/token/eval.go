@@ -219,8 +219,8 @@ func (e *evaluator) eval(parent, n ast.Node, parentScope *evalScope) {
 	case *ast.Import:
 	case *ast.ImportStr:
 	case *ast.Index:
-		v, path := resolveIndex(n)
-		if err := parentScope.refersTo(v.Id, n, path[1:]...); err != nil {
+		path := resolveIndex(n)
+		if err := parentScope.refersTo(ast.Identifier(path[0]), n, path[1:]...); err != nil {
 			e.err = err
 			return
 		}
