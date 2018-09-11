@@ -6,6 +6,77 @@ import (
 	"github.com/pkg/errors"
 )
 
+type objectMapper struct {
+	m map[objectKey]ast.LocationRange
+}
+
+func (om *objectMapper) add(o *ast.DesugaredObject, name string) error {
+	if om.m == nil {
+		om.m = make(map[objectKey]ast.LocationRange)
+	}
+
+	loc, ok := o.FieldLocs[name]
+	if !ok {
+		return errors.Errorf("could not find location for field %s", name)
+	}
+
+	key := objectKey{
+		object: o,
+		field:  name,
+	}
+
+	om.m[key] = loc
+	return nil
+}
+
+func (om *objectMapper) lookup(o *ast.DesugaredObject, path []string) (jpos.Location, error) {
+	name, path := path[0], path[1:]
+	key := objectKey{
+		object: o,
+		field:  name,
+	}
+
+	lr, ok := om.m[key]
+	if !ok {
+		return jpos.Location{}, errors.Errorf("field %s does not exist in object", name)
+	}
+
+	if len(path) == 0 {
+		return jpos.LocationFromJsonnet(lr), nil
+	}
+
+	nested, err := fieldByName(o, name)
+	if err != nil {
+		return jpos.Location{}, err
+	}
+
+	local, ok := nested.Body.(*ast.Local)
+	if !ok {
+		return jpos.Location{}, errors.Errorf("field %s doesn't have local scope", name)
+	}
+
+	nestedObject, ok := local.Body.(*ast.DesugaredObject)
+	if !ok {
+		return jpos.Location{}, errors.Errorf("expected body to be an object; it was %T", local.Body)
+	}
+
+	return om.lookup(nestedObject, path)
+}
+
+func fieldByName(o *ast.DesugaredObject, name string) (*ast.DesugaredObjectField, error) {
+	for _, field := range o.Fields {
+		fn, err := fieldName(field)
+		if err != nil {
+			return nil, err
+		}
+
+		if fn == name {
+			return &field, nil
+		}
+	}
+	return nil, errors.Errorf("field %s does not exist", name)
+}
+
 type objectPath struct {
 	path       []string
 	loc        jpos.Range

@@ -3,7 +3,6 @@ package token
 import (
 	"testing"
 
-	"github.com/davecgh/go-spew/spew"
 	"github.com/google/go-jsonnet/ast"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -30,8 +29,6 @@ func Test_resolveIndex(t *testing.T) {
 		t.Run(tC.desc, func(t *testing.T) {
 			node, err := ReadSource("file.jsonnet", tC.indexSource, nil)
 			require.NoError(t, err)
-
-			spew.Dump(node)
 
 			index, ok := node.(*ast.Index)
 			require.True(t, ok)

@@ -1,6 +1,7 @@
 package position
 
 import (
+	"bytes"
 	"fmt"
 
 	"github.com/bryanl/jsonnet-language-server/pkg/lsp"
@@ -122,6 +123,10 @@ func (r *Range) ToLSP() lsp.Range {
 	}
 }
 
+func (r *Range) String() string {
+	return fmt.Sprintf("%s-%s", r.Start.String(), r.End.String())
+}
+
 // FromJsonnetRange converts a Jsonnet LocationRange to
 // Range.
 func FromJsonnetRange(r ast.LocationRange) Range {
@@ -170,11 +175,83 @@ func (l *Location) ToLSP() lsp.Location {
 	}
 }
 
-// ToJSonnet converts the Location to a Jsonnet LocationRange.
+// ToJsonnet converts the Location to a Jsonnet LocationRange.
 func (l *Location) ToJsonnet() ast.LocationRange {
 	return ast.LocationRange{
 		FileName: l.uri,
 		Begin:    l.r.Start.ToJsonnet(),
 		End:      l.r.End.ToJsonnet(),
 	}
+}
+
+func (l *Location) String() string {
+	start := l.Range().Start
+	end := l.Range().End
+	return fmt.Sprintf("%s(%v)-(%v)", l.uri, start.String(), end.String())
+}
+
+// Locations is a set of locations.
+type Locations struct {
+	store map[Location]bool
+}
+
+// Add adds a location to the set.
+func (ls *Locations) Add(l Location) {
+	if ls.store == nil {
+		ls.store = make(map[Location]bool)
+	}
+
+	ls.store[l] = true
+}
+
+func (l *Locations) String() string {
+	var buf bytes.Buffer
+	buf.WriteString("[")
+	sl := l.Slice()
+	for i := 0; i < len(sl); i++ {
+		buf.WriteString(sl[i].String())
+		if i < len(sl)-1 {
+			buf.WriteString(", ")
+		}
+	}
+	buf.WriteString("]")
+	return buf.String()
+}
+
+// Equal returns true if this set of locations equals
+// another set of locations.
+func (ls *Locations) Equal(other *Locations) bool {
+	if other == nil {
+		return false
+	}
+
+	return locationsEqual(ls.Slice(), other.Slice())
+}
+
+// Slice converts the locations to a slice.
+func (ls *Locations) Slice() []Location {
+	var out []Location
+	for k := range ls.store {
+		out = append(out, k)
+	}
+
+	return out
+}
+
+func locationsEqual(a, b []Location) bool {
+	if (a == nil) != (b == nil) {
+		return false
+	}
+
+	if len(a) != len(b) {
+		return false
+	}
+
+	for i := range a {
+		if a[i].String() != b[i].String() {
+			return false
+		}
+	}
+
+	return true
 }

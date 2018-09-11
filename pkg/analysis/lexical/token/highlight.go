@@ -4,12 +4,11 @@ import (
 	"fmt"
 
 	jpos "github.com/bryanl/jsonnet-language-server/pkg/util/position"
-	"github.com/davecgh/go-spew/spew"
 	"github.com/google/go-jsonnet/ast"
 )
 
 // Highlight returns locations to highlight given source and a position.
-func Highlight(filepath, source string, pos jpos.Position, nodeCache *NodeCache) ([]jpos.Location, error) {
+func Highlight(filepath, source string, pos jpos.Position, nodeCache *NodeCache) (*jpos.Locations, error) {
 	node, err := ReadSource(filepath, source, nil)
 	if err != nil {
 		return nil, err
@@ -17,15 +16,19 @@ func Highlight(filepath, source string, pos jpos.Position, nodeCache *NodeCache)
 
 	sg := scanScope(node, nodeCache)
 
-	found, s, err := sg.at(pos)
+	_, s, err := sg.at(pos)
 	if err != nil {
 		return nil, err
 	}
 
-	id, path := idNode(found, pos, s)
+	locations := s.refAt(pos)
+	return &locations, nil
 
-	spew.Dump("highlighting", id, path)
-	return s.refersTo(id, path...), nil
+	// spew.Dump(pos, s.refMap)
+
+	// id, path := idNode(found, pos, s)
+
+	// return s.refersTo(id, path...), nil
 }
 
 func idNode(node ast.Node, pos jpos.Position, s *scope) (ast.Identifier, []string) {
@@ -33,6 +36,7 @@ func idNode(node ast.Node, pos jpos.Position, s *scope) (ast.Identifier, []strin
 	var path []string
 	switch found := node.(type) {
 	case *ast.DesugaredObject:
+		fmt.Println("iding an object")
 		return idNode(s.parent(found), pos, s)
 	case *ast.Function:
 		for paramID, loc := range found.Parameters.RequiredLocs {

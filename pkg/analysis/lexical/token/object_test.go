@@ -9,6 +9,41 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func Test_objectMapper_lookup(t *testing.T) {
+	var om objectMapper
+
+	source := "{a: {b: 'c'}}"
+	node, err := ReadSource("file.jsonnet", source, nil)
+	require.NoError(t, err)
+
+	o, ok := node.(*ast.DesugaredObject)
+	require.True(t, ok)
+	err = om.add(o, "a")
+	require.NoError(t, err)
+	l, err := om.lookup(o, []string{"a"})
+	require.NoError(t, err)
+
+	expected := jpos.NewLocation("file.jsonnet",
+		jpos.NewRangeFromCoords(1, 2, 1, 3))
+	assert.Equal(t, expected, l)
+
+	local, ok := o.Fields[0].Body.(*ast.Local)
+	require.True(t, ok)
+
+	nested, ok := local.Body.(*ast.DesugaredObject)
+	require.True(t, ok)
+
+	err = om.add(nested, "b")
+	require.NoError(t, err)
+	l, err = om.lookup(o, []string{"a", "b"})
+	require.NoError(t, err)
+
+	expected = jpos.NewLocation("file.jsonnet",
+		jpos.NewRangeFromCoords(1, 6, 1, 7))
+	assert.Equal(t, expected, l)
+
+}
+
 func Test_pathToLocation(t *testing.T) {
 	cases := []struct {
 		name         string
