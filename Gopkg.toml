@@ -46,6 +46,9 @@
   name = "github.com/satori/go.uuid"
   version = "v1.2.0"
 
+[[constraint]]
+  name = "github.com/uber/jaeger-client-go"
+  version = "^2.7.0"
 [[override]]
   name = "gopkg.in/fsnotify.v1"
   source = "https://github.com/fsnotify/fsnotify.git"

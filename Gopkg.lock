@@ -30,7 +30,7 @@
 
 [[projects]]
   branch = "manifest-to-node"
-  digest = "1:bf09050e8114387fd3e60b489c24780e9895b6d78544f54b8e3f4d8a0e3a9458"
+  digest = "1:c6f2aa0d41d28262a280488f5e8dbec69a7b70cb26cc8dee21a9878c178723e6"
   name = "github.com/google/go-jsonnet"
   packages = [
     ".",
@@ -38,7 +38,7 @@
     "parser",
   ]
   pruneopts = "UT"
-  revision = "d649696207cfa80c59ce976a29516cb2dace9d5f"
+  revision = "5eec671ef9371e0fcc35035bb47374324e4f0ee4"
   source = "github.com/bryanl/go-jsonnet"
 
 [[projects]]
@@ -95,11 +95,11 @@
 
 [[projects]]
   branch = "master"
-  digest = "1:2b36de9d58253dfb01ceb22d85ace23b69210908a8191f2d967f46db4b94833a"
+  digest = "1:5c544b106ab134a45e06a8fcc4c4e9591cc712efb9cfbe19672abba0c27d2700"
   name = "github.com/sourcegraph/jsonrpc2"
   packages = ["."]
   pruneopts = "UT"
-  revision = "a3d86c792f0f5a0c0c2c4ed9157125e914cb5534"
+  revision = "549eb959f029d014d623104d40ab966d159a92de"
 
 [[projects]]
   digest = "1:c40d65817cdd41fac9aa7af8bed56927bb2d6d47e4fea566a74880f5c2b1c41e"
@@ -123,14 +123,14 @@
 
 [[projects]]
   branch = "master"
-  digest = "1:2f71657f09ff05e4567909e9e0de7ad799828c96d402c540b41dc044a6590fb2"
+  digest = "1:374fc90fcb026e9a367e3fad29e988e5dd944b68ca3f24a184d77abc5307dda4"
   name = "golang.org/x/sys"
   packages = [
     "unix",
     "windows",
   ]
   pruneopts = "UT"
-  revision = "1c9583448a9c3aa0f9a6a5241bf73c0bd8aafded"
+  revision = "d0be0721c37eeb5299f245a996a483160fc36940"
 
 [solve-meta]
   analyzer-name = "dep"
