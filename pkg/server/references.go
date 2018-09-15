@@ -33,7 +33,7 @@ func textDocumentReferences(r *request, c *config.Config) (interface{}, error) {
 	}
 
 	var lspLocations []lsp.Location
-	for _, l := range locations {
+	for _, l := range locations.Slice() {
 		lspLocations = append(lspLocations, l.ToLSP())
 	}
 

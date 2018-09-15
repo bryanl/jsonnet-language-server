@@ -11,6 +11,7 @@ import (
 
 	"github.com/bryanl/jsonnet-language-server/pkg/analysis/lexical"
 	"github.com/bryanl/jsonnet-language-server/pkg/analysis/lexical/token"
+	"go.uber.org/zap"
 
 	"github.com/bryanl/jsonnet-language-server/pkg/config"
 	"github.com/bryanl/jsonnet-language-server/pkg/lsp"
@@ -42,6 +43,7 @@ var operations = map[string]operation{
 // Handler is a JSON RPC Handler
 type Handler struct {
 	logger              logrus.FieldLogger
+	zapLogger           *zap.Logger
 	config              *config.Config
 	decoder             *requestDecoder
 	nodeCache           *token.NodeCache
@@ -52,14 +54,17 @@ type Handler struct {
 var _ jsonrpc2.Handler = (*Handler)(nil)
 
 // NewHandler creates a handler to handle rpc commands.
-func NewHandler(logger logrus.FieldLogger) *Handler {
+func NewHandler(logger logrus.FieldLogger, zLogger *zap.Logger) *Handler {
 	c := config.New()
 	nodeCache := token.NewNodeCache()
+
+	zapLogger := zLogger.With(zap.String("component", "handler"))
 
 	tdw := lexical.NewTextDocumentWatcher(c, lexical.NewPerformDiagnostics())
 
 	return &Handler{
 		logger:              logger.WithField("component", "handler"),
+		zapLogger:           zapLogger,
 		decoder:             &requestDecoder{},
 		config:              c,
 		nodeCache:           nodeCache,

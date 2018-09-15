@@ -33,7 +33,7 @@ func textDocumentHighlight(r *request, c *config.Config) (interface{}, error) {
 
 	var highlights []lsp.DocumentHighlight
 
-	for _, location := range locations {
+	for _, location := range locations.Slice() {
 		r := location.Range()
 		dh := lsp.DocumentHighlight{
 			Range: r.ToLSP(),

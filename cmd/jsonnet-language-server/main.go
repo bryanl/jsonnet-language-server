@@ -13,11 +13,12 @@ import (
 	"sync"
 	"time"
 
-	"github.com/bryanl/jsonnet-language-server/pkg/server"
-
-	"github.com/sourcegraph/jsonrpc2"
-
 	"github.com/sirupsen/logrus"
+	"github.com/sourcegraph/jsonrpc2"
+	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
+
+	"github.com/bryanl/jsonnet-language-server/pkg/server"
 
 	_ "net/http/pprof"
 )
@@ -44,7 +45,9 @@ func run(logger logrus.FieldLogger, debug bool) error {
 		log.Fatal(http.ListenAndServe("localhost:9765", http.DefaultServeMux))
 	}()
 
-	handler := server.NewHandler(logger)
+	zLogger, _ := zap.NewDevelopment(zap.AddStacktrace(zapcore.FatalLevel))
+
+	handler := server.NewHandler(logger, zLogger)
 
 	var opts []jsonrpc2.ConnOpt
 	if debug {
