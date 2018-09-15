@@ -1,6 +1,7 @@
 package token
 
 import (
+	"context"
 	"testing"
 
 	jpos "github.com/bryanl/jsonnet-language-server/pkg/util/position"
@@ -100,7 +101,8 @@ func TestHighlight(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			for _, pos := range tc.positions {
 				nc := NewNodeCache()
-				locations, err := Highlight(file, tc.source, pos, nc)
+				ctx := context.Background()
+				locations, err := Highlight(ctx, file, tc.source, pos, nc)
 				if tc.isErr {
 					require.Error(t, err)
 					return

@@ -1,6 +1,7 @@
 package token
 
 import (
+	"context"
 	"fmt"
 
 	jpos "github.com/bryanl/jsonnet-language-server/pkg/util/position"
@@ -8,7 +9,7 @@ import (
 )
 
 // Highlight returns locations to highlight given source and a position.
-func Highlight(filepath, source string, pos jpos.Position, nodeCache *NodeCache) (*jpos.Locations, error) {
+func Highlight(ctx context.Context, filepath, source string, pos jpos.Position, nodeCache *NodeCache) (*jpos.Locations, error) {
 	node, err := ReadSource(filepath, source, nil)
 	if err != nil {
 		return nil, err

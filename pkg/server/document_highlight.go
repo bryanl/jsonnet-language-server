@@ -1,6 +1,8 @@
 package server
 
 import (
+	"context"
+
 	"github.com/bryanl/jsonnet-language-server/pkg/analysis/lexical/token"
 	"github.com/bryanl/jsonnet-language-server/pkg/config"
 	"github.com/bryanl/jsonnet-language-server/pkg/lsp"
@@ -8,7 +10,7 @@ import (
 	"github.com/bryanl/jsonnet-language-server/pkg/util/uri"
 )
 
-func textDocumentHighlight(r *request, c *config.Config) (interface{}, error) {
+func textDocumentHighlight(ctx context.Context, r *request, c *config.Config) (interface{}, error) {
 	var params lsp.TextDocumentPositionParams
 	if err := r.Decode(&params); err != nil {
 		return nil, err
@@ -26,7 +28,7 @@ func textDocumentHighlight(r *request, c *config.Config) (interface{}, error) {
 
 	pos := jpos.FromLSPPosition(params.Position)
 
-	locations, err := token.Highlight(path, doc.String(), pos, c.NodeCache())
+	locations, err := token.Highlight(ctx, path, doc.String(), pos, c.NodeCache())
 	if err != nil {
 		return nil, err
 	}

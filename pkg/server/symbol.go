@@ -1,13 +1,14 @@
 package server
 
 import (
+	"context"
+
 	"github.com/bryanl/jsonnet-language-server/pkg/analysis/lexical/token"
 	"github.com/bryanl/jsonnet-language-server/pkg/config"
 	"github.com/bryanl/jsonnet-language-server/pkg/lsp"
 )
 
-func textDocumentSymbol(r *request, c *config.Config) (interface{}, error) {
-	r.log().Info("symbol lookup")
+func textDocumentSymbol(ctx context.Context, r *request, c *config.Config) (interface{}, error) {
 	var params lsp.DocumentSymbolParams
 	if err := r.Decode(&params); err != nil {
 		return nil, err

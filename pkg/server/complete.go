@@ -1,6 +1,7 @@
 package server
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"strings"
@@ -16,6 +17,26 @@ import (
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 )
+
+func textDocumentCompletion(ctx context.Context, r *request, c *config.Config) (interface{}, error) {
+	var rp lsp.ReferenceParams
+	if err := r.Decode(&rp); err != nil {
+		return nil, err
+	}
+
+	cmpl, err := newComplete(rp, c)
+	if err != nil {
+		return nil, err
+	}
+
+	response, err := cmpl.handle(ctx)
+	if err != nil {
+		logrus.WithError(err).Error("completion erred")
+		return nil, err
+	}
+
+	return response, nil
+}
 
 type complete struct {
 	referenceParams   lsp.ReferenceParams
@@ -39,7 +60,7 @@ func newComplete(rp lsp.ReferenceParams, cfg *config.Config) (*complete, error) 
 	return c, nil
 }
 
-func (c *complete) handle() (interface{}, error) {
+func (c *complete) handle(ctx context.Context) (interface{}, error) {
 	uriStr := c.referenceParams.TextDocument.URI
 	text, err := c.config.Text(uriStr)
 	if err != nil {

@@ -5,26 +5,26 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"log"
 	"path/filepath"
 	"runtime/debug"
+	"sync"
 	"time"
 
 	"github.com/bryanl/jsonnet-language-server/pkg/analysis/lexical"
 	"github.com/bryanl/jsonnet-language-server/pkg/analysis/lexical/token"
-	opentracing "github.com/opentracing/opentracing-go"
-	"go.uber.org/zap"
-
 	"github.com/bryanl/jsonnet-language-server/pkg/config"
 	"github.com/bryanl/jsonnet-language-server/pkg/lsp"
 	"github.com/bryanl/jsonnet-language-server/pkg/util/uri"
+	opentracing "github.com/opentracing/opentracing-go"
+	"github.com/opentracing/opentracing-go/log"
 	"github.com/pkg/errors"
 	uuid "github.com/satori/go.uuid"
 	"github.com/sirupsen/logrus"
 	"github.com/sourcegraph/jsonrpc2"
+	"go.uber.org/zap"
 )
 
-type operation func(*request, *config.Config) (interface{}, error)
+type operation func(context.Context, *request, *config.Config) (interface{}, error)
 
 var operations = map[string]operation{
 	"completionItem/resolve":         completionItemResolve,
@@ -96,25 +96,19 @@ func (h *Handler) SetConn(conn *jsonrpc2.Conn) {
 }
 
 type request struct {
-	ctx     context.Context
-	span    opentracing.Span
 	conn    *jsonrpc2.Conn
 	req     *jsonrpc2.Request
 	logger  logrus.FieldLogger
 	decoder *requestDecoder
-}
 
-func (r *request) log() logrus.FieldLogger {
-	return r.logger.WithFields(logrus.Fields{
-		"method": r.req.Method,
-		"id":     r.req.ID.String()})
+	spanOnce sync.Once
 }
 
 func (r *request) Decode(v interface{}) error {
 	return r.decoder.Decode(r.req, v)
 }
 
-func (r *request) RegisterCapability(method string, options interface{}) (string, error) {
+func (r *request) RegisterCapability(ctx context.Context, method string, options interface{}) (string, error) {
 	id := uuid.NewV4()
 
 	registrations := &lsp.RegistrationParams{
@@ -129,7 +123,7 @@ func (r *request) RegisterCapability(method string, options interface{}) (string
 
 	var result interface{}
 
-	if err := r.conn.Call(r.ctx, "client/registerCapability", registrations, result); err != nil {
+	if err := r.conn.Call(ctx, "client/registerCapability", registrations, result); err != nil {
 		return "", err
 	}
 
@@ -146,17 +140,18 @@ func (lh *Handler) Handle(ctx context.Context, conn *jsonrpc2.Conn, req *jsonrpc
 	span.SetTag("id", req.ID.String())
 	defer span.Finish()
 
+	ctx = opentracing.ContextWithSpan(ctx, span)
+
 	r := &request{
-		ctx:    ctx,
 		conn:   conn,
 		req:    req,
 		logger: l,
-		span:   span,
 	}
 
 	defer func() {
 		if r := recover(); r != nil {
-			log.Printf("(CRASH) %v: %s", r, debug.Stack())
+			err := errors.Errorf("(CRASH) %v: %s", r, debug.Stack())
+			log.Error(err)
 		}
 	}()
 
@@ -168,7 +163,7 @@ func (lh *Handler) Handle(ctx context.Context, conn *jsonrpc2.Conn, req *jsonrpc
 		return
 	}
 
-	response, err := fn(r, lh.config)
+	response, err := fn(ctx, r, lh.config)
 	if err != nil {
 		msg := &jsonrpc2.Error{
 			Code:    jsonrpc2.CodeInternalError,
@@ -185,80 +180,7 @@ func (lh *Handler) Handle(ctx context.Context, conn *jsonrpc2.Conn, req *jsonrpc
 	}
 }
 
-func initialize(r *request, c *config.Config) (interface{}, error) {
-	var ip lsp.InitializeParams
-	if err := r.Decode(&ip); err != nil {
-		return nil, err
-	}
-
-	fn := func(v interface{}) error {
-		// When lib paths are updated, tell the client to send
-		// watch updates for all the lib paths.
-
-		paths, ok := v.([]string)
-		if !ok {
-			r.log().Error("lib paths are not []string")
-		}
-
-		options := &lsp.DidChangeWatchedFilesRegistrationOptions{
-			Watchers: make([]lsp.FileSystemWatcher, 0),
-		}
-
-		for _, path := range paths {
-			path = filepath.Clean(path)
-			for _, ext := range []string{"libsonnet", "jsonnet"} {
-				watcher := lsp.FileSystemWatcher{
-					GlobPattern: filepath.Join(path, "*."+ext),
-					Kind:        lsp.WatchKindChange + lsp.WatchKindCreate + lsp.WatchKindDelete,
-				}
-
-				options.Watchers = append(options.Watchers, watcher)
-			}
-		}
-
-		if _, err := r.RegisterCapability("workspace/didChangeWatchedFiles", options); err != nil {
-			r.log().WithError(err).Error("registering file watchers")
-		}
-
-		return nil
-	}
-
-	c.Watch(config.JsonnetLibPaths, fn)
-
-	update, ok := ip.InitializationOptions.(map[string]interface{})
-	if !ok {
-		return nil, errors.New("initialization options are incorrect type")
-	}
-
-	if err := c.UpdateClientConfiguration(update); err != nil {
-		return nil, err
-	}
-
-	r.log().WithFields(logrus.Fields{
-		"workspace": ip.RootPath,
-		"config":    c.String(),
-	}).Info("initializing")
-
-	response := &lsp.InitializeResult{
-		Capabilities: lsp.ServerCapabilities{
-			CompletionProvider: &lsp.CompletionOptions{
-				ResolveProvider: true,
-			},
-			DocumentSymbolProvider:    true,
-			DocumentHighlightProvider: true,
-			HoverProvider:             true,
-			ReferencesProvider:        true,
-			SignatureHelpProvider: &lsp.SignatureHelpOptions{
-				TriggerCharacters: []string{"("},
-			},
-			TextDocumentSync: lsp.TDSKFull,
-		},
-	}
-
-	return response, nil
-}
-
-func completionItemResolve(r *request, c *config.Config) (interface{}, error) {
+func completionItemResolve(ctx context.Context, r *request, c *config.Config) (interface{}, error) {
 	var ci lsp.CompletionItem
 	if err := r.Decode(&ci); err != nil {
 		return nil, err
@@ -269,27 +191,7 @@ func completionItemResolve(r *request, c *config.Config) (interface{}, error) {
 	return nil, nil
 }
 
-func textDocumentCompletion(r *request, c *config.Config) (interface{}, error) {
-	var rp lsp.ReferenceParams
-	if err := r.Decode(&rp); err != nil {
-		return nil, err
-	}
-
-	cmpl, err := newComplete(rp, c)
-	if err != nil {
-		return nil, err
-	}
-
-	response, err := cmpl.handle()
-	if err != nil {
-		logrus.WithError(err).Error("completion erred")
-		return nil, err
-	}
-
-	return response, nil
-}
-
-func textDocumentHover(r *request, c *config.Config) (interface{}, error) {
+func textDocumentHover(ctx context.Context, r *request, c *config.Config) (interface{}, error) {
 	var tdpp lsp.TextDocumentPositionParams
 	if err := r.Decode(&tdpp); err != nil {
 		return nil, err
@@ -303,27 +205,15 @@ func textDocumentHover(r *request, c *config.Config) (interface{}, error) {
 	return h.handle()
 }
 
-func updateClientConfiguration(r *request, c *config.Config) (interface{}, error) {
-	var update map[string]interface{}
-	if err := r.Decode(&update); err != nil {
-		return nil, err
-	}
+func updateNodeCache(ctx context.Context, r *request, c *config.Config, uriStr string) {
+	span, ctx := opentracing.StartSpanFromContext(ctx, "updateNodeCache")
+	defer span.Finish()
 
-	if err := c.UpdateClientConfiguration(update); err != nil {
-		if msgErr := showMessage(r, lsp.MTError, err.Error()); msgErr != nil {
-			r.log().WithError(msgErr).Error("sending message")
-		}
-
-		return nil, err
-	}
-
-	return nil, nil
-}
-
-func updateNodeCache(r *request, c *config.Config, uriStr string) {
 	path, err := uri.ToPath(uriStr)
 	if err != nil {
-		r.log().WithError(err).Error("converting URI to path")
+		span.LogFields(
+			log.Error(err),
+		)
 		return
 	}
 
@@ -352,20 +242,21 @@ func updateNodeCache(r *request, c *config.Config, uriStr string) {
 	for {
 		select {
 		case err := <-errCh:
-			r.log().WithError(err).
-				WithField("uri", path).
-				Error("updating node cache")
+			span.LogFields(
+				log.String("uri", path),
+				log.Error(err),
+			)
 			return
 		case <-done:
 			if sentNotif {
 				msg := fmt.Sprintf("Import processing for %q is complete", file)
-				_ = showMessage(r, lsp.MTWarning, msg)
+				_ = showMessage(ctx, r, lsp.MTWarning, msg)
 				logrus.Info("cancel notification")
 			}
 			return
 		case <-timer.C:
 			msg := fmt.Sprintf("Import processing for %q is running", file)
-			_ = showMessage(r, lsp.MTWarning, msg)
+			_ = showMessage(ctx, r, lsp.MTWarning, msg)
 			logrus.Info("send notification")
 			sentNotif = true
 		}
@@ -373,66 +264,82 @@ func updateNodeCache(r *request, c *config.Config, uriStr string) {
 
 }
 
-func closeFile(r *request, c *config.Config, uriStr string) {
+func closeFile(ctx context.Context, c *config.Config, uriStr string) {
+	span := opentracing.SpanFromContext(ctx)
+
 	path, err := uri.ToPath(uriStr)
 	if err != nil {
-		r.log().WithError(err).Error("converting URI to path")
+		span.LogFields(
+			log.Error(err),
+		)
 		return
 	}
 
 	nodeCache := c.NodeCache()
 	if err := nodeCache.Remove(path); err != nil {
-		r.log().WithError(err).
-			WithField("uri", path).
-			Error("closing file")
+		span.LogFields(
+			log.Error(err),
+		)
 	}
 }
 
-func textDocumentDidOpen(r *request, c *config.Config) (interface{}, error) {
+func textDocumentDidOpen(ctx context.Context, r *request, c *config.Config) (interface{}, error) {
+	span := opentracing.SpanFromContext(ctx)
+
 	var dotdp lsp.DidOpenTextDocumentParams
 	if err := r.Decode(&dotdp); err != nil {
 		return nil, err
 	}
 
-	r.log().WithField("uri", dotdp.TextDocument.URI).Info("opened file")
+	span.LogFields(
+		log.String("uri", dotdp.TextDocument.URI),
+	)
 
 	td := config.NewTextDocumentFromItem(dotdp.TextDocument)
 	if err := c.StoreTextDocumentItem(td); err != nil {
 		return nil, err
 	}
 
-	go updateNodeCache(r, c, dotdp.TextDocument.URI)
+	go updateNodeCache(ctx, r, c, dotdp.TextDocument.URI)
 
 	return nil, nil
 }
 
-func textDocumentDidSave(r *request, c *config.Config) (interface{}, error) {
+func textDocumentDidSave(ctx context.Context, r *request, c *config.Config) (interface{}, error) {
+	span := opentracing.SpanFromContext(ctx)
+
 	var dotdp lsp.DidOpenTextDocumentParams
 	if err := r.Decode(&dotdp); err != nil {
 		return nil, err
 	}
 
-	r.log().WithField("uri", dotdp.TextDocument.URI).Info("saved file")
+	span.LogFields(
+		log.String("uri", dotdp.TextDocument.URI),
+	)
 
-	go updateNodeCache(r, c, dotdp.TextDocument.URI)
+	go updateNodeCache(ctx, r, c, dotdp.TextDocument.URI)
 
 	return nil, nil
 }
 
-func textDocumentDidClose(r *request, c *config.Config) (interface{}, error) {
+func textDocumentDidClose(ctx context.Context, r *request, c *config.Config) (interface{}, error) {
+	span := opentracing.SpanFromContext(ctx)
+
 	var params lsp.DidCloseTextDocumentParams
 	if err := r.Decode(&params); err != nil {
 		return nil, err
 	}
 
-	r.log().WithField("uri", params.TextDocument.URI).Info("closed file")
+	span.LogFields(
+		log.String("uri", params.TextDocument.URI),
+	)
 
-	go closeFile(r, c, params.TextDocument.URI)
+	go closeFile(ctx, c, params.TextDocument.URI)
 
 	return nil, nil
 }
 
-func textDocumentDidChange(r *request, c *config.Config) (interface{}, error) {
+func textDocumentDidChange(ctx context.Context, r *request, c *config.Config) (interface{}, error) {
 	var dctdp lsp.DidChangeTextDocumentParams
 	if err := r.Decode(&dctdp); err != nil {
 		return nil, err
@@ -445,13 +352,13 @@ func textDocumentDidChange(r *request, c *config.Config) (interface{}, error) {
 	return nil, nil
 }
 
-func showMessage(r *request, mt lsp.MessageType, message string) error {
+func showMessage(ctx context.Context, r *request, mt lsp.MessageType, message string) error {
 	smp := &lsp.ShowMessageParams{
 		Type:    int(mt),
 		Message: message,
 	}
 
-	return r.conn.Notify(r.ctx, "window/showMessage", smp)
+	return r.conn.Notify(ctx, "window/showMessage", smp)
 }
 
 type requestDecoder struct {
