@@ -1,6 +1,7 @@
 package token
 
 import (
+	"context"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -9,10 +10,12 @@ import (
 	"sync"
 	"time"
 
+	"github.com/bryanl/jsonnet-language-server/pkg/tracing"
 	jsonnet "github.com/google/go-jsonnet"
 	"github.com/google/go-jsonnet/ast"
+	opentracing "github.com/opentracing/opentracing-go"
+	"github.com/opentracing/opentracing-go/log"
 	"github.com/pkg/errors"
-	"github.com/sirupsen/logrus"
 )
 
 // NodeCacheMissErr is an error for a cache miss.
@@ -93,14 +96,21 @@ func (c *NodeCache) Get(key string) (*NodeEntry, error) {
 }
 
 // Set sets a key in the cache.
-func (c *NodeCache) Set(key string, e *NodeEntry) error {
+func (c *NodeCache) Set(ctx context.Context, key string, e *NodeEntry) error {
+	span, ctx := tracing.ChildSpan(ctx, "nodeCache")
+	defer span.Finish()
+
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
 	existing, ok := c.store[key]
 	if !ok {
-		logrus.WithField("key", key).Debug("setting new cache entry")
-		return c.set(key, e)
+		span.LogFields(
+			log.String("event", "retrieving from cache"),
+			log.String("cache.key", key),
+		)
+
+		return c.set(ctx, key, e)
 	}
 
 	isUpdate := false
@@ -115,18 +125,32 @@ func (c *NodeCache) Set(key string, e *NodeEntry) error {
 	}
 
 	if isUpdate {
-		logrus.WithField("key", key).Debug("updating existing cache entry")
-		return c.set(key, e)
+		span.LogFields(
+			log.String("event", "updating existing cache entry"),
+			log.String("cache.key", key),
+		)
+
+		return c.set(ctx, key, e)
 	}
 
-	logrus.WithField("key", key).Debug("cache entry is up to date")
+	span.LogFields(
+		log.String("event", "cache entry is up to date"),
+		log.String("cache.key", key),
+	)
+
 	return nil
 }
 
-func (c *NodeCache) set(key string, e *NodeEntry) error {
+func (c *NodeCache) set(ctx context.Context, key string, e *NodeEntry) error {
+	span := opentracing.SpanFromContext(ctx)
+
 	now := time.Now()
 	defer func() {
-		logrus.WithField("elapsed", time.Since(now)).Debug("node evaluate time")
+		span.LogFields(
+			log.String("event", "node evaluated"),
+			log.String("elapsed", fmt.Sprintf("%v", time.Since(now))),
+		)
+
 	}()
 
 	node, err := c.nodeBuilder.Build(e.libPaths, e.filename)
@@ -145,11 +169,15 @@ func (c *NodeCache) Remove(key string) error {
 }
 
 // UpdateNodeCache updates the node cache using a file.
-func UpdateNodeCache(path string, libPaths []string, cache *NodeCache) error {
-	logrus.WithFields(logrus.Fields{
-		"path":     path,
-		"libPaths": strings.Join(libPaths, ",")}).
-		Debug("updating node cache")
+func UpdateNodeCache(ctx context.Context, path string, libPaths []string, cache *NodeCache) error {
+	span, ctx := tracing.ChildSpan(ctx, "storeTextDocument")
+	defer span.Finish()
+
+	span.LogFields(
+		log.String("path", path),
+		log.String("libPaths", strings.Join(libPaths, ",")),
+		log.String("event", "updating node cache"),
+	)
 
 	ic := NewImportCollector(libPaths)
 	pathImports, err := ic.Collect(path, true)
@@ -157,7 +185,10 @@ func UpdateNodeCache(path string, libPaths []string, cache *NodeCache) error {
 		return err
 	}
 
-	logrus.Debugf("(before) cache keys %s", strings.Join(cache.Keys(), ","))
+	span.LogFields(
+		log.String("event", "cache keys before update"),
+		log.String("keys", strings.Join(cache.Keys(), ",")),
+	)
 
 	for _, pathImport := range pathImports {
 		path, err := ImportPath(pathImport, libPaths)
@@ -176,12 +207,15 @@ func UpdateNodeCache(path string, libPaths []string, cache *NodeCache) error {
 		}
 
 		ne := NewNodeEntry(ncds, libPaths, pathImport)
-		if err := cache.Set(pathImport, ne); err != nil {
+		if err := cache.Set(ctx, pathImport, ne); err != nil {
 			return err
 		}
 	}
 
-	logrus.Debugf("(after) cache keys %s", strings.Join(cache.Keys(), ","))
+	span.LogFields(
+		log.String("event", "cache keys after update"),
+		log.String("keys", strings.Join(cache.Keys(), ",")),
+	)
 
 	return nil
 }
@@ -199,7 +233,6 @@ func collectNodeDependencies(path string, names, libPaths []string) ([]NodeCache
 			return nil, err
 		}
 
-		logrus.Debug("building cache dependency")
 		ncd := NodeCacheDependency{
 			Name:      importImport,
 			UpdatedAt: fi.ModTime(),

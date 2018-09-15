@@ -6,16 +6,17 @@ import (
 	"github.com/bryanl/jsonnet-language-server/pkg/analysis/lexical/token"
 	"github.com/bryanl/jsonnet-language-server/pkg/config"
 	"github.com/bryanl/jsonnet-language-server/pkg/lsp"
+	"github.com/bryanl/jsonnet-language-server/pkg/tracing"
 	"github.com/bryanl/jsonnet-language-server/pkg/util/position"
 	"github.com/bryanl/jsonnet-language-server/pkg/util/uri"
 	"github.com/google/go-jsonnet/ast"
+	"github.com/opentracing/opentracing-go/log"
 	"github.com/pkg/errors"
-	"github.com/sirupsen/logrus"
 )
 
 // DocumentProcessor processes TextDocument.
 type DocumentProcessor interface {
-	Process(td config.TextDocument, conn RPCConn) error
+	Process(ctx context.Context, td config.TextDocument, conn RPCConn) error
 }
 
 // PerformDiagnostics performs diagnostics on a text document and sends results
@@ -30,10 +31,13 @@ func NewPerformDiagnostics() *PerformDiagnostics {
 }
 
 // Process runs the diagnositics.
-func (p *PerformDiagnostics) Process(td config.TextDocument, conn RPCConn) error {
-	logger := logrus.WithField("component", "perform-diagnostics")
+func (p *PerformDiagnostics) Process(ctx context.Context, td config.TextDocument, conn RPCConn) error {
+	span, _ := tracing.ChildSpan(ctx, "performDiagnostics")
+	defer span.Finish()
 
-	logger.Debugf("caching %s", td.URI())
+	span.LogFields(
+		log.String("caching", td.URI()),
+	)
 
 	filename, err := uri.ToPath(td.URI())
 	if err != nil {
@@ -76,7 +80,10 @@ func (p *PerformDiagnostics) Process(td config.TextDocument, conn RPCConn) error
 	<-done
 
 	if conn != nil {
-		logger.Debug("sending diagnostics")
+		span.LogFields(
+			log.String("event", "sending diagnostics"),
+		)
+
 		response := &lsp.PublishDiagnosticsParams{
 			URI:         td.URI(),
 			Diagnostics: diagnostics,
@@ -85,7 +92,10 @@ func (p *PerformDiagnostics) Process(td config.TextDocument, conn RPCConn) error
 		ctx := context.Background()
 		method := "textDocument/publishDiagnostics"
 		if err := conn.Notify(ctx, method, response); err != nil {
-			logger.WithError(err).Error("sending diagnostics")
+			span.LogFields(
+				log.Error(err),
+			)
+
 		}
 
 	}

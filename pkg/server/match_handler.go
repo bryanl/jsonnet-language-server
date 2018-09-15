@@ -1,9 +1,13 @@
 package server
 
 import (
+	"context"
 	"fmt"
 	"regexp"
 	"strings"
+
+	"github.com/opentracing/opentracing-go"
+	"github.com/opentracing/opentracing-go/log"
 
 	"github.com/bryanl/jsonnet-language-server/pkg/analysis/lexical/astext"
 	"github.com/bryanl/jsonnet-language-server/pkg/analysis/lexical/token"
@@ -14,7 +18,6 @@ import (
 	"github.com/bryanl/jsonnet-language-server/pkg/util/text"
 	"github.com/google/go-jsonnet/ast"
 	"github.com/pkg/errors"
-	"github.com/sirupsen/logrus"
 )
 
 type jsonnetPathManager interface {
@@ -66,9 +69,13 @@ func (mh *matchHandler) register(cm *langserver.CompletionMatcher) error {
 	return nil
 }
 
-func (mh *matchHandler) handleImport(pos position.Position, path, source string) ([]lsp.CompletionItem, error) {
+func (mh *matchHandler) handleImport(ctx context.Context, pos position.Position, path, source string) ([]lsp.CompletionItem, error) {
+	span := opentracing.SpanFromContext(ctx)
+	span.LogFields(
+		log.String("match.type", "import"),
+	)
+
 	editRange := position.NewRange(pos, pos)
-	logrus.Printf("handling import")
 	var items []lsp.CompletionItem
 
 	files, err := mh.jsonnetPathManager.Files()
@@ -86,8 +93,11 @@ func (mh *matchHandler) handleImport(pos position.Position, path, source string)
 	return items, nil
 }
 
-func (mh *matchHandler) handleIndex(pos position.Position, filePath, source string) ([]lsp.CompletionItem, error) {
-	logrus.Printf("handling index")
+func (mh *matchHandler) handleIndex(ctx context.Context, pos position.Position, filePath, source string) ([]lsp.CompletionItem, error) {
+	span := opentracing.SpanFromContext(ctx)
+	span.LogFields(
+		log.String("match.type", "index"),
+	)
 
 	var items []lsp.CompletionItem
 
@@ -151,7 +161,9 @@ func (mh *matchHandler) handleIndex(pos position.Position, filePath, source stri
 			}
 		}
 	default:
-		logrus.Infof("unable to handle index for %T", n)
+		span.LogFields(
+			log.String("text.unhandled", fmt.Sprintf("%T", n)),
+		)
 	}
 
 	return items, nil

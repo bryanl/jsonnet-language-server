@@ -1,6 +1,7 @@
 package config
 
 import (
+	"context"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -11,7 +12,7 @@ func TestDispatch(t *testing.T) {
 	done := make(chan bool)
 
 	wasDispatched := false
-	fn := func(v interface{}) error {
+	fn := func(ctx context.Context, v interface{}) error {
 		assert.Equal(t, "msg", v)
 		wasDispatched = true
 
@@ -24,7 +25,8 @@ func TestDispatch(t *testing.T) {
 	cancel := d.Watch(fn)
 	require.Len(t, d.keys, 1)
 
-	d.Dispatch("msg")
+	ctx := context.Background()
+	d.Dispatch(ctx, "msg")
 	<-done
 	require.True(t, wasDispatched)
 

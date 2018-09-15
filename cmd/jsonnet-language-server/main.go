@@ -47,7 +47,7 @@ func run(logger logrus.FieldLogger, debug bool) error {
 
 	zLogger, _ := zap.NewDevelopment(zap.AddStacktrace(zapcore.FatalLevel))
 
-	handler := server.NewHandler(logger, zLogger)
+	handler := server.NewHandler(zLogger)
 
 	var opts []jsonrpc2.ConnOpt
 	if debug {

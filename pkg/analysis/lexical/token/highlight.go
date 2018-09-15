@@ -6,10 +6,14 @@ import (
 
 	jpos "github.com/bryanl/jsonnet-language-server/pkg/util/position"
 	"github.com/google/go-jsonnet/ast"
+	opentracing "github.com/opentracing/opentracing-go"
 )
 
 // Highlight returns locations to highlight given source and a position.
 func Highlight(ctx context.Context, filepath, source string, pos jpos.Position, nodeCache *NodeCache) (*jpos.Locations, error) {
+	span, _ := opentracing.StartSpanFromContext(ctx, "highlight")
+	defer span.Finish()
+
 	node, err := ReadSource(filepath, source, nil)
 	if err != nil {
 		return nil, err
@@ -37,7 +41,6 @@ func idNode(node ast.Node, pos jpos.Position, s *scope) (ast.Identifier, []strin
 	var path []string
 	switch found := node.(type) {
 	case *ast.DesugaredObject:
-		fmt.Println("iding an object")
 		return idNode(s.parent(found), pos, s)
 	case *ast.Function:
 		for paramID, loc := range found.Parameters.RequiredLocs {

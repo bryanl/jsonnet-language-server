@@ -1,6 +1,7 @@
 package config
 
 import (
+	"context"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -54,7 +55,8 @@ func TestConfig_UpdateClientConfiguration(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			c := New()
-			err := c.UpdateClientConfiguration(tc.update)
+			ctx := context.Background()
+			err := c.UpdateClientConfiguration(ctx, tc.update)
 			if tc.isErr {
 				require.Error(t, err)
 				return
@@ -75,7 +77,7 @@ func TestConfig_UpdateClientConfiguration_watcher(t *testing.T) {
 	done := make(chan bool)
 
 	wasDispatched := false
-	fn := func(v interface{}) error {
+	fn := func(ctx context.Context, v interface{}) error {
 		wasDispatched = true
 		assert.Equal(t, update[JsonnetLibPaths], v)
 
@@ -84,7 +86,8 @@ func TestConfig_UpdateClientConfiguration_watcher(t *testing.T) {
 	}
 
 	cancel := c.Watch(JsonnetLibPaths, fn)
-	c.UpdateClientConfiguration(update)
+	ctx := context.Background()
+	c.UpdateClientConfiguration(ctx, update)
 
 	<-done
 	require.True(t, wasDispatched)
@@ -102,7 +105,7 @@ func TestConfig_StoreTextDocumentItem_watcher(t *testing.T) {
 	done := make(chan bool)
 
 	wasDispatched := false
-	fn := func(got interface{}) error {
+	fn := func(ctx context.Context, got interface{}) error {
 		wasDispatched = true
 		assert.Equal(t, tdi, got)
 		done <- true
@@ -111,7 +114,8 @@ func TestConfig_StoreTextDocumentItem_watcher(t *testing.T) {
 	}
 
 	cancel := c.Watch(TextDocumentUpdates, fn)
-	c.StoreTextDocumentItem(tdi)
+	ctx := context.Background()
+	c.StoreTextDocumentItem(ctx, tdi)
 
 	<-done
 	require.True(t, wasDispatched)
@@ -140,7 +144,8 @@ func TestConfig_StoreTextDocumentItem(t *testing.T) {
 			c := New()
 			require.Len(t, c.textDocuments, 0)
 
-			err := c.StoreTextDocumentItem(file)
+			ctx := context.Background()
+			err := c.StoreTextDocumentItem(ctx, file)
 			if tc.isErr {
 				require.Error(t, err)
 				return
@@ -148,7 +153,7 @@ func TestConfig_StoreTextDocumentItem(t *testing.T) {
 			require.NoError(t, err)
 
 			require.Len(t, c.textDocuments, 1)
-			text, err := c.Text(tc.uri)
+			text, err := c.Text(ctx, tc.uri)
 
 			require.NoError(t, err)
 			assert.Equal(t, "text", text.String())
@@ -163,7 +168,8 @@ func TestConfig_String(t *testing.T) {
 		JsonnetLibPaths: []string{"/path"},
 	}
 
-	err := c.UpdateClientConfiguration(update)
+	ctx := context.Background()
+	err := c.UpdateClientConfiguration(ctx, update)
 	require.NoError(t, err)
 
 	got := c.String()

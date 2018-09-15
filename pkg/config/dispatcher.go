@@ -1,36 +1,34 @@
 package config
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"sync"
 
+	"github.com/bryanl/jsonnet-language-server/pkg/tracing"
+	"github.com/opentracing/opentracing-go/log"
 	"github.com/pkg/errors"
 	uuid "github.com/satori/go.uuid"
-	"github.com/sirupsen/logrus"
 )
 
 // DispatchFn is a function that will be dispatched.
-type DispatchFn func(interface{}) error
+type DispatchFn func(context.Context, interface{}) error
 
 // DispatchCancelFn is a function that cancels a dispatched function.
 type DispatchCancelFn func()
 
 // Dispatcher implements a dispatcher pattern.
 type Dispatcher struct {
-	logger logrus.FieldLogger
-	keys   map[string]DispatchFn
+	keys map[string]DispatchFn
 
 	mu sync.Mutex
 }
 
 // NewDispatcher creates an instance of Dispatcher.
 func NewDispatcher() *Dispatcher {
-	logger := logrus.WithField("component", "dispatcher")
-
 	return &Dispatcher{
-		logger: logger,
-		keys:   make(map[string]DispatchFn),
+		keys: make(map[string]DispatchFn),
 	}
 }
 
@@ -39,14 +37,18 @@ type stackTracer interface {
 }
 
 // Dispatch dispatches a value to all the watchers.
-func (d *Dispatcher) Dispatch(v interface{}) {
+func (d *Dispatcher) Dispatch(ctx context.Context, v interface{}) {
+	span, ctx := tracing.ChildSpan(ctx, "dispatcher")
+
 	d.mu.Lock()
 	defer d.mu.Unlock()
 
 	for _, fn := range d.keys {
 		go func(fn DispatchFn) {
-			if err := fn(v); err != nil {
-				d.logger.WithError(err).Error("dispatching to function")
+			if err := fn(ctx, v); err != nil {
+				span.LogFields(
+					log.Error(err),
+				)
 
 				st, ok := err.(stackTracer)
 				if ok {

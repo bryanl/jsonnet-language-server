@@ -13,13 +13,17 @@ import (
 
 func initialize(ctx context.Context, r *request, c *config.Config) (interface{}, error) {
 	span := opentracing.SpanFromContext(ctx)
+	ctx = opentracing.ContextWithSpan(ctx, span)
 
 	var ip lsp.InitializeParams
 	if err := r.Decode(&ip); err != nil {
 		return nil, err
 	}
 
-	fn := func(v interface{}) error {
+	fn := func(ctx context.Context, v interface{}) error {
+		span := opentracing.SpanFromContext(ctx)
+		ctx = opentracing.ContextWithSpan(ctx, span)
+
 		// When lib paths are updated, tell the client to send
 		// watch updates for all the lib paths.
 
@@ -60,7 +64,7 @@ func initialize(ctx context.Context, r *request, c *config.Config) (interface{},
 		return nil, errors.New("initialization options are incorrect type")
 	}
 
-	if err := c.UpdateClientConfiguration(update); err != nil {
+	if err := c.UpdateClientConfiguration(ctx, update); err != nil {
 		return nil, err
 	}
 

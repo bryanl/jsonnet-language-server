@@ -14,12 +14,12 @@ import (
 	"github.com/bryanl/jsonnet-language-server/pkg/analysis/lexical/token"
 	"github.com/bryanl/jsonnet-language-server/pkg/config"
 	"github.com/bryanl/jsonnet-language-server/pkg/lsp"
+	"github.com/bryanl/jsonnet-language-server/pkg/tracing"
 	"github.com/bryanl/jsonnet-language-server/pkg/util/uri"
 	opentracing "github.com/opentracing/opentracing-go"
 	"github.com/opentracing/opentracing-go/log"
 	"github.com/pkg/errors"
 	uuid "github.com/satori/go.uuid"
-	"github.com/sirupsen/logrus"
 	"github.com/sourcegraph/jsonrpc2"
 	"go.uber.org/zap"
 )
@@ -44,7 +44,6 @@ var operations = map[string]operation{
 
 // Handler is a JSON RPC Handler
 type Handler struct {
-	logger              logrus.FieldLogger
 	zapLogger           *zap.Logger
 	config              *config.Config
 	decoder             *requestDecoder
@@ -58,7 +57,7 @@ type Handler struct {
 var _ jsonrpc2.Handler = (*Handler)(nil)
 
 // NewHandler creates a handler to handle rpc commands.
-func NewHandler(logger logrus.FieldLogger, zLogger *zap.Logger) *Handler {
+func NewHandler(zLogger *zap.Logger) *Handler {
 	c := config.New()
 	nodeCache := token.NewNodeCache()
 
@@ -69,7 +68,6 @@ func NewHandler(logger logrus.FieldLogger, zLogger *zap.Logger) *Handler {
 	tracer, tracerCloser := initTracing("jsonnet-langauge-server", zapLogger)
 
 	return &Handler{
-		logger:              logger.WithField("component", "handler"),
 		zapLogger:           zapLogger,
 		decoder:             &requestDecoder{},
 		config:              c,
@@ -98,7 +96,6 @@ func (h *Handler) SetConn(conn *jsonrpc2.Conn) {
 type request struct {
 	conn    *jsonrpc2.Conn
 	req     *jsonrpc2.Request
-	logger  logrus.FieldLogger
 	decoder *requestDecoder
 
 	spanOnce sync.Once
@@ -132,10 +129,6 @@ func (r *request) RegisterCapability(ctx context.Context, method string, options
 
 // Handle handles a JSON RPC connection.
 func (lh *Handler) Handle(ctx context.Context, conn *jsonrpc2.Conn, req *jsonrpc2.Request) {
-	l := lh.logger.WithFields(logrus.Fields{
-		"method": req.Method,
-		"id":     req.ID.String()})
-
 	span := lh.tracer.StartSpan(req.Method)
 	span.SetTag("id", req.ID.String())
 	defer span.Finish()
@@ -143,9 +136,8 @@ func (lh *Handler) Handle(ctx context.Context, conn *jsonrpc2.Conn, req *jsonrpc
 	ctx = opentracing.ContextWithSpan(ctx, span)
 
 	r := &request{
-		conn:   conn,
-		req:    req,
-		logger: l,
+		conn: conn,
+		req:  req,
 	}
 
 	defer func() {
@@ -157,26 +149,34 @@ func (lh *Handler) Handle(ctx context.Context, conn *jsonrpc2.Conn, req *jsonrpc
 
 	fn, ok := operations[req.Method]
 	if !ok {
-		l.WithFields(logrus.Fields{
-			"params": string(*req.Params),
-		}).Info("unknown message type")
+		span.LogFields(
+			log.String("error", fmt.Sprintf("unable to handle message type %s", string(*req.Params))),
+		)
 		return
 	}
 
 	response, err := fn(ctx, r, lh.config)
 	if err != nil {
+		span.LogFields(
+			log.Error(err),
+		)
 		msg := &jsonrpc2.Error{
 			Code:    jsonrpc2.CodeInternalError,
 			Message: err.Error(),
 		}
 		if replyErr := conn.ReplyWithError(ctx, req.ID, msg); err != nil {
-			l.WithError(replyErr).Error("replying with error")
+			span.LogFields(
+				log.Error(replyErr),
+			)
+
 		}
 		return
 	}
 
 	if err := conn.Reply(ctx, req.ID, response); err != nil {
-		l.WithError(err).Error("reply")
+		span.LogFields(
+			log.Error(err),
+		)
 	}
 }
 
@@ -191,22 +191,8 @@ func completionItemResolve(ctx context.Context, r *request, c *config.Config) (i
 	return nil, nil
 }
 
-func textDocumentHover(ctx context.Context, r *request, c *config.Config) (interface{}, error) {
-	var tdpp lsp.TextDocumentPositionParams
-	if err := r.Decode(&tdpp); err != nil {
-		return nil, err
-	}
-
-	h, err := newHover(tdpp, c)
-	if err != nil {
-		return nil, err
-	}
-
-	return h.handle()
-}
-
 func updateNodeCache(ctx context.Context, r *request, c *config.Config, uriStr string) {
-	span, ctx := opentracing.StartSpanFromContext(ctx, "updateNodeCache")
+	span, ctx := tracing.ChildSpan(ctx, "updateNodeCache")
 	defer span.Finish()
 
 	path, err := uri.ToPath(uriStr)
@@ -226,7 +212,7 @@ func updateNodeCache(ctx context.Context, r *request, c *config.Config, uriStr s
 	defer timer.Stop()
 
 	go func() {
-		err := token.UpdateNodeCache(path, c.JsonnetLibPaths(), c.NodeCache())
+		err := token.UpdateNodeCache(ctx, path, c.JsonnetLibPaths(), c.NodeCache())
 		if err != nil {
 			errCh <- err
 			return
@@ -251,13 +237,17 @@ func updateNodeCache(ctx context.Context, r *request, c *config.Config, uriStr s
 			if sentNotif {
 				msg := fmt.Sprintf("Import processing for %q is complete", file)
 				_ = showMessage(ctx, r, lsp.MTWarning, msg)
-				logrus.Info("cancel notification")
+				span.LogFields(
+					log.String("status", "cancel notification"),
+				)
 			}
 			return
 		case <-timer.C:
 			msg := fmt.Sprintf("Import processing for %q is running", file)
 			_ = showMessage(ctx, r, lsp.MTWarning, msg)
-			logrus.Info("send notification")
+			span.LogFields(
+				log.String("status", "send notification"),
+			)
 			sentNotif = true
 		}
 	}
@@ -285,6 +275,7 @@ func closeFile(ctx context.Context, c *config.Config, uriStr string) {
 
 func textDocumentDidOpen(ctx context.Context, r *request, c *config.Config) (interface{}, error) {
 	span := opentracing.SpanFromContext(ctx)
+	ctx = opentracing.ContextWithSpan(ctx, span)
 
 	var dotdp lsp.DidOpenTextDocumentParams
 	if err := r.Decode(&dotdp); err != nil {
@@ -296,7 +287,7 @@ func textDocumentDidOpen(ctx context.Context, r *request, c *config.Config) (int
 	)
 
 	td := config.NewTextDocumentFromItem(dotdp.TextDocument)
-	if err := c.StoreTextDocumentItem(td); err != nil {
+	if err := c.StoreTextDocumentItem(ctx, td); err != nil {
 		return nil, err
 	}
 
@@ -340,12 +331,15 @@ func textDocumentDidClose(ctx context.Context, r *request, c *config.Config) (in
 }
 
 func textDocumentDidChange(ctx context.Context, r *request, c *config.Config) (interface{}, error) {
+	span := opentracing.SpanFromContext(ctx)
+	ctx = opentracing.ContextWithSpan(ctx, span)
+
 	var dctdp lsp.DidChangeTextDocumentParams
 	if err := r.Decode(&dctdp); err != nil {
 		return nil, err
 	}
 
-	if err := c.UpdateTextDocumentItem(dctdp); err != nil {
+	if err := c.UpdateTextDocumentItem(ctx, dctdp); err != nil {
 		return nil, err
 	}
 

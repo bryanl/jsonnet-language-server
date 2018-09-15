@@ -3,10 +3,11 @@ package server
 import (
 	"context"
 	"fmt"
-	"os"
 	"strings"
 
+	"github.com/bryanl/jsonnet-language-server/pkg/tracing"
 	"github.com/bryanl/jsonnet-language-server/pkg/util/position"
+	"github.com/opentracing/opentracing-go/log"
 
 	"github.com/bryanl/jsonnet-language-server/pkg/analysis/lexical/token"
 	"github.com/bryanl/jsonnet-language-server/pkg/config"
@@ -15,7 +16,6 @@ import (
 	"github.com/bryanl/jsonnet-language-server/pkg/util/uri"
 	"github.com/davecgh/go-spew/spew"
 	"github.com/pkg/errors"
-	"github.com/sirupsen/logrus"
 )
 
 func textDocumentCompletion(ctx context.Context, r *request, c *config.Config) (interface{}, error) {
@@ -31,7 +31,6 @@ func textDocumentCompletion(ctx context.Context, r *request, c *config.Config) (
 
 	response, err := cmpl.handle(ctx)
 	if err != nil {
-		logrus.WithError(err).Error("completion erred")
 		return nil, err
 	}
 
@@ -61,14 +60,18 @@ func newComplete(rp lsp.ReferenceParams, cfg *config.Config) (*complete, error) 
 }
 
 func (c *complete) handle(ctx context.Context) (interface{}, error) {
+	span, ctx := tracing.ChildSpan(ctx, "complete")
+	defer span.Finish()
+
 	uriStr := c.referenceParams.TextDocument.URI
-	text, err := c.config.Text(uriStr)
+	text, err := c.config.Text(ctx, uriStr)
 	if err != nil {
 		return nil, errors.Wrap(err, "loading current text")
 	}
 
-	spew.Fdump(os.Stderr, "completion reference params",
-		c.referenceParams, "===")
+	span.LogFields(
+		log.String("reference-params", spew.Sdump(c.referenceParams)),
+	)
 
 	path, err := uri.ToPath(uriStr)
 	if err != nil {
@@ -82,15 +85,20 @@ func (c *complete) handle(ctx context.Context) (interface{}, error) {
 	pos := position.FromLSPPosition(c.referenceParams.Position)
 	editRange := position.NewRange(pos, pos)
 
-	logrus.Debugf("truncating to %s", pos.String())
+	span.LogFields(
+		log.String("truncate.to", pos.String()),
+	)
+
 	matchText, err := text.Truncate(pos)
 	if err != nil {
 		return nil, err
 	}
 	matchText = strings.TrimSpace(matchText)
-	logrus.Info(matchText)
+	span.LogFields(
+		log.String("truncate.text", matchText),
+	)
 
-	matchItems, err := c.completionMatcher.Match(pos, path, text.String())
+	matchItems, err := c.completionMatcher.Match(ctx, pos, path, text.String())
 	if err != nil {
 		return nil, err
 	}
@@ -101,12 +109,16 @@ func (c *complete) handle(ctx context.Context) (interface{}, error) {
 
 	m, err := token.LocationScope(path, text.String(), pos, c.config.NodeCache())
 	if err != nil {
-		logrus.WithError(err).WithField("loc", pos.String()).Debug("load scope")
+		span.LogFields(
+			log.Error(err),
+		)
 	} else {
 		for _, k := range m.Keys() {
 			e, err := m.Get(k)
 			if err != nil {
-				logrus.WithError(err).Infof("fetching %q from scope", k)
+				span.LogFields(
+					log.Error(err),
+				)
 				break
 			}
 

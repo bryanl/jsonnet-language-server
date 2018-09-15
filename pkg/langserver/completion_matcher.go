@@ -1,19 +1,21 @@
 package langserver
 
 import (
+	"context"
 	"fmt"
 	"regexp"
 	"sync"
 
 	"github.com/bryanl/jsonnet-language-server/pkg/analysis/lexical/token"
 	"github.com/bryanl/jsonnet-language-server/pkg/lsp"
+	"github.com/bryanl/jsonnet-language-server/pkg/tracing"
 	"github.com/bryanl/jsonnet-language-server/pkg/util/position"
 	"github.com/bryanl/jsonnet-language-server/pkg/util/text"
-	"github.com/sirupsen/logrus"
+	"github.com/opentracing/opentracing-go/log"
 )
 
 // CompletionAction is an action performed on a completion match.
-type CompletionAction func(pos position.Position, path, source string) ([]lsp.CompletionItem, error)
+type CompletionAction func(ctx context.Context, pos position.Position, path, source string) ([]lsp.CompletionItem, error)
 
 // CompletionMatcher can register multiple terms to complete against.
 type CompletionMatcher struct {
@@ -46,7 +48,11 @@ func (cm *CompletionMatcher) Register(term string, fn CompletionAction) error {
 }
 
 // Match matches at a point defined in the edit range.
-func (cm *CompletionMatcher) Match(pos position.Position, path, source string) ([]lsp.CompletionItem, error) {
+func (cm *CompletionMatcher) Match(ctx context.Context, pos position.Position, path, source string) ([]lsp.CompletionItem, error) {
+	span, ctx := tracing.ChildSpan(ctx, "completionMatcher")
+
+	defer span.Finish()
+
 	cm.mu.Lock()
 	defer cm.mu.Unlock()
 
@@ -56,47 +62,15 @@ func (cm *CompletionMatcher) Match(pos position.Position, path, source string) (
 	}
 
 	for re, m := range cm.store {
-		logrus.Debugf("trying to match %q to %s", matched, re.String())
+		span.LogFields(
+			log.String("match.text", matched),
+			log.String("match.regex", re.String()),
+		)
 		match := re.FindStringSubmatch(matched)
 		if match != nil {
-			return m(pos, path, matched)
+			return m(ctx, pos, path, matched)
 		}
 	}
 
 	return []lsp.CompletionItem{}, nil
-}
-
-func (cm *CompletionMatcher) defaultMatcher(pos position.Position, path, source string) ([]lsp.CompletionItem, error) {
-	var items []lsp.CompletionItem
-
-	editRange := position.NewRange(pos, pos)
-
-	m, err := token.LocationScope(path, source, pos, cm.nodeCache)
-	if err != nil {
-		logrus.WithError(err).WithField("loc", pos.String()).Debug("load scope")
-	} else {
-		for _, k := range m.Keys() {
-			e, err := m.Get(k)
-			if err != nil {
-				logrus.WithError(err).Debugf("fetching %q from scope", k)
-				break
-			}
-
-			ci := lsp.CompletionItem{
-				Label:         k,
-				Kind:          lsp.CIKVariable,
-				Detail:        e.Detail,
-				Documentation: e.Documentation,
-				SortText:      fmt.Sprintf("0_%s", k),
-				TextEdit: lsp.TextEdit{
-					Range:   editRange.ToLSP(),
-					NewText: k,
-				},
-			}
-
-			items = append(items, ci)
-		}
-	}
-
-	return items, nil
 }

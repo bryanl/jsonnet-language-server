@@ -133,21 +133,16 @@
   version = "v1.2.2"
 
 [[projects]]
-  digest = "1:104a2d7446f4628e4663d7c029b18da1aad4313735de775f37b6e7720b1d0aa7"
+  digest = "1:5eabe1ab173d967d35c793069ee295a51896d961e72f7a849f6a392224b6f88c"
   name = "github.com/uber/jaeger-client-go"
   packages = [
     ".",
-    "config",
     "internal/baggage",
-    "internal/baggage/remote",
     "internal/spanlog",
     "internal/throttler",
-    "internal/throttler/remote",
     "log",
-    "rpcmetrics",
     "thrift",
     "thrift-gen/agent",
-    "thrift-gen/baggage",
     "thrift-gen/jaeger",
     "thrift-gen/sampling",
     "thrift-gen/zipkincore",
@@ -236,6 +231,7 @@
     "github.com/google/go-jsonnet/parser",
     "github.com/ksonnet/ksonnet-lib/ksonnet-gen/printer",
     "github.com/opentracing/opentracing-go",
+    "github.com/opentracing/opentracing-go/log",
     "github.com/pkg/errors",
     "github.com/satori/go.uuid",
     "github.com/sirupsen/logrus",
@@ -243,7 +239,6 @@
     "github.com/stretchr/testify/assert",
     "github.com/stretchr/testify/require",
     "github.com/uber/jaeger-client-go",
-    "github.com/uber/jaeger-client-go/config",
     "go.uber.org/zap",
     "go.uber.org/zap/zapcore",
   ]

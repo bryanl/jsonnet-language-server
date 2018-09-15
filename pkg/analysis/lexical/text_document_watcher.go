@@ -41,11 +41,11 @@ func (tdw *TextDocumentWatcher) SetConn(conn RPCConn) {
 	tdw.conn = conn
 }
 
-func (tdw *TextDocumentWatcher) watch(item interface{}) error {
+func (tdw *TextDocumentWatcher) watch(ctx context.Context, item interface{}) error {
 	tdi, ok := item.(config.TextDocument)
 	if !ok {
 		return errors.Errorf("text document watcher can't handle %T", item)
 	}
 
-	return tdw.documentProcessor.Process(tdi, tdw.conn)
+	return tdw.documentProcessor.Process(ctx, tdi, tdw.conn)
 }

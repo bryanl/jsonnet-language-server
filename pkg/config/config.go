@@ -1,15 +1,17 @@
 package config
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
 
 	"github.com/bryanl/jsonnet-language-server/pkg/analysis/lexical/token"
 	"github.com/bryanl/jsonnet-language-server/pkg/lsp"
+	"github.com/bryanl/jsonnet-language-server/pkg/tracing"
 	"github.com/bryanl/jsonnet-language-server/pkg/util/uri"
+	"github.com/opentracing/opentracing-go/log"
 	"github.com/pkg/errors"
-	"github.com/sirupsen/logrus"
 )
 
 const (
@@ -49,24 +51,29 @@ func (c *Config) JsonnetLibPaths() []string {
 }
 
 // StoreTextDocumentItem stores a text document item.
-func (c *Config) StoreTextDocumentItem(td TextDocument) error {
+func (c *Config) StoreTextDocumentItem(ctx context.Context, td TextDocument) error {
+	span, ctx := tracing.ChildSpan(ctx, "storeTextDocument")
+	defer span.Finish()
+
 	oldDoc, ok := c.textDocuments[td.uri]
 	if !ok {
 		oldDoc = td
 	}
 
-	logrus.Debugf("storing %q", td.uri)
+	span.LogFields(
+		log.String("textdocument.store", td.uri),
+	)
 
 	oldDoc.text = td.text
 	oldDoc.version = td.version
 
 	c.textDocuments[td.uri] = td
-	c.dispatch(TextDocumentUpdates, td)
+	c.dispatch(ctx, TextDocumentUpdates, td)
 	return nil
 }
 
 // UpdateTextDocumentItem updates a text document item with a change event.
-func (c *Config) UpdateTextDocumentItem(dctdp lsp.DidChangeTextDocumentParams) error {
+func (c *Config) UpdateTextDocumentItem(ctx context.Context, dctdp lsp.DidChangeTextDocumentParams) error {
 	// The language server is configured to request for full content changes,
 	// so the text in the change event is a full document.
 
@@ -76,17 +83,27 @@ func (c *Config) UpdateTextDocumentItem(dctdp lsp.DidChangeTextDocumentParams) e
 		version: dctdp.TextDocument.Version,
 	}
 
-	return c.StoreTextDocumentItem(td)
+	return c.StoreTextDocumentItem(ctx, td)
 }
 
 // Text retrieves text from our local cache or from the file system.
-func (c *Config) Text(uriStr string) (*TextDocument, error) {
+func (c *Config) Text(ctx context.Context, uriStr string) (*TextDocument, error) {
+	span, ctx := tracing.ChildSpan(ctx, "retrieveText")
+	defer span.Finish()
+
 	text, ok := c.textDocuments[uriStr]
 	if ok {
-		logrus.Debugf("returning text from cache")
+		span.LogFields(
+			log.String("config.retrieveFromCache", uriStr),
+		)
+
 		return &text, nil
 	}
-	logrus.Debugf("returning text from disk")
+
+	span.LogFields(
+		log.String("config.retrieveFromFS", uriStr),
+	)
+
 	path, err := uri.ToPath(uriStr)
 	if err != nil {
 		return nil, err
@@ -121,13 +138,13 @@ func (c *Config) dispatcher(k string) *Dispatcher {
 	return d
 }
 
-func (c *Config) dispatch(k string, msg interface{}) {
+func (c *Config) dispatch(ctx context.Context, k string, msg interface{}) {
 	d := c.dispatcher(k)
-	d.Dispatch(msg)
+	d.Dispatch(ctx, msg)
 }
 
 // UpdateClientConfiguration updates the configuration.
-func (c *Config) UpdateClientConfiguration(update map[string]interface{}) error {
+func (c *Config) UpdateClientConfiguration(ctx context.Context, update map[string]interface{}) error {
 	for k, v := range update {
 		switch k {
 		case JsonnetLibPaths:
@@ -137,7 +154,7 @@ func (c *Config) UpdateClientConfiguration(update map[string]interface{}) error 
 			}
 
 			c.jsonnetLibPaths = paths
-			c.dispatch(JsonnetLibPaths, paths)
+			c.dispatch(ctx, JsonnetLibPaths, paths)
 		default:
 			return errors.Errorf("setting %q is unknown to the jsonnet language server", k)
 		}

@@ -8,15 +8,19 @@ import (
 	"github.com/bryanl/jsonnet-language-server/pkg/lsp"
 	jpos "github.com/bryanl/jsonnet-language-server/pkg/util/position"
 	"github.com/bryanl/jsonnet-language-server/pkg/util/uri"
+	opentracing "github.com/opentracing/opentracing-go"
 )
 
 func textDocumentHighlight(ctx context.Context, r *request, c *config.Config) (interface{}, error) {
+	span := opentracing.SpanFromContext(ctx)
+	ctx = opentracing.ContextWithSpan(ctx, span)
+
 	var params lsp.TextDocumentPositionParams
 	if err := r.Decode(&params); err != nil {
 		return nil, err
 	}
 
-	doc, err := c.Text(params.TextDocument.URI)
+	doc, err := c.Text(ctx, params.TextDocument.URI)
 	if err != nil {
 		return nil, err
 	}
