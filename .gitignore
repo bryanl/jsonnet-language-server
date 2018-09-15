@@ -1,3 +1,5 @@
 ider
 jlsclient
 *.pdf
+
+.DS_Store
