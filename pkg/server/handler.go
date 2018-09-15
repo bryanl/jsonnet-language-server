@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"log"
 	"path/filepath"
 	"runtime/debug"
@@ -11,6 +12,7 @@ import (
 
 	"github.com/bryanl/jsonnet-language-server/pkg/analysis/lexical"
 	"github.com/bryanl/jsonnet-language-server/pkg/analysis/lexical/token"
+	opentracing "github.com/opentracing/opentracing-go"
 	"go.uber.org/zap"
 
 	"github.com/bryanl/jsonnet-language-server/pkg/config"
@@ -49,6 +51,8 @@ type Handler struct {
 	nodeCache           *token.NodeCache
 	textDocumentWatcher *lexical.TextDocumentWatcher
 	conn                *jsonrpc2.Conn
+	tracer              opentracing.Tracer
+	tracerCloser        io.Closer
 }
 
 var _ jsonrpc2.Handler = (*Handler)(nil)
@@ -62,6 +66,8 @@ func NewHandler(logger logrus.FieldLogger, zLogger *zap.Logger) *Handler {
 
 	tdw := lexical.NewTextDocumentWatcher(c, lexical.NewPerformDiagnostics())
 
+	tracer, tracerCloser := initTracing("jsonnet-langauge-server", zapLogger)
+
 	return &Handler{
 		logger:              logger.WithField("component", "handler"),
 		zapLogger:           zapLogger,
@@ -69,7 +75,18 @@ func NewHandler(logger logrus.FieldLogger, zLogger *zap.Logger) *Handler {
 		config:              c,
 		nodeCache:           nodeCache,
 		textDocumentWatcher: tdw,
+		tracer:              tracer,
+		tracerCloser:        tracerCloser,
 	}
+}
+
+// Close closes the handler.
+func (h *Handler) Close() error {
+	if h.tracerCloser != nil {
+		return h.tracerCloser.Close()
+	}
+
+	return nil
 }
 
 // SetConn sets the RPC connection for the handler.
@@ -80,6 +97,7 @@ func (h *Handler) SetConn(conn *jsonrpc2.Conn) {
 
 type request struct {
 	ctx     context.Context
+	span    opentracing.Span
 	conn    *jsonrpc2.Conn
 	req     *jsonrpc2.Request
 	logger  logrus.FieldLogger
@@ -124,11 +142,16 @@ func (lh *Handler) Handle(ctx context.Context, conn *jsonrpc2.Conn, req *jsonrpc
 		"method": req.Method,
 		"id":     req.ID.String()})
 
+	span := lh.tracer.StartSpan(req.Method)
+	span.SetTag("id", req.ID.String())
+	defer span.Finish()
+
 	r := &request{
 		ctx:    ctx,
 		conn:   conn,
 		req:    req,
 		logger: l,
+		span:   span,
 	}
 
 	defer func() {

@@ -62,7 +62,7 @@ func run(logger logrus.FieldLogger, debug bool) error {
 
 	<-conn.DisconnectNotify()
 
-	return nil
+	return handler.Close()
 }
 
 func initLogger(debug bool) logrus.FieldLogger {
